@@ -3489,6 +3489,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// the notes are numbered); nil where the file says none. W-FN-1's Footnote and Endnote dialog edits them.
     public var footnotePropertiesXML: String? = nil
     public var endnotePropertiesXML: String? = nil
+    /// The last section's own `w:footnotePr` and `w:endnotePr` (its sectPr's), as written; nil where it states none.
+    /// They override the settings' for that section's notes (Footnote and Endnote > Apply changes to: This section).
+    public var sectionNotesXML: String? = nil
     /// The number of the first page where the last section says one
     /// (`w:pgNumType w:start`), and how page numbers are written where it
     /// says that (`w:fmt`: "lowerRoman", "numberInDash"…).

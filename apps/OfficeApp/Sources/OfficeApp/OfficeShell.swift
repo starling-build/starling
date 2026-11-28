@@ -2402,17 +2402,17 @@ final class OfficeShellState: State<StatefulWidget> {
             return Stack(children: [
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: FootnoteDialog(
-                    current: { [weak self] kind in self?.controller.noteOptions(kind) ?? NoteOptions.defaults(kind) },
-                    onApply: { [weak self] kind, options in
+                    current: { [weak self] kind in self?.controller.sectionNoteOptions(kind) ?? NoteOptions.defaults(kind) },
+                    onApply: { [weak self] kind, options, thisSection in
                         guard let self else { return }
                         self.setState { self._noteOptionsOpen = false }
-                        self.controller.setNoteOptions(kind, options)
+                        self.controller.setNoteOptions(kind, options, thisSection: thisSection)
                         self._editorFocus.requestFocus()
                     },
-                    onInsert: { [weak self] kind, options, custom in
+                    onInsert: { [weak self] kind, options, custom, thisSection in
                         guard let self else { return }
                         self.setState { self._noteOptionsOpen = false }
-                        self.controller.setNoteOptions(kind, options)
+                        self.controller.setNoteOptions(kind, options, thisSection: thisSection)
                         self.controller.insertNote(kind, customMark: custom)
                         if let n = self.controller.noteAtCaret() { self._openNote(n) } else { self._editorFocus.requestFocus() }
                     },
@@ -2423,6 +2423,7 @@ final class OfficeShellState: State<StatefulWidget> {
                         self._editorFocus.requestFocus()
                     },
                     counts: (controller.document.footnotes.count, controller.document.endnotes.count),
+                    sectionOwns: { [weak self] kind in self?.controller.sectionHasOwnNoteOptions(kind) ?? false },
                     onCancel: { [weak self] in
                         self?.setState { self?._noteOptionsOpen = false }
                         self?._editorFocus.requestFocus()

@@ -17,19 +17,22 @@ private final class NoteKeyed: StatelessWidget {
 
 final class FootnoteDialog: StatefulWidget {
     let current: (NoteReference.Kind) -> NoteOptions
-    let onApply: (NoteReference.Kind, NoteOptions) -> Void
+    /// The settings applied to the whole document, or (true) to the caret's section only.
+    let onApply: (NoteReference.Kind, NoteOptions, Bool) -> Void
     /// Insert: the settings applied, then a note of the kind at the caret (with the custom mark when one is typed).
-    let onInsert: (NoteReference.Kind, NoteOptions, String?) -> Void
+    let onInsert: (NoteReference.Kind, NoteOptions, String?, Bool) -> Void
     let onConvert: (NoteConversion) -> Void
     /// How many footnotes and endnotes the document has (Convert offers only what there is to convert).
     let counts: (footnotes: Int, endnotes: Int)
     let onCancel: () -> Void
-    init(current: @escaping (NoteReference.Kind) -> NoteOptions, onApply: @escaping (NoteReference.Kind, NoteOptions) -> Void,
-         onInsert: @escaping (NoteReference.Kind, NoteOptions, String?) -> Void = { _, _, _ in },
+    /// Whether the caret's section states the kind's options of its own (the dialog then opens on "This section").
+    let sectionOwns: (NoteReference.Kind) -> Bool
+    init(current: @escaping (NoteReference.Kind) -> NoteOptions, onApply: @escaping (NoteReference.Kind, NoteOptions, Bool) -> Void,
+         onInsert: @escaping (NoteReference.Kind, NoteOptions, String?, Bool) -> Void = { _, _, _, _ in },
          onConvert: @escaping (NoteConversion) -> Void = { _ in }, counts: (footnotes: Int, endnotes: Int) = (0, 0),
-         onCancel: @escaping () -> Void) {
+         sectionOwns: @escaping (NoteReference.Kind) -> Bool = { _ in false }, onCancel: @escaping () -> Void) {
         self.current = current; self.onApply = onApply; self.onInsert = onInsert; self.onConvert = onConvert
-        self.counts = counts; self.onCancel = onCancel
+        self.counts = counts; self.onCancel = onCancel; self.sectionOwns = sectionOwns
         super.init()
     }
     override func createState() -> State<StatefulWidget> { FootnoteDialogState() }
@@ -44,10 +47,13 @@ final class FootnoteDialogState: State<StatefulWidget> {
     /// The Convert Notes choices showing, and the one picked.
     private(set) var converting = false
     private(set) var conversion = NoteConversion.footnotesToEndnotes
+    /// Apply changes to: the caret's section only (false: the whole document).
+    private(set) var thisSection = false
 
     override func initState() {
         super.initState()
         options = _w.current(kind)
+        thisSection = _w.sectionOwns(kind)
         _start.text = String(options.start)
     }
 
@@ -58,12 +64,12 @@ final class FootnoteDialogState: State<StatefulWidget> {
 
     private func _switch(to k: NoteReference.Kind) {
         guard k != kind else { return }
-        setState { kind = k; options = _w.current(k); _start.text = String(options.start) }
+        setState { kind = k; options = _w.current(k); thisSection = _w.sectionOwns(k); _start.text = String(options.start) }
     }
 
     func _customForTesting(_ t: String) { _custom.text = t }
     /// The Insert button (a tap by its label finds the ribbon's Insert tab first).
-    func _insertForTesting() { commit(); _w.onInsert(kind, options, customMark) }
+    func _insertForTesting() { commit(); _w.onInsert(kind, options, customMark, thisSection) }
 
     var customMark: String? {
         let t = _custom.text.trimmingWhitespace(newlines: true)
@@ -141,14 +147,21 @@ final class FootnoteDialogState: State<StatefulWidget> {
             ])),
             heading("Numbering"),
             choices(restarts, options.restart) { $0.restart = $1 },
+            heading("Apply changes to"),
+            Row(crossAxisAlignment: .center, children: [("Whole document", false), ("This section", true)].map { name, value in
+                Padding(padding: EdgeInsets(left: 0, top: 4, right: 12, bottom: 4), child: NoteKeyed(value ? "note-scope-section" : "note-scope-document", Checkbox(
+                    checked: thisSection == value,
+                    onChanged: { [weak self] v in if v == true { self?.setState { self?.thisSection = value } } },
+                    content: Text(name))))
+            }),
         ])
         let shell = DialogShell(title: "Footnote and Endnote", page: page, okLabel: "Insert", width: 560,
                                 onOK: { [weak self] in
                                     guard let self else { return }
-                                    self.commit(); self._w.onInsert(self.kind, self.options, self.customMark)
+                                    self.commit(); self._w.onInsert(self.kind, self.options, self.customMark, self.thisSection)
                                 },
                                 onCancel: { [weak self] in self?._w.onCancel() })
-        shell.middle = ("Apply", { [weak self] in guard let self else { return }; self.commit(); self._w.onApply(self.kind, self.options) })
+        shell.middle = ("Apply", { [weak self] in guard let self else { return }; self.commit(); self._w.onApply(self.kind, self.options, self.thisSection) })
         return shell
     }
 }

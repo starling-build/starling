@@ -446,42 +446,58 @@ extension RichDocumentController {
     }
 
     /// Set the kind's numbering and placement: the marks in the body and the notes renumbered to match. One undo step.
+    /// The whole document: the settings say it and no section keeps its own. `thisSection`: the caret's section states
+    /// what differs from the document's (its sectPr's footnotePr / endnotePr, Word's "Apply changes to: This section").
     /// (Restart each page is saved; the marks keep counting through, as there are no pages yet at edit time.)
-    public func setNoteOptions(_ kind: NoteReference.Kind, _ options: NoteOptions) {
+    public func setNoteOptions(_ kind: NoteReference.Kind, _ options: NoteOptions, thisSection: Bool = false) {
         guard !readOnly else { return }
         var state = NotesState(document)
-        let oldXML = kind == .footnote ? state.footnoteProperties : state.endnoteProperties
-        let xml = Self._notePropertiesXML(kind, options, keeping: oldXML)
-        if kind == .footnote { state.footnoteProperties = xml } else {
-            state.endnoteProperties = xml
-            state.endnotesAtSectionEnd = options.position == "sectEnd"
+        var styles: [Int: RichParagraphStyle] = [:]   // section mark -> its new style
+        let tag = kind == .footnote ? "footnotePr" : "endnotePr"
+        let base: NoteOptions
+        if thisSection {
+            base = noteOptions(kind)
+            let element = Self._sectionNoteElement(kind, options, base: base)
+            let mark = sectionMark(containing: selection.focus.paragraph)
+            if mark < 0 {
+                // (A section made by a break in the last one is written as a copy of it: it keeps what it had.)
+                let had = state.sectionNotes.flatMap { Self._noteElement($0, tag) } ?? "<w:\(tag)/>"
+                for (i, p) in document.paragraphs.enumerated() where p.cell == nil && p.style.sectionPage != nil && i < document.paragraphs.count - 1 {
+                    guard let sect = p.style.sectionXML, sect.containsSubstring(Self.sectionAsLast), Self._noteElement(sect, tag) == nil else { continue }
+                    var s = p.style; s.sectionXML = Self._replacingNoteElement(in: sect, tag, with: had); styles[i] = s
+                }
+                let notes = Self._replacingNoteElement(in: state.sectionNotes ?? "", tag, with: element)
+                state.sectionNotes = notes.isEmpty ? nil : notes
+            } else if let sect = document.paragraphs[mark].style.sectionXML {
+                var s = document.paragraphs[mark].style; s.sectionXML = Self._replacingNoteElement(in: sect, tag, with: element); styles[mark] = s
+            }
+        } else {
+            base = options
+            let oldXML = kind == .footnote ? state.footnoteProperties : state.endnoteProperties
+            let xml = Self._notePropertiesXML(kind, options, keeping: oldXML)
+            if kind == .footnote { state.footnoteProperties = xml } else {
+                state.endnoteProperties = xml
+                state.endnotesAtSectionEnd = options.position == "sectEnd"
+            }
+            let notes = Self._replacingNoteElement(in: state.sectionNotes ?? "", tag, with: nil)
+            state.sectionNotes = notes.isEmpty ? nil : notes
+            for (i, p) in document.paragraphs.enumerated() {
+                guard let sect = p.style.sectionXML, Self._noteElement(sect, tag) != nil else { continue }
+                var s = p.style; s.sectionXML = Self._replacingNoteElement(in: sect, tag, with: nil); styles[i] = s
+            }
         }
         let marks = _marks(kind)
-        func label(_ n: Int) -> String { options.format.string(n) }
-        var numbered: [Int: Int] = [:]
-        var labels: [String] = []
-        var n = options.start - 1
-        var sectionOf: [Int] = []   // paragraph -> its section
-        var s = 0
-        for p in document.paragraphs { sectionOf.append(s); if p.style.sectionXML != nil { s += 1 } }
-        var lastSection = 0
-        for m in marks {
-            let section = sectionOf[m.paragraph]
-            if options.restart == "eachSect", section != lastSection { n = options.start - 1 }
-            lastSection = section
-            n += 1
-            numbered[m.id] = n
-            labels.append(label(n))
-        }
+        let labels = _labels(marks, kind, base: base, sectionNotes: state.sectionNotes, styles: styles)
+        var labelOf: [Int: String] = [:]
+        for (i, m) in marks.enumerated() where labelOf[m.id] == nil { labelOf[m.id] = labels[i] }
         func relabeled(_ all: [Int: [RichParagraph]]) -> [Int: [RichParagraph]] {
             var out = all
             for (nid, paras) in all {
-                guard let num = numbered[nid], var p = paras.first, let r = p.runs.first, r.length > 0 else { continue }
+                guard let new = labelOf[nid], var p = paras.first, let r = p.runs.first, r.length > 0 else { continue }
                 let units = Array(p.text.utf16)
                 guard units.count >= r.length else { continue }
                 let old = String(decoding: units[0 ..< r.length], as: UTF16.self)
                 guard !old.isEmpty, old.allSatisfy({ $0.isLetter || $0.isNumber }) else { continue }
-                let new = label(num)
                 if old == new { continue }
                 p = RichParagraph(text: new + String(decoding: units[r.length...], as: UTF16.self),
                                   runs: [Run(length: new.utf16.count, style: r.style)] + p.runs.dropFirst(), style: p.style)
@@ -491,9 +507,10 @@ extension RichDocumentController {
         }
         if kind == .footnote { state.footnotes = relabeled(state.footnotes) } else { state.endnotes = relabeled(state.endnotes) }
         let old = NotesState(document)
-        guard state != old else { return }
+        guard state != old || !styles.isEmpty else { return }
         edit {
-            perform(.setNotes(new: state, old: old))
+            if state != old { perform(.setNotes(new: state, old: old)) }
+            for (i, s) in styles.sorted(by: { $0.key < $1.key }) { perform(.setParagraphStyle(i, old: document.paragraphs[i].style, new: s)) }
             for (i, m) in marks.enumerated().reversed() where labels[i] != m.text {
                 let pos = RichPosition(paragraph: m.paragraph, offset: m.offset)
                 perform(.deleteText(pos, m.text, [Run(length: m.length, style: m.style)]))
@@ -502,21 +519,133 @@ extension RichDocumentController {
         }
     }
 
-    /// The labels of the kind's numbered marks (`marks`, body order) under `options`: the first number, the format, and
-    /// a new count at each section when the numbering restarts there.
-    func _labels(_ marks: [_Mark], _ options: NoteOptions) -> [String] {
+    /// The options in force in the section holding `paragraph` (default: the caret's): the document's, with what
+    /// the section states of its own over them.
+    public func sectionNoteOptions(_ kind: NoteReference.Kind, paragraph: Int? = nil) -> NoteOptions {
+        let mark = sectionMark(containing: paragraph ?? selection.focus.paragraph)
+        return Self._overridden(noteOptions(kind), kind, Self._sectionNotes(mark < 0 ? nil : document.paragraphs[mark].style.sectionXML,
+                                                                             last: document.sectionNotesXML))
+    }
+
+    /// Whether the caret's section states note options of its own for the kind.
+    public func sectionHasOwnNoteOptions(_ kind: NoteReference.Kind) -> Bool {
+        let mark = sectionMark(containing: selection.focus.paragraph)
+        let xml = Self._sectionNotes(mark < 0 ? nil : document.paragraphs[mark].style.sectionXML, last: document.sectionNotesXML)
+        return xml.flatMap { Self._noteElement($0, kind == .footnote ? "footnotePr" : "endnotePr") }.map { $0.containsSubstring("w:val") } ?? false
+    }
+
+    /// The note properties a section's sectPr holds: its own, or — for the last section, or a copy of it that states
+    /// none — the last section's (`last`).
+    public static func _sectionNotes(_ sectionXML: String?, last: String?) -> String? {
+        guard let sect = sectionXML else { return last }
+        if let own = sectionNoteElements(sect) { return own }
+        return sect.containsSubstring(sectionAsLast) ? last : nil
+    }
+
+    /// `base` with what a section's note properties (`xml`) state for the kind over it.
+    static func _overridden(_ base: NoteOptions, _ kind: NoteReference.Kind, _ xml: String?) -> NoteOptions {
+        guard let xml, let el = _noteElement(xml, kind == .footnote ? "footnotePr" : "endnotePr") else { return base }
+        var o = base
+        if let v = _value(el, "pos") { o.position = v }
+        if let v = _value(el, "numFmt"), let f = NoteOptions.format(named: v) { o.format = f }
+        if let v = _value(el, "numStart"), let n = Int(v) { o.start = n }
+        if let v = _value(el, "numRestart") { o.restart = v }
+        return o
+    }
+
+    /// A section's `w:footnotePr` / `w:endnotePr` stating what of `options` differs from the document's (`base`); nil when nothing does.
+    static func _sectionNoteElement(_ kind: NoteReference.Kind, _ options: NoteOptions, base: NoteOptions) -> String? {
+        var inner = ""
+        // (CT_FtnProps / CT_EdnProps: pos, numFmt, numStart, numRestart.)
+        if options.position != base.position { inner += "<w:pos w:val=\"\(options.position)\"/>" }
+        if options.format != base.format { inner += "<w:numFmt w:val=\"\(NoteOptions.formatName(options.format))\"/>" }
+        if options.start != base.start { inner += "<w:numStart w:val=\"\(options.start)\"/>" }
+        if options.restart != base.restart { inner += "<w:numRestart w:val=\"\(options.restart)\"/>" }
+        let tag = kind == .footnote ? "footnotePr" : "endnotePr"
+        return inner.isEmpty ? nil : "<w:\(tag)>\(inner)</w:\(tag)>"
+    }
+
+    /// A sectPr's note property elements (`w:footnotePr`, then `w:endnotePr`), joined; nil where it has neither.
+    public static func sectionNoteElements(_ xml: String) -> String? {
+        let out = ["footnotePr", "endnotePr"].compactMap { _noteElement(xml, $0) }.joined()
+        return out.isEmpty ? nil : out
+    }
+
+    /// The range of the first `<w:tag …>…</w:tag>` (or `<w:tag …/>`) in `xml`.
+    static func _noteElementRange(_ xml: String, _ tag: String) -> Range<String.Index>? {
+        var from = xml.startIndex
+        while let open = xml.rangeOfSubstring("<w:\(tag)", in: from ..< xml.endIndex) {
+            from = open.upperBound
+            guard open.upperBound < xml.endIndex, " />".contains(xml[open.upperBound]),
+                  let gt = xml.rangeOfSubstring(">", in: open.upperBound ..< xml.endIndex) else { continue }
+            if xml[xml.index(before: gt.lowerBound)] == "/" { return open.lowerBound ..< gt.upperBound }
+            guard let close = xml.rangeOfSubstring("</w:\(tag)>", in: gt.upperBound ..< xml.endIndex) else { return nil }
+            return open.lowerBound ..< close.upperBound
+        }
+        return nil
+    }
+
+    static func _noteElement(_ xml: String, _ tag: String) -> String? { _noteElementRange(xml, tag).map { String(xml[$0]) } }
+
+    /// `xml` (a sectPr, or the last section's note properties alone) with its `w:tag` replaced by `element`, or
+    /// dropped (nil). A new one goes where CT_SectPr puts it: after the header and footer references (and a
+    /// footnotePr, for an endnotePr), before the rest.
+    static func _replacingNoteElement(in xml: String, _ tag: String, with element: String?) -> String {
+        var s = xml
+        if let r = _noteElementRange(s, tag) {
+            s.replaceSubrange(r, with: element ?? "")
+            return s
+        }
+        guard let element else { return s }
+        var at = s.endIndex
+        if let open = s.rangeOfSubstring("<w:sectPr"), let gt = s.rangeOfSubstring(">", in: open.upperBound ..< s.endIndex) {
+            if s[s.index(before: gt.lowerBound)] == "/" {
+                s.replaceSubrange(s.index(before: gt.lowerBound) ..< gt.upperBound, with: "></w:sectPr>")
+                return _replacingNoteElement(in: s, tag, with: element)
+            }
+            at = gt.upperBound
+            // Past every reference (and the footnotePr before an endnotePr).
+            var from = at
+            while let r = s.rangeOfSubstring("Reference ", in: from ..< s.endIndex), let end = s.rangeOfSubstring("/>", in: r.upperBound ..< s.endIndex) {
+                let head = s[s.startIndex ..< r.lowerBound]
+                guard head.hasSuffix("<w:header") || head.hasSuffix("<w:footer") else { from = r.upperBound; continue }
+                at = max(at, end.upperBound); from = end.upperBound
+            }
+            if tag == "endnotePr", let f = _noteElementRange(s, "footnotePr") { at = max(at, f.upperBound) }
+        } else if tag == "footnotePr" {
+            at = s.startIndex   // the last section's own: footnotePr first
+        }
+        s.insert(contentsOf: element, at: at)
+        return s
+    }
+
+    /// The labels of the kind's numbered marks (`marks`, body order): each in its section's options (the document's,
+    /// `base`, with what the section states over them), counting on through the sections, and from the section's
+    /// first number again where it restarts. `sectionNotes` and `styles` (section marks' new styles) stand for the
+    /// document's where an edit is about to change them.
+    func _labels(_ marks: [_Mark], _ kind: NoteReference.Kind, base: NoteOptions, sectionNotes: String?? = nil,
+                 styles: [Int: RichParagraphStyle] = [:]) -> [String] {
+        let last = sectionNotes ?? document.sectionNotesXML
         var sectionOf: [Int] = []   // paragraph -> its section
-        var s = 0
-        for p in document.paragraphs { sectionOf.append(s); if p.style.sectionXML != nil { s += 1 } }
-        var n = options.start - 1
-        var last = 0
+        var options: [NoteOptions] = []   // section -> its options
+        for (i, p) in document.paragraphs.enumerated() {
+            sectionOf.append(options.count)
+            if let sect = (styles[i] ?? p.style).sectionXML { options.append(Self._overridden(base, kind, Self._sectionNotes(sect, last: last))) }
+        }
+        options.append(Self._overridden(base, kind, last))
+        // (The count since the last restart, from the section's own first number where it restarts, else from the
+        // document's: Word prints C, D | 3, 4 for a first section from 3 restarting, the second running on.)
+        var seen = 0
+        var current = -1
         var out: [String] = []
         for m in marks {
             let section = sectionOf[min(m.paragraph, sectionOf.count - 1)]
-            if options.restart == "eachSect", section != last { n = options.start - 1 }
-            last = section
-            n += 1
-            out.append(options.format.string(n))
+            let o = options[section]
+            let restarts = o.restart == "eachSect"
+            if section != current, restarts { seen = 0 }
+            current = section
+            seen += 1
+            out.append(o.format.string(seen + (restarts ? o.start : base.start) - 1))
         }
         return out
     }
@@ -613,7 +742,7 @@ extension RichDocumentController {
         var label: [Int: String] = [:]   // index in `all` -> its new text
         for kind in [NoteReference.Kind.footnote, .endnote] {
             let numbered = finalMarks.filter { $0.ref.kind == kind && !all[$0.index].1.text.contains("\u{200B}" as Character) }
-            let labels = _labels(numbered.map { all[$0.index].1 }, noteOptions(kind))
+            let labels = _labels(numbered.map { all[$0.index].1 }, kind, base: noteOptions(kind))
             for (k, f) in numbered.enumerated() {
                 label[f.index] = labels[k]
                 var notes = kind == .footnote ? state.footnotes : state.endnotes

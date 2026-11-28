@@ -1693,7 +1693,14 @@ extension DocxFormat {
         /// An endnote's own mark, in its numbering's form ("i").
         var currentNoteLabel: String? = nil
         var endnoteFormat = "lowerRoman", footnoteFormat = "decimal"
-        func label(_ n: Int, footnote: Bool) -> String { DocxFormat.noteLabel(n, format: footnote ? footnoteFormat : endnoteFormat) }
+        /// A note's section's own number form and, where its section restarts the count, first number, by note id.
+        var footnoteFormatOf: [Int: String] = [:], endnoteFormatOf: [Int: String] = [:], footnoteStartOf: [Int: Int] = [:]
+        /// The id of the footnote whose text is being read.
+        var currentNoteId: Int? = nil
+        func label(_ n: Int, footnote: Bool, id: Int? = nil) -> String {
+            let own = id.flatMap { footnote ? footnoteFormatOf[$0] : endnoteFormatOf[$0] }
+            return DocxFormat.noteLabel(n, format: own ?? (footnote ? footnoteFormat : endnoteFormat))
+        }
         var rels: [String: KeptRel]
         /// Reading a header or footer part: its page fields stay fields
         /// (the layout fills them for each page).
@@ -1806,7 +1813,10 @@ extension DocxFormat {
             for name in kept.keys { if let t = contentType(name) { keptTypes[name] = t } }
         }
         func next(footnote: Bool, id: Int = -1) -> Int {
-            if footnote { if footnoteRestarts.contains(id) { seenFootnotes = 0 }; seenFootnotes += 1; return seenFootnotes + footnoteStart - 1 }
+            if footnote {
+                if footnoteRestarts.contains(id) { seenFootnotes = 0 }
+                seenFootnotes += 1; return seenFootnotes + (footnoteStartOf[id] ?? footnoteStart) - 1
+            }
             seenEndnotes += 1; return seenEndnotes + endnoteStart - 1
         }
         /// Keeps the part at `path` and, through its rels, every part it reaches.
