@@ -264,6 +264,12 @@ enum SlideFonts {
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
         // (None of a stand-in's widths for the machine's own face.)
         guard let family, OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil else { return nil }
+        return standInFace(family, eastAsian)
+    }
+
+    /// The widths PowerPoint sets `family` at, for a face this machine and the file lack (`face` asks this after
+    /// checking both; tests ask it directly, so that what the machine has cannot change the answer).
+    static func standInFace(_ family: String, _ eastAsian: Bool) -> RichResolvedFace? {
         // (An East Asian query is answered for Malgun Gothic only, whose Hangul em the layout asks for by it.)
         // (A Traditional Chinese face PowerPoint emboldens itself: a bold ideograph steps 0.983 of the regular's, ideographs being a full em; lab vk.)
         if eastAsian, ["dfkai-sb", "標楷體", "mingliu", "pmingliu", "新細明體", "細明體"].contains(windowsName(family)) {
