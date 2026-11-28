@@ -1869,6 +1869,7 @@ final class SheetsShellState: State<StatefulWidget> {
     static let pasteOptionChoices: [(String, PasteSpecial)] = [
         ("Paste", PasteSpecial()),
         ("Formulas", PasteSpecial(what: .formulas)),
+        ("Formulas & Number Formatting", PasteSpecial(what: .formulasAndNumberFormats)),
         ("Keep Source Column Widths", PasteSpecial(what: .allWithColumnWidths)),
         ("No Borders", PasteSpecial(what: .allExceptBorders)),
         ("Transpose", PasteSpecial(transpose: true)),

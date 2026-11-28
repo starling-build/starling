@@ -15,6 +15,20 @@ struct PasteSpecial: Equatable, Sendable {
         case valuesAndNumberFormats
         /// Values with the copied cells' whole format (Values & Source Formatting).
         case valuesAndFormats
+        /// Comments and Notes: the copied cells' notes, nothing else.
+        case comments
+        /// Validation: the copied cells' data validation rules, nothing else.
+        case validation
+        /// Formulas and number formats.
+        case formulasAndNumberFormats
+        /// All using Source theme (a copy within the workbook has its theme already: as All).
+        case allUsingSourceTheme
+        /// All merging conditional formats: All, and the copied cells' conditional formats added to the
+        /// pasted cells' own.
+        case allMergingConditionalFormats
+
+        /// Pastes the cells as All does.
+        var isAll: Bool { [.all, .allUsingSourceTheme, .allMergingConditionalFormats].contains(self) }
     }
     enum Operation: String, CaseIterable, Sendable { case none, add, subtract, multiply, divide }
     var what: What = .all
@@ -84,6 +98,11 @@ extension WorkbookController {
         let ws = sheet
         let source: Worksheet? = clip.sheet < book.sheets.count ? book.sheets[clip.sheet] : nil
         structural {
+            if how.what == .comments { _pasteNotes(clip, source: source, at: at, transpose: how.transpose, skipBlanks: how.skipBlanks); return }
+            if how.what == .validation {
+                if let source { _pasteValidation(clip, source: source, dst: dst, transpose: how.transpose) }
+                return
+            }
             if how.what == .columnWidths {
                 // (Widths belong to columns: a turned block has none to give.)
                 guard let source, !how.transpose else { return }
@@ -129,6 +148,7 @@ extension WorkbookController {
                     }
                 }
             }
+            if how.what == .allMergingConditionalFormats, let source { _mergeConditionalFormats(clip, source: source, dst: dst, transpose: how.transpose) }
         }
         select(range: dst, active: at)
     }
@@ -163,17 +183,24 @@ extension WorkbookController {
             var c = constant(s, s.value)
             c.style = s.style
             result = c
-        case .formulas:
+        case .formulas, .formulasAndNumberFormats:
             if var s = src {
                 if !keepFormula, s.formula != nil || s.rawFormula != nil { s = constant(s, s.value) }
                 s.style = existing?.style ?? 0
+                if how.what == .formulasAndNumberFormats {
+                    var st = book.style(s.style)
+                    st.numberFormat = book.style(src?.style ?? 0).numberFormat
+                    s.style = book.styleIndex(st)
+                }
                 result = s
             } else {
                 var c = existing ?? Cell(input: "")
                 c.formula = nil; c.rawFormula = nil; c.cached = nil; c.value = .empty; c.input = ""
                 result = c
             }
-        case .all, .columnWidths, .allWithColumnWidths, .allExceptBorders:
+        case .comments, .validation:
+            return existing
+        case .all, .columnWidths, .allWithColumnWidths, .allExceptBorders, .allUsingSourceTheme, .allMergingConditionalFormats:
             if var s = src {
                 if !keepFormula, s.formula != nil || s.rawFormula != nil { let st = s.style; s = constant(s, s.value); s.style = st }
                 if how.what == .allExceptBorders {
@@ -201,10 +228,103 @@ extension WorkbookController {
             case .none: v = b
             }
             var out = constant(existing ?? r, .number(v))
-            if [.all, .allWithColumnWidths, .allExceptBorders, .valuesAndFormats].contains(how.what) { out.style = r.style } else { out.style = existing?.style ?? 0 }
+            if how.what.isAll || [.allWithColumnWidths, .allExceptBorders, .valuesAndFormats].contains(how.what) {
+                out.style = r.style
+            } else if how.what == .formulasAndNumberFormats {
+                out.style = r.style
+            } else { out.style = existing?.style ?? 0 }
             return out
         }
         return result
+    }
+}
+
+// MARK: Notes, validation and conditional formats
+
+extension WorkbookController {
+    /// Where a copied range (in the source sheet) lands, turned or not; nil when it holds none of the clip.
+    private func _landing(_ r: CellRange, clip: Clip, at: CellAddress, transpose: Bool) -> CellRange? {
+        guard let x = r.intersection(clip.range) else { return nil }
+        let t = x.top - clip.range.top, l = x.left - clip.range.left
+        let out = transpose
+            ? CellRange(top: at.row + l, left: at.col + t, bottom: at.row + l + x.cols - 1, right: at.col + t + x.rows - 1)
+            : CellRange(top: at.row + t, left: at.col + l, bottom: at.row + t + x.rows - 1, right: at.col + l + x.cols - 1)
+        guard out.bottom < CellAddress.maxRows, out.right < CellAddress.maxCols else { return nil }
+        return out
+    }
+
+    /// A kept rule element (a `<dataValidation>` or a `<conditionalFormatting>`) as pasted: its ranges cut to
+    /// the clip and moved to the paste, its formulas re-read from the rule's new first cell, so each pasted
+    /// cell tests what its copied cell tested. Nil when it covers none of the clip.
+    private func _pastedRule(_ text: String, clip: Clip, at: CellAddress, transpose: Bool) -> String? {
+        guard let tagEnd = text.firstIndex(of: ">"),
+              let a = text.findRange(of: " sqref=\"", in: text.startIndex ..< tagEnd),
+              let b = text.findRange(of: "\"", in: a.upperBound ..< text.endIndex) else { return nil }
+        let ranges = text[a.upperBound ..< b.lowerBound].split(separator: " ").compactMap { CellRange(String($0)) }
+        guard let old = ranges.first?.topLeft,
+              let new = ranges.lazy.compactMap({ self._landing($0, clip: clip, at: at, transpose: transpose) }).first?.topLeft
+        else { return nil }
+        let dr = new.row - old.row, dc = new.col - old.col
+        return KeptRefs.element(text, range: { self._landing($0, clip: clip, at: at, transpose: transpose) }, ref: { r in
+            if case .ref(let s) = Formula.shifted(.ref(r), rows: dr, cols: dc) { return s }
+            return nil
+        })
+    }
+
+    /// Paste Special > Comments and Notes: each copied note onto its pasted cell, in place of the note there.
+    func _pasteNotes(_ clip: Clip, source: Worksheet?, at: CellAddress, transpose: Bool, skipBlanks: Bool) {
+        guard let source else { return }
+        let ws = sheet
+        let copied = source.notes.filter { n in !n.threaded && n.at.map { clip.range.contains($0) } ?? false }
+        guard !copied.isEmpty || !skipBlanks else { return }
+        var landed: [SheetNote] = []
+        for n in copied {
+            guard let from = n.at, let to = _landing(CellRange(from), clip: clip, at: at, transpose: transpose)?.topLeft else { continue }
+            landed.append(SheetNote(origin: nil, at: to, author: n.author, text: n.text, edited: true))
+        }
+        // Each pasted cell takes the copied cell's note; (skip blanks) a copied cell without one leaves the
+        // pasted cell's note alone.
+        let rows = transpose ? clip.range.cols : clip.range.rows, cols = transpose ? clip.range.rows : clip.range.cols
+        let dst = CellRange(top: at.row, left: at.col, bottom: at.row + rows - 1, right: at.col + cols - 1)
+        if skipBlanks {
+            for n in landed { Self._dropNotes(ws, in: CellRange(n.at!)) }
+        } else {
+            Self._dropNotes(ws, in: dst)
+        }
+        ws.notes += landed
+    }
+
+    /// Paste Special > Validation: the pasted cells take the copied cells' rules and lose their own.
+    func _pasteValidation(_ clip: Clip, source: Worksheet, dst: CellRange, transpose: Bool) {
+        var pasted: [String] = []
+        for (name, text) in source.keptElements where name == "dataValidations" {
+            for kid in RawXML.split([UInt8](text.utf8)).children where kid.name == "dataValidation" {
+                if let p = _pastedRule(kid.text, clip: clip, at: dst.topLeft, transpose: transpose) { pasted.append(p) }
+            }
+        }
+        _takeCellsOutOfValidations([dst])
+        for p in pasted { _appendValidation(p) }
+    }
+
+    /// All merging conditional formats: the copied cells' conditional formats are added after the pasted
+    /// cells' own (numbered after them, so the cells' own rules still come first).
+    func _mergeConditionalFormats(_ clip: Clip, source: Worksheet, dst: CellRange, transpose: Bool) {
+        var pasted: [String] = []
+        for (name, text) in source.keptElements where name == "conditionalFormatting" {
+            if let p = _pastedRule(text, clip: clip, at: dst.topLeft, transpose: transpose) { pasted.append(p) }
+        }
+        for p in pasted {
+            // Renumber each rule's priority: the text after every ` priority="` starts with the old number.
+            var next = _nextCFPriority()
+            var parts = p.components(separatedBy: " priority=\"")
+            for k in parts.indices.dropFirst() {
+                guard let q = parts[k].firstIndex(of: "\"") else { continue }
+                parts[k] = "\(next)" + parts[k][q...]
+                next += 1
+            }
+            let s = parts.joined(separator: " priority=\"")
+            sheet.keptElements.append(("conditionalFormatting", s))
+        }
     }
 }
 

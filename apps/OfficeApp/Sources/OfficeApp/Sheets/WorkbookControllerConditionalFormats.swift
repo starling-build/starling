@@ -208,7 +208,7 @@ extension WorkbookController {
     }
 
     /// One more than the highest priority anywhere in the sheet's kept XML (extensions share the numbering).
-    private func _nextCFPriority() -> Int {
+    func _nextCFPriority() -> Int {
         var top = 0
         for e in sheet.keptElements {
             var from = e.text.startIndex
