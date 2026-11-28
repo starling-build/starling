@@ -1993,6 +1993,26 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// A drag of the Format Shape pane's Transparency slider: the pictures follow it, and the whole drag is one undo step,
+    /// opened by its first change (a click that moves nothing leaves no step).
+    func setPictureTransparencyLive(_ percent: Double) {
+        let pics = selection.filter { $0.picture != nil }
+        let alpha = 1 - max(0, min(100, percent)) / 100
+        guard pics.contains(where: { $0.pictureAlpha != alpha }) else { return }
+        if !_transparencyDragOpen { _checkpoint(); _transparencyDragOpen = true }
+        for s in pics { s.pictureAlpha = alpha }
+        _changed(keepSession: true)
+    }
+
+    /// The slider was let go: typing after it is a step of its own.
+    func endPictureTransparencyDrag() {
+        guard _transparencyDragOpen else { return }
+        _transparencyDragOpen = false
+        _changed()
+    }
+
+    private var _transparencyDragOpen = false
+
     /// Picture Format > Crop to Shape: the selected pictures cut to the outline of `preset` (a rectangle undoes it), one undo step.
     func setPictureGeometry(_ preset: ShapePreset) {
         let pics = selection.filter { $0.picture != nil }

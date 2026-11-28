@@ -300,7 +300,11 @@ public final class KeyboardTraversal {
         guard let f = focused ?? list.first(where: { $0.isCurrent() }), let i = list.firstIndex(where: { $0 === f }) else {
             _focus(reverse ? list.last : list.first); return
         }
+        // Tab out of a text box onto a button or a check box: the box lets go of the keyboard, as in Windows, so it
+        // applies what was typed (its blur) and the next keys are the ring's, not more text in the box.
+        let field = focused == nil ? FocusManager.instance.focusedNode : nil
         _focus(list[(i + (reverse ? list.count - 1 : 1)) % list.count])
+        if let field, FocusManager.instance.focusedNode === field { field.unfocus() }
     }
 
     /// F6: the ring goes to the first control of the next region.

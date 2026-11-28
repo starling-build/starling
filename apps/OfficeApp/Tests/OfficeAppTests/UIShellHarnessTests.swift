@@ -658,9 +658,28 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertNil(t.text?.document.paragraphs.first { $0.cell?.column == 1 }?.cell?.padding)
     }
 
-    /// S-TB-1i (the Mac's three #3349 bugs): Width with the lock on scales the height by the same ratio; Custom Margins
-    /// leaves the frame as tall as its rows (it had grown 30 pt, a stray empty paragraph under the table); each edit is
-    /// one undo that puts the frame and the rows back together.
+    /// The Mac's #3391 bug: Width typed in Format Shape showed but was not applied. Enter applies it, and so does Tab
+    /// (the box lets go of the keyboard as the ring moves on); a locked picture keeps 4:3.
+    func testSlidesFormatPaneWidthAppliesToAPicture() throws {
+        KeyboardTraversal.shared.reset(); defer { KeyboardTraversal.shared.reset() }   // no ring left by an earlier test
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(400, 300),
+                                  at: Rect.fromLTWH(100, 100, 240, 180))
+        deck.selectShapes([pic]); ui.pump()
+        shell.session.onFormatShape?(); ui.pump(); ui.pump()
+        for key in [WidgetTester.Key.enter, WidgetTester.Key.tab] {
+            pic.frame = Rect.fromLTWH(100, 100, 240, 180); deck.selectShapes([]); ui.pump(); deck.selectShapes([pic]); ui.pump()
+            XCTAssertTrue(ui.tap(id: "fmt.width"))
+            for _ in 0..<8 { ui.press(.backspace) }
+            ui.type("180"); ui.press(key); ui.pump(); ui.pump()
+            XCTAssertEqual(pic.frame.width, 180, accuracy: 0.01, "\(key)")
+            XCTAssertEqual(pic.frame.height, 135, accuracy: 0.01, "the lock keeps 4:3")
+        }
+    }
+
     func testSlidesTableSizeMarginsAndUndo() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))

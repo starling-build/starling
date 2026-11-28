@@ -63,6 +63,35 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertTrue(a.aspectLocked)
     }
 
+    func testPictureTransparencyFromThePane() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let deck = DeckController()
+        let shape = deck.addShape(.rect)
+        deck.selectShapes([shape])
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: FormatShapePane(deck: deck, onClose: {}), title: "Test"),
+                              size: Size(1280, 800))
+        settle(ui)
+        XCTAssertFalse(ui.has(id: "fmt.pic.alpha.slider"), "a shape has no Picture section")
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        deck.selectShapes([pic]); settle(ui)
+        let c = try XCTUnwrap(ui.centre(id: "fmt.pic.alpha.slider"))
+        ui.drag(from: c, to: Offset(c.dx + 60, c.dy)); settle(ui)
+        XCTAssertLessThan(pic.pictureAlpha, 0.4, "the slider drags the picture past half see-through")
+        XCTAssertGreaterThan(pic.pictureAlpha, 0.05)
+        deck.undo(); settle(ui)
+        XCTAssertEqual(pic.pictureAlpha, 1, "the whole drag is one undo step")
+        deck.undo(); settle(ui)
+        XCTAssertFalse(deck.currentSlide.shapes.contains { $0.picture != nil }, "the next undo takes the picture away: no empty step")
+        deck.redo(); settle(ui)
+        let again = try XCTUnwrap(deck.currentSlide.shapes.first { $0.picture != nil })
+        deck.selectShapes([again]); settle(ui)
+        ui.tap(id: "fmt.pic.alpha")
+        for _ in 0 ..< 6 { ui.press(.backspace) }
+        ui.type("30"); ui.press(.enter); settle(ui)
+        XCTAssertEqual(again.pictureAlpha, 0.7, accuracy: 1e-9, "a typed percent applies on Enter")
+    }
+
     func testFillAndLineFromThePane() throws {
         let deck = DeckController()
         let a = deck.addShape(.rect)
