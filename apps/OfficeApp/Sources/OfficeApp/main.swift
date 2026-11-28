@@ -40,12 +40,6 @@ GTKWindowedHost.install()
 WebWindowedHost.install()
 #endif
 
-private func windowMetric(_ key: String, _ fallback: Int) -> Int {
-    guard let v = ProcessInfo.processInfo.environment[key], let n = Int(v), n > 0
-    else { return fallback }
-    return n
-}
-
 // The command-line modes — a benchmark and a converter — need a process
 // with arguments and files, which a tab is not.
 #if !os(WASI)
@@ -1331,8 +1325,8 @@ OfficeHost.browserFiles = .init(
 #endif
 
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
-               width: windowMetric("STARLING_WINDOW_W", 1440),
-               height: windowMetric("STARLING_WINDOW_H", 900)) {
+               width: OfficeWindowSize.of(ProcessInfo.processInfo.environment).width,
+               height: OfficeWindowSize.of(ProcessInfo.processInfo.environment).height) {
     #if os(WASI)
     if WebPlatform.defaultRouteName.hasPrefix("/office-landing") {
         FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeLandingView(), title: "Starling Office")

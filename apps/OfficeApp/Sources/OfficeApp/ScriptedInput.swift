@@ -9,6 +9,9 @@
 // session or a person is using the machine (2026-09-30: an OS-level
 // driver's keystrokes landed in another session's window).
 //
+// The drawing area opens at 1440x932 points under OFFICE_SCRIPT (OfficeWindowSize), the UI harness's size, so
+// harness points work unchanged; STARLING_WINDOW_W / _H override it.
+//
 // One command per line; coordinates are logical points in the Flutter
 // view (below the window's title bar):
 //
