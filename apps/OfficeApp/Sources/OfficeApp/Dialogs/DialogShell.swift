@@ -37,6 +37,8 @@ final class DialogShell: StatefulWidget {
     let onCancel: () -> Void
     /// An optional third button between OK and Cancel (Yes / No / Cancel).
     var middle: (label: String, action: () -> Void)?
+    /// The middle button shows but greyed (Paste Special's Paste Link for a choice it cannot link), so the row never moves.
+    var middleEnabled = true
     /// The tab showing when the dialog opens (Borders > More Borders… opens Format Cells on Border).
     var startTab = 0
 
@@ -151,7 +153,7 @@ final class DialogShellState: State<StatefulWidget> {
         children.append(Row(mainAxisAlignment: .end, children: [
             button(FilledButton(onPressed: _w.okEnabled ? { [weak self] in self?._w.onOK() } : nil, child: Text(_w.okLabel))),
             SizedBox(width: 8, height: nil, child: nil),
-        ] + (_w.middle.map { m in [button(Button(key: ValueKey("dialog-middle"), onPressed: m.action, child: Text(m.label))),
+        ] + (_w.middle.map { m in [button(Button(key: ValueKey("dialog-middle"), onPressed: _w.middleEnabled ? m.action : nil, child: Text(m.label))),
                                    SizedBox(width: 8, height: nil, child: nil) as Widget] } ?? []) + [
             button(Button(onPressed: { [weak self] in self?._w.onCancel() }, child: Text(_w.cancelLabel))),
         ]))
