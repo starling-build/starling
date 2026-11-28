@@ -1138,7 +1138,7 @@ public final class RichEditableState: State<StatefulWidget> {
         let flow = _layout.flowPoint(_canvasPoint(local))
         let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
         guard pos.paragraph < doc.paragraphs.count, !doc.paragraphs[pos.paragraph].isImage else { return nil }
-        for d in doc.paragraphs[pos.paragraph].dropDowns where !d.entries.isEmpty {
+        for d in doc.paragraphs[pos.paragraph].dropDowns where !d.entries.isEmpty || d.date != nil {
             let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: d.range.lowerBound), doc)
             let r = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: d.range.upperBound), doc)
             guard Self._over(flow, l, r) else { continue }

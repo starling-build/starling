@@ -8427,6 +8427,96 @@ final class DocxTests: XCTestCase {
         }
     }
 
+    /// W-RV-3: a date picker control shows a picked day in its w:dateFormat and saves it as w:fullDate (midnight UTC).
+    func testDatePickerControlTakesADate() throws {
+        XCTAssertEqual(OfficeShellState.dateControlText(RichDateControl(picture: "dddd, MMMM d, yyyy", language: "en-US", fullDate: nil),
+                                                        year: 2026, month: 11, day: 28).text, "Saturday, November 28, 2026")
+        XCTAssertEqual(OfficeShellState.dateControlText(RichDateControl(picture: "", language: "", fullDate: nil), year: 2026, month: 3, day: 5).text, "3/5/2026")
+        XCTAssertEqual(OfficeShellState.dateControlText(RichDateControl(picture: "dd.MM.yyyy", language: "de-DE", fullDate: nil),
+                                                        year: 2026, month: 3, day: 5).fullDate, "2026-03-05T00:00:00Z")
+        let c = RichDocumentController(document: try DocxFormat.read(try Self._datePickersDocx()).document)
+        let held = try XCTUnwrap(c.document.paragraphs[1].dropDowns.first?.date)
+        XCTAssertEqual(held, RichDateControl(picture: "M/d/yyyy", language: "en-US", fullDate: "2026-11-03T00:00:00Z"))
+        let empty = try XCTUnwrap(c.document.paragraphs[0].dropDowns.first)
+        XCTAssertNil(empty.date?.fullDate)
+        XCTAssertTrue(c.chooseDate(in: 0, at: empty.range.lowerBound, text: "Saturday, November 28, 2026", fullDate: "2026-11-28T00:00:00Z"))
+        XCTAssertEqual(c.document.paragraphs[0].text, "Due: Saturday, November 28, 2026.")
+        XCTAssertNil(c.document.paragraphs[0].style(at: 6).color, "the placeholder's grey is not the date's")
+        let d1 = try XCTUnwrap(c.document.paragraphs[1].dropDowns.first)
+        XCTAssertTrue(c.chooseDate(in: 1, at: d1.range.lowerBound, text: "11/15/2026", fullDate: "2026-11-15T00:00:00Z"))
+        XCTAssertFalse(c.chooseDate(in: 1, at: d1.range.lowerBound, text: "11/15/2026", fullDate: "2026-11-15T00:00:00Z"), "already shows it")
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<w:date w:fullDate=\"2026-11-28T00:00:00Z\">"), out)
+        XCTAssertTrue(out.containsSubstring("<w:date w:fullDate=\"2026-11-15T00:00:00Z\">"), out)
+        XCTAssertFalse(out.containsSubstring("showingPlcHdr"), out)
+        XCTAssertFalse(out.containsSubstring("2026-11-03"), out)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["Due: Saturday, November 28, 2026.", "Signed: 11/15/2026"])
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].text, "Signed: 11/3/2026", "one undo step")
+    }
+
+    /// Lab datepick1: a date picker in its placeholder (a long date picture) and one holding 11/3/2026 (M/d/yyyy).
+    static func _datePickersDocx() throws -> Data {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Due: </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Due\"/><w:id w:val=\"21\"/><w:showingPlcHdr/><w:date><w:dateFormat w:val=\"dddd, MMMM d, yyyy\"/>"
+            + "<w:lid w:val=\"en-US\"/><w:storeMappedDataAs w:val=\"dateTime\"/><w:calendar w:val=\"gregorian\"/></w:date></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:rPr><w:color w:val=\"808080\"/></w:rPr><w:t>Click or tap to enter a date.</w:t></w:r></w:sdtContent></w:sdt>"
+            + "<w:r><w:t>.</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:t xml:space=\"preserve\">Signed: </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Signed\"/><w:id w:val=\"22\"/><w:date w:fullDate=\"2026-11-03T00:00:00Z\"><w:dateFormat w:val=\"M/d/yyyy\"/>"
+            + "<w:lid w:val=\"en-US\"/><w:storeMappedDataAs w:val=\"dateTime\"/><w:calendar w:val=\"gregorian\"/></w:date></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:t>11/3/2026</w:t></w:r></w:sdtContent></w:sdt></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        return try Zip.write(entries)
+    }
+
+    /// W-RV-3: in the app, a click on a date picker opens a calendar on its month; a click on a day shows that day.
+    /// DATEPICK1_OUT=<dir>: start.docx, chosen.docx and the window points (1440x932) for the Word lab and Mac script.
+    func testDatePickersOpenACalendarOnAClick() throws {
+        let start = try Self._datePickersDocx()
+        let path = NSTemporaryDirectory() + "datepick1-\(getpid()).docx"
+        try start.write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: path), title: "t"), size: Size(1440, 932))
+        for _ in 0 ..< 20 { ui.pump() }
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let doc = shell.session.controller
+        XCTAssertEqual(doc.document.paragraphs.map(\.text), ["Due: Click or tap to enter a date..", "Signed: 11/3/2026"])
+        let editor = try XCTUnwrap(ui.elements().first { ($0.widget as? RichEditable)?.controller === doc })
+        let rbox = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        let st = try XCTUnwrap((editor as? StatefulElement)?.state as? RichEditableState)
+        let out = ProcessInfo.processInfo.environment["DATEPICK1_OUT"]
+        let today = try XCTUnwrap(FieldClock.current())
+        let first = OfficeShellState.dateControlText(RichDateControl(picture: "dddd, MMMM d, yyyy", language: "en-US", fullDate: nil),
+                                                     year: today.year, month: today.month, day: 15).text
+        for (i, want) in [(1, "Signed: 11/15/2026"), (0, "Due: \(first).")] {
+            let d = try XCTUnwrap(doc.document.paragraphs[i].dropDowns.first)
+            let l = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: d.range.lowerBound)))
+            let r = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: d.range.upperBound)))
+            let p = rbox.localToGlobal(Offset((l.left + r.left) / 2, l.top + l.height / 2))
+            XCTAssertFalse(ui.has(text: "15"))
+            ui.click(at: p, kind: .mouse); ui.pump(); ui.pump()
+            XCTAssertTrue(ui.has(text: "15"), "date picker \(i): the click opens a calendar")
+            if let out { try "date \(i): \(Int(p.dx)) \(Int(p.dy))\n".write(toFile: out + "/points-\(i).txt", atomically: true, encoding: .utf8) }
+            let cell = try XCTUnwrap(ui.elements().last { ($0.widget as? Text)?.data == "15" })
+            let cr = try XCTUnwrap(cell.findRenderObject() as? RenderBox)
+            let cp = cr.localToGlobal(Offset(cr.size.width / 2, cr.size.height / 2))
+            if let out { try "day15 \(i): \(Int(cp.dx)) \(Int(cp.dy))\n".write(toFile: out + "/day-\(i).txt", atomically: true, encoding: .utf8) }
+            ui.click(at: cp, kind: .mouse); ui.pump(); ui.pump()
+            XCTAssertEqual(doc.document.paragraphs[i].text, want)
+            XCTAssertFalse(ui.has(text: "15"), "choosing closes the calendar")
+        }
+        if let out {
+            try start.write(to: URL(fileURLWithPath: out + "/start.docx"))
+            try DocxFormat.write(doc.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/chosen.docx"))
+        }
+    }
+
     /// W-RV-3 lab forms1: two legacy check boxes (one ticked by default) and a check box control, each clicked once.
     /// FORMS1_OUT=<dir>: leaves start.docx (as authored) and clicked.docx (our save) for Word.
     func testFormCheckBoxesClickedOnceEach() throws {

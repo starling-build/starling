@@ -1869,6 +1869,20 @@ public final class RichDocumentController: ChangeNotifier {
         return true
     }
 
+    /// Shows `text` in the date picker starting at `start` of paragraph `index` and stores `fullDate` as its date, as
+    /// one undo step with the caret after it. False when there is no such control or it already shows that date.
+    @discardableResult
+    public func chooseDate(in index: Int, at start: Int, text: String, fullDate: String) -> Bool {
+        guard index >= 0, index < document.paragraphs.count,
+              let after = document.paragraphs[index].choosingDate(at: start, text: text, fullDate: fullDate),
+              let d = after.dropDowns.first(where: { $0.range.lowerBound == start }) else { return false }
+        edit {
+            perform(.restoreParagraphs(index, count: 1, [after]))
+            _setCaret(RichPosition(paragraph: index, offset: d.range.upperBound))
+        }
+        return true
+    }
+
     public enum CaseChange { case sentence, lower, upper, capitalizeWords, toggle }
 
     /// Word's Change Case over the selection, or the word at the caret.

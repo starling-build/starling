@@ -1616,6 +1616,27 @@ final class OfficeShellState: State<StatefulWidget> {
     /// A drop-down's list under it (a legacy field's or a list / combo control's): choosing an entry shows it, one undo step.
     private func _showDropDown(_ index: Int, _ d: RichDropDown, at point: Offset) {
         let c = controller
+        if let date = d.date {
+            // A date picker opens a calendar on its date (today's month before one is picked), as Word's does.
+            let held = date.fullDate.flatMap(FieldClock.parse)
+            let today = FieldClock.current() ?? FieldClock(year: 2000, month: 1, day: 1, hour: 0, minute: 0, second: 0)
+            let shown = held ?? today
+            let flyout = _contextMenu
+            guard let context else { return }
+            flyout.showFlyout(in: context, at: point, builder: { _ in
+                FlyoutContent(child: Padding(padding: EdgeInsets(all: 8), child: SizedBox(width: 280, child: CalendarView(selectedDate: held.map { FluentDateTime(year: $0.year, month: $0.month, day: $0.day) },
+                             onDateChanged: { picked in
+                                 flyout.closeFlyout()
+                                 guard index < c.document.paragraphs.count,
+                                       c.document.paragraphs[index].dropDowns.contains(where: { $0.range.lowerBound == d.range.lowerBound && $0.date != nil })
+                                 else { return }
+                                 let v = Self.dateControlText(date, year: picked.year, month: picked.month, day: picked.day)
+                                 c.chooseDate(in: index, at: d.range.lowerBound, text: v.text, fullDate: v.fullDate)
+                             },
+                             displayedMonth: FluentDateTime(year: shown.year, month: shown.month, day: 1)))))
+            })
+            return
+        }
         let menu = ContextMenuBuilder()
         for (k, e) in d.entries.enumerated() {
             menu.item(e.text) {
@@ -1627,6 +1648,19 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         guard let context else { return }
         menu.show(_contextMenu, in: context, at: point)
+    }
+
+    /// What a date picker shows for a picked day, and the `w:fullDate` it stores (midnight UTC, as Word writes it).
+    /// The text is the control's date picture, or Word's US default M/d/yyyy when it names none; month and day names
+    /// are English only (FieldClock's), so another language's names come out in English.
+    static func dateControlText(_ d: RichDateControl, year: Int, month: Int, day: Int) -> (text: String, fullDate: String) {
+        let clock = FieldClock(year: year, month: month, day: day, hour: 0, minute: 0, second: 0)
+        let picture = d.picture.isEmpty ? "M/d/yyyy" : d.picture
+        let english = d.language.isEmpty || d.language.lowercased().hasPrefix("en")
+        let text = clock.format(picture: picture, english: english) ?? clock.format(picture: picture, english: true) ?? ""
+        func two(_ n: Int) -> String { n < 10 ? "0\(n)" : "\(n)" }
+        let year4 = year < 10 ? "000\(year)" : year < 100 ? "00\(year)" : year < 1000 ? "0\(year)" : "\(year)"
+        return (text, "\(year4)-\(two(month))-\(two(day))T00:00:00Z")
     }
 
     private func _showContextMenu(at point: Offset) {

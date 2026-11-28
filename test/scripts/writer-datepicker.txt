@@ -1,0 +1,33 @@
+# Writer date pickers (W-RV-3): a click on a date picker opens a calendar on its month; a click on a day shows it, one undo step.
+# Run with OFFICE_FILE=lab/datepick1/start.docx (amd-5's checkout; "Due:" a date picker in its placeholder, picture
+# "dddd, MMMM d, yyyy"; "Signed:" a date picker holding 11/3/2026, picture M/d/yyyy), window 1440x932.
+# Delete any start.docx~ first.
+# Harness points at 1440x932, from DocxTests.testDatePickersOpenACalendarOnAClick (DATEPICK1_OUT writes them):
+# Signed 486,381, then its calendar's 15 (November 2026) at 493,540; Due 520,351, then its calendar's 15 at 478,510.
+# The Due calendar opens on TODAY's month: 478,510 is the 15th in November 2026 (harness run 2026-11-28); in another
+# month the 15th sits in another column/row, so click whatever day is there and expect that day.
+wait 1500
+shot ${OUT}/dp-00-start.png
+# The Signed control's calendar opens on November 2026 with the 3rd selected.
+click 486 381
+wait 300
+shot ${OUT}/dp-01-signed-calendar.png
+# 11/15/2026 replaces 11/3/2026.
+click 493 540
+wait 300
+shot ${OUT}/dp-02-signed-15.png
+# The Due control's calendar opens on this month.
+click 520 351
+wait 300
+shot ${OUT}/dp-03-due-calendar.png
+# The day clicked (the 15th in November 2026) replaces the grey prompt, as "Weekday, Month 15, Year".
+click 478 510
+wait 300
+shot ${OUT}/dp-04-due-15.png
+# Each date is one undo step: Cmd+Z twice puts the prompt and 11/3/2026 back.
+chord cmd z
+wait 200
+chord cmd z
+wait 300
+shot ${OUT}/dp-05-undone.png
+quit
