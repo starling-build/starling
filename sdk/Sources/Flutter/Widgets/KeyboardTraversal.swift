@@ -295,7 +295,9 @@ public final class KeyboardTraversal {
 
     /// Moves the ring one control on, or back.
     public func move(reverse: Bool) {
-        let list = reachable(inRegion: _modalOpen ? nil : (focused?.region ?? _currentRegion ?? regions().first))
+        // A text box the pointer clicked walks its own region (a pane's box Tabs on within the pane).
+        let current = focused == nil ? _stops.first(where: { $0.isCurrent() && $0.isEnabled() && $0.origin() != nil }) : nil
+        let list = reachable(inRegion: _modalOpen ? nil : (focused?.region ?? current?.region ?? _currentRegion ?? regions().first))
         guard !list.isEmpty else { return }
         guard let f = focused ?? list.first(where: { $0.isCurrent() }), let i = list.firstIndex(where: { $0 === f }) else {
             _focus(reverse ? list.last : list.first); return
