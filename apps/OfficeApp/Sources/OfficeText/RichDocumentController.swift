@@ -2255,11 +2255,24 @@ public final class RichDocumentController: ChangeNotifier {
         public var tabStops: [TabStop]?
         /// Word's "Don't add space between paragraphs of the same style" (w:contextualSpacing); nil leaves it.
         public var contextualSpacing: Bool?
+        /// W-PA-2, the Line and Page Breaks page: widow/orphan control, keep with next, keep lines together,
+        /// page break before, suppress line numbers, don't hyphenate. nil leaves each as it is.
+        public var widowControl: Bool?
+        public var keepNext: Bool?
+        public var keepLines: Bool?
+        public var pageBreakBefore: Bool?
+        public var suppressLineNumbers: Bool?
+        public var noHyphenation: Bool?
         public init(alignment: ParagraphAlignment? = nil, indentLeft: Double? = nil,
                     indentRight: Double? = nil, firstLineIndent: Double? = nil,
                     spaceBefore: Double? = nil, spaceAfter: Double? = nil,
-                    lineRule: LineRule? = nil, tabStops: [TabStop]? = nil, contextualSpacing: Bool? = nil) {
+                    lineRule: LineRule? = nil, tabStops: [TabStop]? = nil, contextualSpacing: Bool? = nil,
+                    widowControl: Bool? = nil, keepNext: Bool? = nil, keepLines: Bool? = nil,
+                    pageBreakBefore: Bool? = nil, suppressLineNumbers: Bool? = nil, noHyphenation: Bool? = nil) {
             self.tabStops = tabStops; self.contextualSpacing = contextualSpacing
+            self.widowControl = widowControl; self.keepNext = keepNext; self.keepLines = keepLines
+            self.pageBreakBefore = pageBreakBefore; self.suppressLineNumbers = suppressLineNumbers
+            self.noHyphenation = noHyphenation
             self.alignment = alignment; self.indentLeft = indentLeft
             self.indentRight = indentRight; self.firstLineIndent = firstLineIndent
             self.spaceBefore = spaceBefore; self.spaceAfter = spaceAfter
@@ -2276,6 +2289,19 @@ public final class RichDocumentController: ChangeNotifier {
             if let v = f.spaceBefore { s.spaceBefore = max(0, v); s.spaceBeforeAuto = false }
             if let v = f.spaceAfter { s.spaceAfter = max(0, v); s.spaceAfterAuto = false }
             if let c = f.contextualSpacing { s.contextualSpacing = c }
+            if let v = f.widowControl { s.widowControl = v }
+            if let v = f.keepNext { s.keepNext = v }
+            if let v = f.keepLines { s.keepLines = v }
+            // The paragraph property only: a page break CHARACTER that opens the paragraph
+            // (pageBreakInline) is text, not this box, and stays.
+            if let v = f.pageBreakBefore, !s.pageBreakInline, s.pageBreakBefore != v {
+                s.pageBreakBefore = v; s.columnBreak = false; s.breakEndsPrevious = false
+            }
+            // Kept as Word's switches: "1" on, "0" said off (over a style that turns it on), absent untouched.
+            for (tag, v) in [("w:suppressLineNumbers", f.suppressLineNumbers), ("w:suppressAutoHyphens", f.noHyphenation)] {
+                guard let v else { continue }
+                if v { s.eastAsian[tag] = "1" } else if s.eastAsian[tag] != nil { s.eastAsian[tag] = "0" }
+            }
             if let t = f.tabStops { s.tabStops = t.filter { $0.position >= 0 }.sorted { $0.position < $1.position } }
             switch f.lineRule {
             case .multiple(let m)?:

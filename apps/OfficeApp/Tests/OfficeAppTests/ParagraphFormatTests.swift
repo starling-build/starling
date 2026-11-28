@@ -138,3 +138,76 @@ final class ContextualSpacingTests: XCTestCase {
         XCTAssertFalse(back.paragraphs[0].style.contextualSpacing)
     }
 }
+
+/// W-PA-2: the Line and Page Breaks settings survive a save, and an untouched box leaves each paragraph's own.
+final class LineAndPageBreaksTests: XCTestCase {
+    func testBreakSettingsSurviveSave() throws {
+        let c = RichDocumentController(plainText: "one\ntwo\nthree")
+        c.selectAll()
+        c.setParagraphFormat(.init(widowControl: false, keepNext: true, keepLines: true, pageBreakBefore: true,
+                                   suppressLineNumbers: true, noHyphenation: true))
+        let data = try DocxFormat.write(c.document, pageSetup: .letter)
+        if let out = ProcessInfo.processInfo.environment["PA2_OUT"] {   // the Word lab
+            try data.write(to: URL(fileURLWithPath: out))
+        }
+        let xml = String(decoding: try XCTUnwrap(Zip.read(data).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        for tag in ["<w:keepNext/>", "<w:keepLines/>", "<w:pageBreakBefore/>", "<w:widowControl w:val=\"0\"/>",
+                    "<w:suppressLineNumbers w:val=\"1\"/>", "<w:suppressAutoHyphens w:val=\"1\"/>"] {
+            XCTAssertTrue(xml.contains(tag), tag)
+        }
+        let b = try DocxFormat.read(data).document.paragraphs[1].style
+        XCTAssertFalse(b.widowControl); XCTAssertTrue(b.keepNext); XCTAssertTrue(b.keepLines); XCTAssertTrue(b.pageBreakBefore)
+        XCTAssertEqual(b.eastAsian["w:suppressLineNumbers"], "1"); XCTAssertEqual(b.eastAsian["w:suppressAutoHyphens"], "1")
+        // Cleared again: off, and said off where it had been said on.
+        c.setParagraphFormat(.init(widowControl: true, keepNext: false, keepLines: false, pageBreakBefore: false,
+                                   suppressLineNumbers: false, noHyphenation: false))
+        let o = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs[1].style
+        XCTAssertTrue(o.widowControl); XCTAssertFalse(o.keepNext); XCTAssertFalse(o.pageBreakBefore)
+        XCTAssertNotEqual(o.eastAsian["w:suppressAutoHyphens"], "1")
+    }
+
+    func testUntouchedBoxesLeaveEachParagraph() {
+        var d = RichDocumentController(plainText: "one\ntwo").document
+        d.paragraphs[1].style.pageBreakBefore = true
+        let c = RichDocumentController(document: d)
+        c.selectAll()
+        let base = ParagraphDialogValues(c.document.paragraphs[0].style)
+        var v = base
+        v.keepLines = true
+        c.setParagraphFormat(v.format(since: base))
+        XCTAssertTrue(c.document.paragraphs[1].style.pageBreakBefore, "the second paragraph's page break stays")
+        XCTAssertTrue(c.document.paragraphs[0].style.keepLines && c.document.paragraphs[1].style.keepLines)
+    }
+
+    /// A file whose style turns widow control off keeps it off through a save (no stray <w:widowControl/>);
+    /// ticked in the dialog, the paragraph says it on over its style.
+    func testWidowControlUnderAStyleThatTurnsItOff() throws {
+        var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        func replace(_ n: String, _ f: (String) -> String) throws {
+            let i = try XCTUnwrap(parts.firstIndex { $0.name == n })
+            parts[i] = ZipEntry(name: n, data: Data(f(String(decoding: parts[i].data, as: UTF8.self)).utf8))
+        }
+        try replace("word/styles.xml") {
+            $0.replacingOccurrences(of: "</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"Loose\"><w:name w:val=\"Loose\"/>"
+                + "<w:basedOn w:val=\"Normal\"/><w:pPr><w:widowControl w:val=\"0\"/></w:pPr></w:style></w:styles>")
+        }
+        try replace("word/document.xml") { s in
+            var x = s
+            x.insert(contentsOf: "<w:p><w:pPr><w:pStyle w:val=\"Loose\"/></w:pPr><w:r><w:t>one</w:t></w:r></w:p>",
+                     at: x.range(of: "<w:body>")!.upperBound)
+            return x
+        }
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(parts)).document)
+        XCTAssertFalse(c.document.paragraphs[0].style.widowControl, "the style's setting reaches the paragraph")
+        func saved() throws -> String {
+            String(decoding: try XCTUnwrap(Zip.read(DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        XCTAssertFalse(try saved().contains("<w:widowControl/>"), "an untouched paragraph says nothing new")
+        var v = ParagraphDialogValues(c.document.paragraphs[0].style)
+        let base = v
+        v.widow = true
+        c.setParagraphFormat(v.format(since: base))
+        XCTAssertTrue(try saved().contains("<w:widowControl/>"))
+        XCTAssertTrue(try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs[0].style.widowControl)
+    }
+}

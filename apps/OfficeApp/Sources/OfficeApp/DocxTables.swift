@@ -1641,6 +1641,7 @@ extension DocxFormat {
                 if p.style.pageBreakBefore && !afterSectionBreak && !inlineBreak && !breakRidesOnPrevious(index) { pPr += "<w:pageBreakBefore/>" }
                 if let frame = p.style.frameXML { pPr += frame }
                 if !p.style.widowControl { pPr += "<w:widowControl w:val=\"0\"/>" }
+                else if styled?.widowControl == false { pPr += "<w:widowControl/>" }
                 if p.style.list != nil {
                     pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
                 }

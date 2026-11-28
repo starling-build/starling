@@ -76,9 +76,14 @@ struct ParagraphDialogValues: Equatable {
     var tabs: TabStopEditor
     /// "Don't add space between paragraphs of the same style".
     var contextual: Bool
+    /// W-PA-2, the Line and Page Breaks page.
+    var widow: Bool, keepNext: Bool, keepLines: Bool, breakBefore: Bool, noLineNumbers: Bool, noHyphens: Bool
 
     init(_ s: RichParagraphStyle) {
         contextual = s.contextualSpacing
+        widow = s.widowControl; keepNext = s.keepNext; keepLines = s.keepLines
+        breakBefore = s.pageBreakBefore && !s.pageBreakInline
+        noLineNumbers = s.eastAsian["w:suppressLineNumbers"] == "1"; noHyphens = s.eastAsian["w:suppressAutoHyphens"] == "1"
         alignment = s.alignment; left = s.indentLeft; right = s.indentRight
         special = s.firstLineIndent < 0 ? .hanging : s.firstLineIndent > 0 ? .firstLine : .none
         by = abs(s.firstLineIndent)
@@ -105,7 +110,22 @@ struct ParagraphDialogValues: Equatable {
         }
         let first = special == .none ? 0 : special == .hanging ? -by : by
         return .init(alignment: alignment, indentLeft: left, indentRight: right, firstLineIndent: first,
-                     spaceBefore: before, spaceAfter: after, lineRule: rule, tabStops: tabs.stops, contextualSpacing: contextual)
+                     spaceBefore: before, spaceAfter: after, lineRule: rule, tabStops: tabs.stops, contextualSpacing: contextual,
+                     widowControl: widow, keepNext: keepNext, keepLines: keepLines, pageBreakBefore: breakBefore,
+                     suppressLineNumbers: noLineNumbers, noHyphenation: noHyphens)
+    }
+
+    /// The format with only the break boxes changed since `base` said: over a selection of many paragraphs,
+    /// an untouched box leaves each paragraph's own setting (one heading's keep with next, another's page break).
+    func format(since base: ParagraphDialogValues) -> RichDocumentController.ParagraphFormat {
+        var f = format
+        if widow == base.widow { f.widowControl = nil }
+        if keepNext == base.keepNext { f.keepNext = nil }
+        if keepLines == base.keepLines { f.keepLines = nil }
+        if breakBefore == base.breakBefore { f.pageBreakBefore = nil }
+        if noLineNumbers == base.noLineNumbers { f.suppressLineNumbers = nil }
+        if noHyphens == base.noHyphens { f.noHyphenation = nil }
+        return f
     }
 }
 
@@ -128,6 +148,8 @@ final class ParagraphDialogState: State<StatefulWidget> {
     private let _multiple = TextEditingController()
     /// The Tabs page is showing instead of the paragraph page; its edits belong to `v` and apply with OK here.
     private(set) var showTabs = false
+    /// Word's two pages: Indents and Spacing, Line and Page Breaks.
+    private(set) var showBreaks = false
     private var _tabsBefore: TabStopEditor?
     private var _tabPos = 36.0, _tabKind = TabKind.left, _tabLeader = TabLeader.none
 
@@ -224,7 +246,33 @@ final class ParagraphDialogState: State<StatefulWidget> {
                 PKeyed("pa-points", UnitSpinner(points: v.points, unit: .pt, min: 1, max: 1584, width: 90) { [weak self] n in
                     self?.setState { self?.v.points = n } })]))
         }
+        let pages = Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Row(children: [
+            choice("pa-page-indents", "Indents and Spacing", !showBreaks) { [weak self] in self?.setState { self?.showBreaks = false } },
+            choice("pa-page-breaks", "Line and Page Breaks", showBreaks) { [weak self] in self?.setState { self?.showBreaks = true } },
+        ]))
+        if showBreaks {
+            func box(_ id: String, _ label: String, _ on: Bool, _ set: @escaping (Bool) -> Void) -> Widget {
+                Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: PKeyed(id, Checkbox(
+                    checked: on, onChanged: { [weak self] c in self?.setState { set(c ?? false) } },
+                    content: Text(label, style: fluent.typography.body))))
+            }
+            let breaks = Column(crossAxisAlignment: .start, children: [
+                pages,
+                Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Text("Pagination", style: fluent.typography.bodyStrong)),
+                box("pa-widow", "Widow/Orphan control", v.widow) { [weak self] c in self?.v.widow = c },
+                box("pa-keep-next", "Keep with next", v.keepNext) { [weak self] c in self?.v.keepNext = c },
+                box("pa-keep-lines", "Keep lines together", v.keepLines) { [weak self] c in self?.v.keepLines = c },
+                box("pa-break-before", "Page break before", v.breakBefore) { [weak self] c in self?.v.breakBefore = c },
+                Padding(padding: EdgeInsets(left: 0, top: 4, right: 0, bottom: 8), child: Text("Formatting exceptions", style: fluent.typography.bodyStrong)),
+                box("pa-no-line-numbers", "Suppress line numbers", v.noLineNumbers) { [weak self] c in self?.v.noLineNumbers = c },
+                box("pa-no-hyphens", "Don't hyphenate", v.noHyphens) { [weak self] c in self?.v.noHyphens = c },
+            ])
+            return DialogShell(title: "Paragraph", page: breaks, width: 480,
+                               onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v.format(since: ParagraphDialogValues(self._w.initial))) },
+                               onCancel: { [weak self] in self?._w.onCancel() })
+        }
         let page = Column(crossAxisAlignment: .start, children: [
+            pages,
             row("Alignment", aligns.map { id, t, a in choice(id, t, v.alignment == a) { [weak self] in self?.setState { self?.v.alignment = a } } }),
             Row(children: [
                 spin("pa-left", "Left indent", v.left) { [weak self] n in self?.v.left = n },
@@ -256,7 +304,7 @@ final class ParagraphDialogState: State<StatefulWidget> {
                 } })]),
         ])
         return DialogShell(title: "Paragraph", page: page, width: 480,
-                           onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v.format) },
+                           onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v.format(since: ParagraphDialogValues(self._w.initial))) },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }
 }
