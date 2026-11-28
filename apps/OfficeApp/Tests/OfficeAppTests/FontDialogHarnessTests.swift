@@ -60,7 +60,10 @@ final class FontDialogHarnessTests: XCTestCase {
         var s = c.document.paragraphs[0].runs[0].style
         XCTAssertTrue(s.underline); XCTAssertEqual(s.underlineKind, "double"); XCTAssertEqual(s.underlineColor, "FF0000")
         XCTAssertEqual(s.eastAsiaFontFamily, "MS Mincho")
-        let back = try DocxFormat.read(DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs[0].runs[0].style
+        let saved = try DocxFormat.write(c.document, pageSetup: .letter)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(saved).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertNotNil(xml.range(of: "<w:u w:val=\"double\" w:color=\"FF0000\"/>"), "the run's XML holds the kind and colour")
+        let back = try DocxFormat.read(saved).document.paragraphs[0].runs[0].style
         XCTAssertEqual(back.underlineKind, "double"); XCTAssertEqual(back.underlineColor, "FF0000")
         XCTAssertEqual(back.eastAsiaFontFamily, "MS Mincho")
         // The dialog opens on what the run holds; turning Underline off drops the kind and colour with it.
