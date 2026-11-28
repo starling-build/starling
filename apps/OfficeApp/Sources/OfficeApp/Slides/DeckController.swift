@@ -2518,6 +2518,28 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// The Selection Pane's Show All and Hide All: every shape of the current slide at once, one undo step.
+    func setAllHidden(_ hidden: Bool) {
+        let shapes = currentSlide.shapes.filter { $0.invisible != hidden }
+        guard !shapes.isEmpty else { return }
+        _checkpoint()
+        for shape in shapes { shape.invisible = hidden }
+        if hidden { selection.removeAll() }
+        _changed()
+    }
+
+    /// The Selection Pane's rename (the file's `cNvPr name`), one undo step. Blank names are refused, as PowerPoint
+    /// puts the old name back; two shapes may share a name.
+    @discardableResult func renameShape(_ shape: SlideShape, _ name: String) -> Bool {
+        let n = name.trimmingWhitespace()
+        guard !n.isEmpty else { return false }
+        guard n != shape.name else { return true }
+        _checkpoint()
+        shape.name = n
+        _changed()
+        return true
+    }
+
     /// The Selection Pane's reorder: one shape a step toward the front (`by` > 0) or the back, one undo step.
     func moveInStack(_ shape: SlideShape, by delta: Int) {
         var shapes = currentSlide.shapes

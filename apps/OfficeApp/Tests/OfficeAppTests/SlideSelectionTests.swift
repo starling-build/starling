@@ -70,6 +70,37 @@ final class SelectionPaneTests: XCTestCase {
         XCTAssertTrue(ui.tap(id: "selpane.row.0"))
         XCTAssertTrue(deck.isSelected(first), "a row selects its shape")
     }
+
+    /// A double-click on a name types a new one (Enter keeps it, one undo step); Hide All and Show All act on the slide.
+    func testPaneRenamesAndHidesAll() throws {
+        let deck = DeckController()
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SelectionPane(deck: deck, onClose: {}), title: "Test"))
+        ui.pump()
+        let first = deck.currentSlide.shapes[0]
+        let old = first.name
+        XCTAssertTrue(ui.tap(id: "selpane.row.0"))
+        XCTAssertFalse(ui.has(id: "selpane.rename.0"), "one click selects, it does not rename")
+        XCTAssertTrue(ui.tap(id: "selpane.row.0"))
+        ui.pump()
+        XCTAssertTrue(ui.has(id: "selpane.rename.0"), "a double-click opens the name for typing")
+        ui.type("Logo")
+        ui.press(.enter)
+        ui.pump()
+        XCTAssertEqual(first.name, "Logo", "the old name was selected, so typing replaced it")
+        XCTAssertFalse(ui.has(id: "selpane.rename.0"))
+        deck.undo()
+        XCTAssertEqual(first.name, old, "one undo step")
+        XCTAssertFalse(deck.renameShape(first, "   "), "a blank name is refused")
+        XCTAssertEqual(first.name, old)
+        XCTAssertTrue(ui.tap(id: "selpane.hideAll"))
+        XCTAssertTrue(deck.currentSlide.shapes.allSatisfy(\.invisible), "Hide All hides every shape")
+        XCTAssertTrue(deck.selection.isEmpty)
+        XCTAssertTrue(ui.tap(id: "selpane.showAll"))
+        XCTAssertTrue(deck.currentSlide.shapes.allSatisfy { !$0.invisible }, "Show All shows them again")
+        deck.undo()
+        XCTAssertTrue(deck.currentSlide.shapes.allSatisfy(\.invisible), "each is one undo step")
+    }
 }
 
 /// S-AR-2: modifier keys on drags, flip, rotate, nudge.
