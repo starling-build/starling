@@ -2863,7 +2863,14 @@ final class OfficeShellState: State<StatefulWidget> {
                 guard let self, let r, let b = self._boxEdit, b.rect != r else { return }
                 self.setState { self._boxEdit?.rect = r }
             },
-            onNestedTableEnter: { [weak self] index, rect, at, frame in self?._enterBox(index, nil, rect, at: at, frame: frame) }
+            onNestedTableEnter: { [weak self] index, rect, at, frame in self?._enterBox(index, nil, rect, at: at, frame: frame) },
+            onNestedTableEdge: { [weak self] index, rect, first, frame in
+                guard let self else { return }
+                self._enterBox(index, nil, rect, frame: frame)
+                guard self._boxEdit != nil else { return }
+                let box = self.controller
+                box.moveTo(first ? .start : box.document.endPosition, extend: false)
+            }
         )
         guard let b = _boxEdit else {
             return WriterAccessibility.wrap(editable, controller: controller, focused: _editorFocus.hasFocus)
@@ -2878,7 +2885,9 @@ final class OfficeShellState: State<StatefulWidget> {
         let boxEditor = RichEditable(
             controller: controller, theme: theme,
             padding: EdgeInsets(left: 7.2 * z * inset, top: 3.6 * z * inset, right: 7.2 * z * inset, bottom: 3.6 * z * inset),
-            focusNode: _boxFocus, backgroundColor: frame?.fill ?? Color(0xFFFFFFFF), zoom: z,
+            // (A nested table's editor is not filled: the page under it shows the outer cell, its shading and borders, with the
+            // table itself hidden there. A white fill hid the outer table's border a few pixels past the inner table's corner.)
+            focusNode: _boxFocus, backgroundColor: nested ? nil : frame?.fill ?? Color(0xFFFFFFFF), zoom: z,
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             scrolls: false,
             onContentHeight: { [weak self] h in
@@ -2886,7 +2895,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 self.setState { self._boxContentHeight = h }
             },
             caretAt: _boxCaretAt,
-            boxRules: _boxRules)
+            boxRules: _boxRules,
+            onArrowOut: nested ? { [weak self] forward in self?._arrowOutOfNested(forward) ?? false } : nil)
         // A box that fits its text grows as the words do.
         var boxHeight = b.rect.height
         if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z * inset }
@@ -2943,6 +2953,20 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         ScreenReader.announce("Editing text box. Escape to finish.", priority: .assertive)
         _boxFocus.requestFocus()
+    }
+
+    /// W-TB-5: an arrow past a nested table's first or last caret position leaves it for the outer cell, as in Word:
+    /// forward to the start of the paragraph under it, back to the end of the one before it.
+    func _arrowOutOfNested(_ forward: Bool) -> Bool {
+        guard let b = _boxEdit, b.child == nil, b.inline == nil else { return false }
+        _leaveBox()
+        let doc = b.main.document
+        if !forward, b.index > 0, b.index - 1 < doc.paragraphs.count {
+            b.main.moveTo(RichPosition(paragraph: b.index - 1, offset: doc.paragraphs[b.index - 1].length), extend: false)
+        } else if forward, b.index + 1 < doc.paragraphs.count, doc.paragraphs[b.index + 1].cell == nil {
+            b.main.moveTo(RichPosition(paragraph: b.index + 1, offset: 0), extend: false)
+        }
+        return true
     }
 
     /// Put the box's words back into the document (one undo step) and return to the page.
