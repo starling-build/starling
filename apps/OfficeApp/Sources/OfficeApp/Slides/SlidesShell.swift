@@ -1192,6 +1192,8 @@ final class SlidesShellState: State<StatefulWidget> {
             self._insertPicture(picked.name, data: picked.data)
         }
         #else
+        // OFFICE_PICK_PICTURE=path: a driver script's stand-in for the system picker (no driver can tap it), on every platform.
+        if let stub = ProcessInfo.processInfo.environment["OFFICE_PICK_PICTURE"], !stub.isEmpty { _insertPicture(stub); return }
         if let ask = officeScene.pictureRequested {
             ask { [weak self] path in if let path { self?._insertPicture(path) } }
             return
