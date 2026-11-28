@@ -528,9 +528,7 @@ final class Ribbon: StatelessWidget {
             _listLibrary("Bullet Library", ListLevelFormat.bulletLibrary, c, fluent),
             Chrome.toggle(FluentSystemIcons.numberList, "Numbering", s.list == .numbered, fluent) { c.toggleList(.numbered) },
             _listLibrary("Numbering Library", ListLevelFormat.numberingLibrary, c, fluent),
-            Chrome.menuButton(FluentSystemIcons.numberList, "Multilevel List", nil, fluent, items: ListLevelFormat.multilevelLibrary.map { scheme in
-                MenuFlyoutItem(text: Text(scheme.name), onPressed: { c.setMultilevelFormat(scheme.levels) })
-            }),
+            Chrome.menuButton(FluentSystemIcons.numberList, "Multilevel List", nil, fluent, items: _multilevelMenu(c)),
             Chrome.gap(2),
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },
@@ -683,6 +681,29 @@ final class Ribbon: StatelessWidget {
 
     /// Insert → Table: preset sizes, then the row commands and Delete
     /// Table, which light up inside a table.
+    /// Home > Multilevel List: the gallery, then Change List Level (levels 1 to 9,
+    /// for list items) and Define New Multilevel List.
+    private func _multilevelMenu(_ c: RichDocumentController) -> [MenuFlyoutItemBase] {
+        var items: [MenuFlyoutItemBase] = ListLevelFormat.multilevelLibrary.map { scheme in
+            MenuFlyoutItem(text: Text(scheme.name), onPressed: { c.setMultilevelFormat(scheme.levels) })
+        }
+        items.append(MenuFlyoutSeparator())
+        if let current = c.currentListLevel {
+            let scheme = c.multilevelScheme
+            let list = c.document.paragraphs[c.selection.focus.paragraph].style.list
+            items.append(MenuFlyoutSubItem(text: Text("Change List Level"), items: (0 ..< 9).map { l in
+                let shown = list == .bullet ? ListLevelFormat.defaultBullet(l) : scheme[l].sample(1)
+                return MenuFlyoutItem(text: Text("Level \(l + 1)   \(shown)"), onPressed: { c.setListLevel(l) }, selected: l == current)
+            }))
+        } else {
+            items.append(MenuFlyoutItem(text: Text("Change List Level"), onPressed: nil))
+        }
+        if session.onMultilevelDialog != nil {
+            items.append(MenuFlyoutItem(text: Text("Define New Multilevel List…"), onPressed: { [session] in session.onMultilevelDialog?() }))
+        }
+        return items
+    }
+
     /// The chevron beside Bullets or Numbering: Word's library of formats,
     /// each previewed as its first three items.
     private func _listLibrary(_ tip: String, _ library: [ListLevelFormat],

@@ -121,6 +121,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
+    private var _multilevelOpen = false
     private var _commentOpen = false
     private var _dateTimeOpen = false
     private var _fieldOpen = false
@@ -714,6 +715,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._listFormatOpen = bullet }
+        }
+        session.onMultilevelDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._multilevelOpen = true }
         }
         session.onNumberingValueDialog = { [weak self] in
             guard let self else { return }
@@ -1597,6 +1603,13 @@ final class OfficeShellState: State<StatefulWidget> {
             item("Remove Link") { c.setLink(nil) }
             sep()
         }
+        // A list item: Word's numbering commands, as on its right-click menu.
+        if c.isNumberedItem {
+            item("Restart at 1") { c.restartNumbering() }
+            item("Continue Numbering", enabled: c.canContinueNumbering) { c.continueNumbering() }
+            item("Set Numbering Value…") { [weak self] in self?.session.onNumberingValueDialog?() }
+            sep()
+        }
         let has = c.hasSelection
         item("Cut", enabled: has) { if let d = c.cutSelectionData() { Clipboard.setData(d) } }
         item("Copy", enabled: has) { if let d = c.copySelectionData() { Clipboard.setData(d) } }
@@ -1844,7 +1857,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _bookmarkOpen || _crossReferenceOpen || _captionOpen || _pageDesign != nil || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _multilevelOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _bookmarkOpen || _crossReferenceOpen || _captionOpen || _pageDesign != nil || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -2604,6 +2617,23 @@ final class OfficeShellState: State<StatefulWidget> {
                     },
                     onCancel: { [weak self] in
                         self?.setState { self?._commentOpen = false }
+                        self?._editorFocus.requestFocus()
+                    })),
+            ])
+        }
+        if _multilevelOpen {
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: MultilevelListDialog(
+                    initial: controller.multilevelScheme, startLevel: controller.currentListLevel ?? 0,
+                    onOK: { [weak self] levels in
+                        guard let self else { return }
+                        self.controller.setMultilevelFormat(levels)
+                        self.setState { self._multilevelOpen = false }
+                        self._editorFocus.requestFocus()
+                    },
+                    onCancel: { [weak self] in
+                        self?.setState { self?._multilevelOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
             ])
