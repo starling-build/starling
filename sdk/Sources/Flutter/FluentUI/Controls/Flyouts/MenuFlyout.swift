@@ -498,7 +498,8 @@ public class ToggleMenuFlyoutItem: MenuFlyoutItemBase {
             onPressed: onChanged == nil ? nil : { [weak self] in
                 guard let self = self else { return }
                 if self.closeAfterClick {
-                    Navigator.maybeOf(context)?.maybePop()
+                    // The flyout is overlay entries, not a route: close it through its scope.
+                    if let scope = FlyoutScope.maybeOf(context) { scope.close() } else { Navigator.maybeOf(context)?.maybePop() }
                 }
                 self.onChanged?(!self.isChecked)
             },
@@ -596,7 +597,8 @@ public class RadioMenuFlyoutItem: MenuFlyoutItemBase {
             onPressed: onSelected == nil ? nil : { [weak self] in
                 guard let self = self else { return }
                 if self.closeAfterClick {
-                    Navigator.maybeOf(context)?.maybePop()
+                    // The flyout is overlay entries, not a route: close it through its scope.
+                    if let scope = FlyoutScope.maybeOf(context) { scope.close() } else { Navigator.maybeOf(context)?.maybePop() }
                 }
                 self.onSelected?()
             },
