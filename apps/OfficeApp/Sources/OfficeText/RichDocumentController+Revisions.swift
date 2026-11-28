@@ -17,7 +17,9 @@ extension RichDocumentController {
         var out: [TrackedChange] = []
         var keys: [String?] = []
         func add(_ c: TrackedChange, _ key: String?) {
-            if let key, let last = out.last, keys.last == key, last.end == c.start {
+            // Word joins them by kind and reviewer, not by time stamp: Enter and the typing after it can fall in
+            // different seconds and are still one change.
+            if let key, let last = out.last, let prev = keys.last ?? nil, Self._sameChange(prev, key), last.end == c.start {
                 out[out.count - 1].end = c.end
             } else {
                 out.append(c); keys.append(key)
@@ -47,6 +49,12 @@ extension RichDocumentController {
             }
         }
         return out
+    }
+
+    /// Two change keys of one kind by one reviewer (the time stamp aside).
+    static func _sameChange(_ a: String, _ b: String) -> Bool {
+        func who(_ k: String) -> String { k.split(separator: "|", omittingEmptySubsequences: false).enumerated().filter { $0.offset != 2 && $0.offset != 5 }.map { String($0.element) }.joined(separator: "|") }
+        return who(a) == who(b)
     }
 
     /// What tells one change from the next along a paragraph: its kind and who made it when.

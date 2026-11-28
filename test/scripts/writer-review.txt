@@ -54,7 +54,8 @@ shot ${OUT}/rv-04-next-2.png
 click 768 112
 wait 300
 shot ${OUT}/rv-05-previous.png
-# Accept's arrow opens its menu, then Accept This Change: the typed paragraph loses its underline and colour.
+# Accept's arrow opens its menu, then Accept This Change: the WHOLE typed paragraph (its mark and its text) loses its
+# underline and colour in one step, even when Enter and the typing fell in different seconds.
 click 724 116
 wait 400
 shot ${OUT}/rv-06-accept-menu.png
@@ -98,7 +99,7 @@ wait 300
 click 716 237
 wait 400
 shot ${OUT}/rv-15-reject-all.png
-# Undo brings every change back in one step.
+# Undo brings every change back in one step, and the status bar no longer says "N changes rejected".
 chord cmd z
 wait 400
 shot ${OUT}/rv-16-undo.png
@@ -110,7 +111,7 @@ wait 400
 shot ${OUT}/rv-17-accept-all.png
 # The Accept and Reject BUTTONS themselves (not their arrows): each acts on the selected change and moves to the next.
 # Undo brings the changes back; Next from the top selects the first; Accept takes it and selects the second;
-# Reject puts the second back as it was and selects the third.
+# Reject puts the second back as it was and selects the third. At rv-18 the status bar holds no old "accepted" message.
 chord cmd z
 wait 400
 key up cmd

@@ -57,6 +57,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _findStatus = ""
     private(set) var _status: String? = nil
     private var _statusGeneration = 0
+    /// The document's revision and selection when the status message settled (see `_flash`).
+    private var _statusMark: (revision: Int, selection: RichSelection)?
     private var _savedRevision = 0
     /// The revision the page's recovery copy holds (a browser tab): a flush
     /// when the tab is hidden writes only a copy that is behind.
@@ -278,6 +280,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             if let last = self.controller.document.lastSectionPage, last != self.session.pageSetup {
                 self.setState { self.session.pageSetup = last }
+            }
+            if let m = self._statusMark, m.revision != self.controller.revision || m.selection != self.controller.selection {
+                self._statusMark = nil
+                self._statusGeneration += 1
+                self.setState { self._status = nil }
             }
             let under = self.controller.currentLink
             if under != self._cardLink { self.setState { self._cardLink = under; self._hoverCard = nil; self._cardDismissed = false } }
@@ -1288,6 +1295,13 @@ final class OfficeShellState: State<StatefulWidget> {
         _statusGeneration += 1
         let gen = _statusGeneration
         setState { _status = message }
+        // The message stands for what the document looks like once the command is done (Accept and Move to
+        // Next selects after it reports); the next edit, undo or caret move clears it.
+        _statusMark = nil
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self._statusGeneration == gen else { return }
+            self._statusMark = (self.controller.revision, self.controller.selection)
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) { [weak self] in
             guard let self, self._statusGeneration == gen else { return }
             self.setState { self._status = nil }
