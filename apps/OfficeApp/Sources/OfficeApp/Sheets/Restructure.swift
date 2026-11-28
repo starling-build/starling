@@ -611,6 +611,7 @@ extension WorkbookController {
         for (rel, c) in clip.cells {
             dstSheet.cells[CellAddress(row: dst.top + rel.row, col: dst.left + rel.col)] = c
         }
+        _moveAttachments(clip, src: src, dst: dst)
         // References into the moved block follow it.
         let srcName = src.name
         let sameSheet = clip.sheet == activeSheet
@@ -637,6 +638,103 @@ extension WorkbookController {
             }
             return out
         }
+    }
+}
+
+extension WorkbookController {
+    /// A cut moves what the cells carry with them, as Excel does: notes, merged cells, and their place in
+    /// validation and conditional format rules (each rule keeps its cells outside the block and gains the moved
+    /// ones). The cells the block lands on lose their own.
+    func _moveAttachments(_ clip: Clip, src: Worksheet, dst: CellRange) {
+        let from = clip.range
+        let dr = dst.top - from.top, dc = dst.left - from.left
+        func shifted(_ r: CellRange) -> CellRange {
+            CellRange(top: r.top + dr, left: r.left + dc, bottom: r.bottom + dr, right: r.right + dc)
+        }
+        let ws = sheet
+        guard src !== ws else {
+            // Notes: the block's go with it; the landing cells' own go.
+            var notes: [SheetNote] = []
+            for var n in ws.notes {
+                if let a = n.at, from.contains(a) {
+                    n.at = CellAddress(row: a.row + dr, col: a.col + dc)
+                } else if let a = n.at, dst.contains(a) {
+                    if n.origin == nil { continue }
+                    n.at = nil
+                }
+                notes.append(n)
+            }
+            ws.notes = notes
+            let inside = ws.merges.filter { from.contains($0.topLeft) && from.contains($0.bottomRight) }
+            ws.merges.removeAll { $0.intersects(dst) || inside.contains($0) }
+            ws.merges += inside.map(shifted)
+            for k in ws.keptElements.indices.reversed() where ws.keptElements[k].name == "conditionalFormatting" {
+                if let t = Self._cutRule(ws.keptElements[k].text, from: from, to: dst, trimTarget: false) { ws.keptElements[k].text = t }
+                else { ws.keptElements.remove(at: k) }
+            }
+            if let i = ws.keptElements.firstIndex(where: { $0.name == "dataValidations" }) {
+                let split = RawXML.split([UInt8](ws.keptElements[i].text.utf8))
+                let kids = split.children.compactMap { kid -> String? in
+                    guard kid.name == "dataValidation" || kid.name.hasSuffix(":dataValidation") else { return kid.text }
+                    return Self._cutRule(kid.text, from: from, to: dst, trimTarget: true)
+                }
+                _setValidationKids(kids, root: split.rootStart, name: split.rootName, at: i)
+            }
+            return
+        }
+        // From another sheet: what the block carried, taken before the source loses it, lands as a paste would.
+        let carried = Worksheet(name: src.name)
+        carried.notes = src.notes
+        carried.keptElements = src.keptElements
+        carried.merges = src.merges
+        if let si = book.sheets.firstIndex(where: { $0 === src }) {
+            _onSheet(si) {
+                Self._dropNotes(src, in: from)
+                src.merges.removeAll { from.contains($0.topLeft) && from.contains($0.bottomRight) }
+                _takeCellsOutOfValidations([from])
+                _conditionalFormatsClearing([from]).1?()
+            }
+        }
+        _pasteNotes(clip, source: carried, at: dst.topLeft, transpose: false, skipBlanks: false)
+        _pasteValidation(clip, source: carried, dst: dst, transpose: false)
+        // (A cut leaves the target's own conditional formats whole, as Excel does on one sheet: the cells it lands
+        // on sit under both rules. A copy trims them.)
+        _mergeConditionalFormats(clip, source: carried, dst: dst, transpose: false)
+        _pasteMerges(clip, source: carried, dst: dst)
+    }
+
+    /// A rule (a `<conditionalFormatting>` or a `<dataValidation>`) after a cut on its own sheet moves `from` to
+    /// `to`: its cells in the block move with them, its cells the block lands on (and did not bring) leave it.
+    /// nil when it has no cells left. Its formulas are written for its first cell, so they follow that cell.
+    /// `trimTarget` false keeps the rule's cells under the landing block (Excel's cut does so for a
+    /// conditional format: a rule on D1:D9 stays D1:D9 when a block lands on D1:D3; validation is trimmed).
+    /// The cells it kept come first, the moved ones after ("A4:A9 D1:D3"), as Excel writes them.
+    static func _cutRule(_ text: String, from: CellRange, to dst: CellRange, trimTarget: Bool) -> String? {
+        guard let tagEnd = text.firstIndex(of: ">"),
+              let a = text.findRange(of: " sqref=\"", in: text.startIndex ..< tagEnd),
+              let b = text.findRange(of: "\"", in: a.upperBound ..< text.endIndex) else { return text }
+        let old = text[a.upperBound ..< b.lowerBound].split(separator: " ").compactMap { CellRange(String($0)) }
+        let dr = dst.top - from.top, dc = dst.left - from.left
+        var stay: [CellRange] = [], moved: [CellRange] = []
+        for r in old {
+            for p in _subtract(r, from) { stay += trimTarget ? _subtract(p, dst) : [p] }
+            if let x = r.intersection(from) {
+                moved.append(CellRange(top: x.top + dr, left: x.left + dc, bottom: x.bottom + dr, right: x.right + dc))
+            }
+        }
+        let new = stay + moved
+        if new == old { return text }
+        guard !new.isEmpty else { return nil }
+        var t = text
+        t.replaceSubrange(a.upperBound ..< b.lowerBound, with: new.map { $0.isSingle ? $0.topLeft.a1 : $0.a1 }.joined(separator: " "))
+        if let p = old.first?.topLeft, let q = new.first?.topLeft, p != q {
+            let sr = q.row - p.row, sc = q.col - p.col
+            t = KeptRefs.element(t, range: { $0 }, ref: { r in
+                if case .ref(let s) = Formula.shifted(.ref(r), rows: sr, cols: sc) { return s }
+                return nil
+            }) ?? t
+        }
+        return t
     }
 }
 

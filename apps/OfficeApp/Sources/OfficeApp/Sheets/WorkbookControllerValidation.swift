@@ -99,7 +99,7 @@ extension WorkbookController {
         }
     }
 
-    private func _setValidationKids(_ kids: [String], root: String, name: String, at i: Int) {
+    func _setValidationKids(_ kids: [String], root: String, name: String, at i: Int) {
         guard !kids.isEmpty else { sheet.keptElements.remove(at: i); return }
         var start = root
         if let r = start.findRange(of: " count=\"") {

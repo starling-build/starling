@@ -1197,6 +1197,14 @@ final class WorkbookController: ChangeNotifier {
     }
 
     /// Run an edit that moves things, as one undo step over whole sheets.
+    /// Run `body` with `sheet` meaning sheet `si` (a cut from another sheet tidies its source).
+    func _onSheet(_ si: Int, _ body: () -> Void) {
+        let was = _sheetOverride
+        _sheetOverride = si
+        body()
+        _sheetOverride = was
+    }
+
     func structural(_ change: () -> Void) {
         let before = _bookState()
         let sel = selection, act = active, others0 = otherRanges
