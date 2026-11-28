@@ -78,6 +78,14 @@ extension WorkbookController {
         return all.firstIndex(of: SheetFindHit(sheet: activeSheet, at: active)).map { ($0 + 1, all.count) }
     }
 
+    /// The Find All list's Value column: the shown value, or with Look in Notes the whole note
+    /// on one line ("Ada: Note on B2"), so the reason a line matched can be seen.
+    func findListValue(_ h: SheetFindHit, lookIn: FindLookIn) -> String {
+        guard book.sheets.indices.contains(h.sheet) else { return "" }
+        let text = findText(h.at, sheet: book.sheets[h.sheet], lookIn: lookIn == .notes ? .notes : .values) ?? ""
+        return String(text.map { $0.isNewline ? " " : $0 })
+    }
+
     /// Go to one Find All hit.
     func goToHit(_ h: SheetFindHit) {
         guard book.sheets.indices.contains(h.sheet) else { return }
