@@ -132,7 +132,69 @@ final class KeyboardTraversalTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(commands.count, 3)
         XCTAssertEqual(Set(commands.map { $0.code }).count, commands.count, "command tips are unique")
         ui.press(.escape)
-        XCTAssertFalse(KeyboardTraversal.shared.tipsOn, "Esc turns the tips off")
+        XCTAssertTrue(KeyboardTraversal.shared.tipsOn, "Esc on the commands goes back to the tab letters")
+        ui.press(.escape)
+        XCTAssertFalse(KeyboardTraversal.shared.tipsOn, "Esc on the tab letters turns the tips off")
+        ui.dispose()
+    }
+
+    /// U-KEY-2: as in Word, a command whose letter opens a menu puts letters on the menu's items; Esc steps back one level
+    /// at a time (menu, then the page's commands, then the tab letters, then off). The Mac's Option key (Flutter's
+    /// Alt Left, which the macOS embedder sends for Option) turns them on like Alt.
+    func testKeyTipsGoIntoAMenuAndEscStepsBack() {
+        KeyboardTraversal.shared.reset()
+        let ui = app(OfficeShell(initialPath: nil, startBlank: true))
+        ui.pump()
+        let kt = KeyboardTraversal.shared
+        for type in [KeyEventType.down, .up] {
+            _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: type, physical: 0, logical: 0x2_0000_0104, character: nil, synthesized: false))
+        }
+        ui.pump()
+        XCTAssertTrue(kt.tipsOn, "a clean tap of Option (Alt Left) turns the key tips on")
+        guard let home = kt.tipCodes().first(where: { $0.stop.label() == "Home" }) else { return XCTFail("no tip for Home") }
+        ui.type(home.code)
+        guard let cc = kt.tipCodes().first(where: { $0.stop.label() == "Change Case" }) else { return XCTFail("no tip for Change Case") }
+        ui.type(cc.code)
+        ui.pump(); ui.pump()
+        XCTAssertTrue(kt.tipsOn, "a command that opens a menu keeps the tips on")
+        let items = kt.tipCodes()
+        XCTAssertTrue(items.allSatisfy { $0.stop.modal }, "only the menu's items have letters while it is open")
+        XCTAssertTrue(items.contains { $0.stop.label() == "UPPERCASE" }, "every menu item has a letter: \(items.map { $0.stop.label() ?? "" })")
+        XCTAssertEqual(Set(items.map { $0.code }).count, items.count, "menu tips are unique")
+        XCTAssertTrue(ui.has(text: "UPPERCASE"))
+        let drawn = ui.elements().filter { e in (e.widget as? KeyTipLayer)?.modal == true }
+        XCTAssertEqual(drawn.count, 1, "the menu has its own tip layer, above the ribbon")
+        let badges = ui.elements().compactMap { ($0.widget as? Text)?.data }
+        for (_, code) in items { XCTAssertTrue(badges.contains(code), "the menu shows the letter \(code)") }
+        ui.press(.escape); ui.pump()
+        XCTAssertFalse(ui.has(text: "UPPERCASE"), "Esc closes the menu")
+        XCTAssertTrue(kt.tipsOn, "and the tips stay on")
+        XCTAssertTrue(kt.tipCodes().contains { $0.stop.label() == "Change Case" }, "the page's command letters come back")
+        ui.press(.escape)
+        XCTAssertTrue(kt.tipsOn)
+        XCTAssertTrue(kt.tipCodes().contains { $0.stop.label() == "Insert" }, "Esc on the commands goes back to the tab letters")
+        ui.press(.escape)
+        XCTAssertFalse(kt.tipsOn, "Esc on the tab letters turns the tips off")
+
+        // A menu item's letter runs it and ends the tips.
+        ui.press(.alt)
+        ui.type(home.code)
+        guard let cc2 = kt.tipCodes().first(where: { $0.stop.label() == "Change Case" }) else { return XCTFail("no tip for Change Case") }
+        ui.type(cc2.code)
+        ui.pump(); ui.pump()
+        guard let upper = kt.tipCodes().first(where: { $0.stop.label() == "UPPERCASE" }) else { return XCTFail("no tip for UPPERCASE") }
+        ui.type(upper.code)
+        ui.pump()
+        XCTAssertFalse(kt.tipsOn, "choosing a menu item ends the tips")
+        XCTAssertFalse(ui.has(text: "UPPERCASE"), "and closes the menu")
+
+        // A command that opens no menu ends the tips after it runs.
+        ui.press(.alt)
+        ui.type(home.code)
+        guard let bold = kt.tipCodes().first(where: { ($0.stop.label() ?? "").hasPrefix("Bold") }) else { return XCTFail("no tip for Bold") }
+        ui.type(bold.code)
+        ui.pump(); ui.pump()
+        XCTAssertFalse(kt.tipsOn, "a plain command ends the tips")
         ui.dispose()
     }
 

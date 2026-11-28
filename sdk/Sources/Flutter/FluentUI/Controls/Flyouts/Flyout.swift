@@ -188,7 +188,7 @@ public class FlyoutController {
                 additionalOffset: additionalOffset,
                 margin: margin,
                 targetContext: attachState.context,
-                builder: builder
+                builder: { KeyTipLayer(modal: true, child: builder($0)) }
             ))
         })
 
@@ -220,7 +220,7 @@ public class FlyoutController {
             return FlyoutScope(close: { [weak self] in self?.closeFlyout() }, child: _FlyoutPositioner(
                 link: link, placement: .corner, additionalOffset: 0, margin: margin, bottomInset: bottomInset,
                 targetContext: nil, targetRect: { Rect.fromLTWH(point.dx, point.dy, 0, 0) },
-                builder: builder))
+                builder: { KeyTipLayer(modal: true, child: builder($0)) }))
         })
         _barrierEntry = barrierEntry
         _flyoutEntry = flyoutEntry
@@ -709,7 +709,9 @@ public class FlyoutListTile: StatelessWidget {
                 return Padding(padding: margin, child: tileContent)
             },
             onPressed: onPressed,
-            onLongPress: onLongPress
+            onLongPress: onLongPress,
+            // Its words name it for an Alt key tip (HoverButton keeps this name off the semantics tree).
+            semanticLabel: (text as? Text)?.data
         )
     }
 }

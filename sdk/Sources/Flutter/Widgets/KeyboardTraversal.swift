@@ -193,10 +193,16 @@ public final class KeyboardTraversal {
     /// letter) the commands of the open page. Letters come from each control's own name.
     public func tipCodes() -> [(stop: KeyStop, code: String)] {
         guard tipsOn else { return [] }
-        let live = reachable().filter { !$0.modal && $0.region == "ribbon" }
-        guard let top = live.map({ ($0.origin()!.dy / 10).rounded() }).min() else { return [] }
-        let strip = live.filter { ($0.origin()!.dy / 10).rounded() == top }
-        let pool = (_tipStage == 0 ? strip : live.filter { s in !strip.contains { $0 === s } }).filter { $0.label() != nil }
+        let pool: [KeyStop]
+        if _tipMenus > 0 {
+            // A menu a command's letter opened: its items get letters, as Word's do.
+            pool = reachable().filter { $0.modal && $0.label() != nil }
+        } else {
+            let live = reachable().filter { !$0.modal && $0.region == "ribbon" }
+            guard let top = live.map({ ($0.origin()!.dy / 10).rounded() }).min() else { return [] }
+            let strip = live.filter { ($0.origin()!.dy / 10).rounded() == top }
+            pool = (_tipStage == 0 ? strip : live.filter { s in !strip.contains { $0 === s } }).filter { $0.label() != nil }
+        }
         var used = Set<String>()
         var out: [(KeyStop, String)] = []
         let single = pool.count <= 26
@@ -217,6 +223,15 @@ public final class KeyboardTraversal {
         return out
     }
 
+    /// How many menus showing key tips are open (a KeyTipLayer(modal: true) counts itself in and out).
+    private var _tipMenus = 0
+    public func tipMenuOpened() { _tipMenus += 1 }
+    public func tipMenuClosed() {
+        _tipMenus = max(0, _tipMenus - 1)
+        // The menu is gone: the ribbon's command letters come back (Esc closed it), on the next frame.
+        if tipsOn { FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in self?._tipsChanged() } }
+    }
+
     public func endTips() {
         guard tipsOn else { return }
         tipsOn = false; _tipStage = 0; _tipTyped = ""
@@ -225,7 +240,13 @@ public final class KeyboardTraversal {
 
     private func _handleTipKey(_ key: KeyData) -> Bool {
         let l = key.logical
-        if l == 0xFF1B || l == 0x1_0000_001B { endTips(); return true }
+        if l == 0xFF1B || l == 0x1_0000_001B {
+            // Esc goes back one level, as in Word: a page's command letters back to the tab letters, then off.
+            // An open menu's own Esc closes it, and the command letters come back.
+            if _tipMenus > 0 { return false }
+            if _tipStage == 1, _tipMenus == 0 { _tipStage = 0; _tipTyped = ""; _tipsChanged() } else { endTips() }
+            return true
+        }
         guard let ch = key.character?.uppercased(), ch.count == 1, ch.first!.isASCII, ch.first!.isLetter || ch.first!.isNumber else {
             endTips(); return false
         }
@@ -233,9 +254,17 @@ public final class KeyboardTraversal {
         let codes = tipCodes()
         if let hit = codes.first(where: { $0.code == _tipTyped }) {
             _tipTyped = ""
-            let wasTabs = _tipStage == 0
+            let wasTabs = _tipStage == 0, inMenu = _tipMenus > 0
             hit.stop.activate()
-            if wasTabs { _tipStage = 1; _tipsChanged() } else { endTips() }
+            if wasTabs { _tipStage = 1; _tipsChanged() }
+            else if inMenu { endTips() }
+            else {
+                // A command that opens a menu keeps the letters going on its items; any other command ends them.
+                FrameCallbackScheduler.shared.addPostFrameCallback { [weak self] _ in
+                    guard let self, self.tipsOn else { return }
+                    if self._tipMenus > 0 { self._tipsChanged() } else { self.endTips() }
+                }
+            }
         } else if !codes.contains(where: { $0.code.hasPrefix(_tipTyped) }) {
             endTips()
         } else { _tipsChanged() }
