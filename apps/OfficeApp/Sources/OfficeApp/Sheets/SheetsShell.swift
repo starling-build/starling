@@ -1122,20 +1122,10 @@ final class SheetsShellState: State<StatefulWidget> {
             left.append(Text(message, style: dim))
         }
         var right: [Widget] = []
-        if !wb.selection.isSingle {
-            let s = wb.selectionStats
-            if s.numbers > 0, let avg = s.average {
-                right.append(Text("Average: \(NumberFormat.general(avg))", style: caption))
-                right.append(Chrome.gap(16))
-            }
-            if s.count > 0 {
-                right.append(Text("Count: \(s.count)", style: caption))
-                right.append(Chrome.gap(16))
-            }
-            if s.numbers > 0 {
-                right.append(Text("Sum: \(NumberFormat.general(s.sum))", style: caption))
-                right.append(Chrome.gap(16))
-            }
+        for (f, value) in _statusFigures() where Self.statusShown.contains(f) {
+            guard let value else { continue }
+            right.append(Text("\(f.label): \(value)", style: caption))
+            right.append(Chrome.gap(16))
         }
         right += [
             Chrome.icon(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { [weak self] in self?._command(.zoom(1 / 1.1)) },
@@ -1146,9 +1136,72 @@ final class SheetsShellState: State<StatefulWidget> {
             decoration: BoxDecoration(
                 color: fluent.resources.solidBackgroundFillColorBase,
                 border: Border(top: BorderSide(color: fluent.resources.dividerStrokeColorDefault, width: 1))),
-            child: Padding(padding: EdgeInsets(left: 12, top: 2, right: 8, bottom: 2), child: Row(
+            // A right click chooses which figures show, as Excel's Customize Status Bar does.
+            child: Listener(onPointerDown: { [weak self] e in
+                guard let self, e.buttons & kSecondaryMouseButton != 0, let context = self.context else { return }
+                let figures = self._statusFigures()
+                let items: [MenuFlyoutItemBase] = figures.map { f, value in
+                    ToggleMenuFlyoutItem(text: Text(f.menuTitle), trailing: Text(value ?? "", style: dim),
+                                         isChecked: Self.statusShown.contains(f),
+                                         onChanged: { [weak self] _ in self?._toggleStatusFigure(f) })
+                }
+                self._contextMenu.showFlyout(in: context, at: e.position) { _ in MenuFlyout(items: items) }
+            }, behavior: .translucent, child: Padding(padding: EdgeInsets(left: 12, top: 2, right: 8, bottom: 2), child: Row(
                 crossAxisAlignment: .center,
-                children: left + [Expanded(child: SizedBox(width: 0, height: 0, child: nil))] + right)))
+                children: left + [Expanded(child: SizedBox(width: 0, height: 0, child: nil))] + right))))
+    }
+
+    /// A figure the status bar can show for a selection of more than one cell, in Excel's order.
+    enum StatusFigure: CaseIterable {
+        case average, count, numericalCount, min, max, sum
+        var label: String {
+            switch self {
+            case .average: return "Average"
+            case .count: return "Count"
+            case .numericalCount: return "Numerical Count"
+            case .min: return "Min"
+            case .max: return "Max"
+            case .sum: return "Sum"
+            }
+        }
+        var menuTitle: String {
+            switch self {
+            case .min: return "Minimum"
+            case .max: return "Maximum"
+            default: return label
+            }
+        }
+    }
+
+    /// The figures shown, for every workbook in the app (Excel keeps this per user, not per file):
+    /// Average, Count and Sum by default.
+    static var statusShown: Set<StatusFigure> = [.average, .count, .sum]
+
+    /// Each figure and its value for the selection, nil when it has none (a single cell,
+    /// no values, or no numbers for the number figures).
+    func _statusFigures() -> [(StatusFigure, String?)] {
+        let s = wb.selection.isSingle ? nil : wb.selectionStats
+        return StatusFigure.allCases.map { f in
+            guard let s, s.count > 0 else { return (f, nil) }
+            switch f {
+            case .average: return (f, s.average.map { NumberFormat.general($0) })
+            case .count: return (f, "\(s.count)")
+            case .numericalCount: return (f, "\(s.numbers)")
+            case .min: return (f, s.min.map { NumberFormat.general($0) })
+            case .max: return (f, s.max.map { NumberFormat.general($0) })
+            case .sum: return (f, s.numbers > 0 ? NumberFormat.general(s.sum) : nil)
+            }
+        }
+    }
+
+    /// The status bar text as shown (tests).
+    func _statusBarFigures() -> [String] {
+        _statusFigures().compactMap { f, v in Self.statusShown.contains(f) ? v.map { "\(f.label): \($0)" } : nil }
+    }
+
+    /// Shows or hides one figure (the status bar's right-click menu).
+    func _toggleStatusFigure(_ f: StatusFigure) {
+        setState { if Self.statusShown.contains(f) { Self.statusShown.remove(f) } else { Self.statusShown.insert(f) } }
     }
 
     // MARK: Build

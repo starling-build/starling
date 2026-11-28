@@ -1209,9 +1209,10 @@ final class WorkbookController: ChangeNotifier {
         notifyListeners()
     }
 
-    /// The status bar's figures for the selection: Sum, Average, Count.
-    var selectionStats: (sum: Double, average: Double?, count: Int, numbers: Int) {
+    /// The status bar's figures for the selection: Sum, Average, Count, Numerical Count, Min, Max.
+    var selectionStats: (sum: Double, average: Double?, count: Int, numbers: Int, min: Double?, max: Double?) {
         var sum = 0.0, count = 0, numbers = 0
+        var lo: Double? = nil, hi: Double? = nil
         let r = selection
         let keys: [CellAddress] = r.area <= sheet.cells.count
             ? (r.top ... r.bottom).flatMap { row in (r.left ... r.right).map { CellAddress(row: row, col: $0) } }
@@ -1222,8 +1223,8 @@ final class WorkbookController: ChangeNotifier {
             let v = sheet.value(a)
             if v.isEmpty { continue }
             count += 1
-            if let n = v.number { sum += n; numbers += 1 }
+            if let n = v.number { sum += n; numbers += 1; lo = Swift.min(lo ?? n, n); hi = Swift.max(hi ?? n, n) }
         }
-        return (sum, numbers > 0 ? sum / Double(numbers) : nil, count, numbers)
+        return (sum, numbers > 0 ? sum / Double(numbers) : nil, count, numbers, lo, hi)
     }
 }
