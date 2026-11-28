@@ -1051,8 +1051,9 @@ public final class RichEditableState: State<StatefulWidget> {
         }
     }
 
-    /// The content-control check box under `local`, as (paragraph, control id): the point is over the glyph itself.
-    private func _checkBox(at local: Offset) -> (paragraph: Int, id: Int)? {
+    /// The check box under `local`: a content control's (paragraph, control id) or a legacy form field's (paragraph, nil,
+    /// glyph offset). The point is over the glyph itself.
+    private func _checkBox(at local: Offset) -> (paragraph: Int, id: Int?, offset: Int)? {
         guard _layout.width > 0, _layout.count > 0 else { return nil }
         _syncLayoutIfNeeded()
         let doc = _shownDocument
@@ -1062,9 +1063,19 @@ public final class RichEditableState: State<StatefulWidget> {
         for box in doc.paragraphs[pos.paragraph].checkBoxes {
             let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.lowerBound), doc)
             let r = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.range.upperBound), doc)
-            if flow.dx >= l.left - 1, flow.dx <= r.left + 1, flow.dy >= l.top, flow.dy <= l.top + l.height { return (pos.paragraph, box.id) }
+            if flow.dx >= l.left - 1, flow.dx <= r.left + 1, flow.dy >= l.top, flow.dy <= l.top + l.height { return (pos.paragraph, box.id, box.range.lowerBound) }
+        }
+        for box in doc.paragraphs[pos.paragraph].formCheckBoxes {
+            let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.offset), doc)
+            let r = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: box.offset + 1), doc)
+            if flow.dx >= l.left - 1, flow.dx <= r.left + 1, flow.dy >= l.top, flow.dy <= l.top + l.height { return (pos.paragraph, nil, box.offset) }
         }
         return nil
+    }
+
+    private func _toggle(_ box: (paragraph: Int, id: Int?, offset: Int)) {
+        if let id = box.id { _controller.toggleCheckBox(in: box.paragraph, control: id) }
+        else { _controller.toggleFormCheckBox(in: box.paragraph, at: box.offset) }
     }
 
     /// The note on the page under a point (its box in the editable's coordinates), if the page has painted one there.
@@ -1124,6 +1135,13 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     /// Paragraph `i`'s picture or block in the editable's own coordinates (tests drive a click on it).
+    /// The caret's box at `pos` in this widget's own coordinates (tests click a character through it).
+    func caretRectOnScreen(_ pos: RichPosition) -> Rect? {
+        _syncLayoutIfNeeded()
+        guard let c = _layout.canvasRects(_layout.caretRect(pos, _shownDocument)).first else { return nil }
+        return Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, c.width, c.height)
+    }
+
     func imageRectOnScreen(_ i: Int) -> Rect? {
         _syncLayoutIfNeeded()
         guard let flow = _layout.imageRect(i), let c = _layout.floatCanvasRect(i, flow) else { return nil }
@@ -1309,7 +1327,7 @@ public final class RichEditableState: State<StatefulWidget> {
         // A click on a check box control flips it, as Word does.
         if !_controller.readOnly, !_chords.shift, let box = _checkBox(at: event.localPosition) {
             _focus.requestFocus()
-            _controller.toggleCheckBox(in: box.paragraph, control: box.id)
+            _toggle(box)
             return
         }
         if _chords.primary, !_chords.shift, event.buttons & 1 != 0, _layout.width > 0 {
@@ -1653,7 +1671,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 }
                 if !_controller.readOnly, let box = _checkBox(at: event.localPosition) {
                     _focus.requestFocus()
-                    _controller.toggleCheckBox(in: box.paragraph, control: box.id)
+                    _toggle(box)
                     return
                 }
                 _syncLayoutIfNeeded()

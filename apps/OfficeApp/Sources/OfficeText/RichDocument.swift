@@ -234,6 +234,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// Word prints as a drawn square; a "☐" typed, or a content control's,
     /// is a character there (LibreOffice's sdt-run-checkbox).
     public var formBox = false
+    /// A legacy form field's settings (its begin `w:fldChar`'s `w:ffData`, kept whole as the file had it): written back
+    /// with the field so its name, help text, default and the rest survive a save (W-RV-3). Set on a FORMCHECKBOX's glyph.
+    public var formField: String? = nil
     /// A run holding only a middle dot (U+00B7). Word draws such a run in the
     /// ascii face, so it must stay a run of its own (normalize() would merge it).
     public var loneDot = false
@@ -2449,6 +2452,34 @@ extension RichParagraph {
         p.controlMarkers[ei].offset = hi + n   // the insert left the end marker before the glyph
         if hi > lo { _ = p.delete(lo ..< hi) }
         if let props = p.controlMarkers[si]._settingChecked(state) { p.controlMarkers[si].properties = props }
+        return p
+    }
+}
+
+extension RichParagraph {
+    /// The legacy form check boxes (FORMCHECKBOX, read as a "☐" / "☒" run marked `formBox`): each glyph's offset and state.
+    public var formCheckBoxes: [(offset: Int, checked: Bool)] {
+        var out: [(offset: Int, checked: Bool)] = []
+        var at = 0
+        let units = Array(text.utf16)
+        for r in runs {
+            if r.style.formBox {
+                for k in at ..< min(at + r.length, units.count) where units[k] == 0x2610 || units[k] == 0x2612 {
+                    out.append((k, units[k] == 0x2612))
+                }
+            }
+            at += r.length
+        }
+        return out
+    }
+    /// This paragraph with the legacy check box at `offset` set to `state` (its glyph swapped, its run kept); nil when
+    /// there is no such box or it is already so.
+    public func settingFormCheckBox(at offset: Int, to state: Bool) -> RichParagraph? {
+        guard let box = formCheckBoxes.first(where: { $0.offset == offset }), box.checked != state else { return nil }
+        var p = self
+        let style = p.style(at: offset + 1)
+        p.insert(state ? "\u{2612}" : "\u{2610}", at: offset + 1, runs: [Run(length: 1, style: style)])
+        _ = p.delete(offset ..< offset + 1)
         return p
     }
 }
