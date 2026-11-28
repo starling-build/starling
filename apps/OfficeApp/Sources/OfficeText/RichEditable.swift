@@ -374,7 +374,7 @@ public final class RichEditableState: State<StatefulWidget> {
             self._repaint.notifyListeners()
         }
         _layout = RichLayout(theme: _w.theme, paragraphCount: _shownDocument.paragraphs.count)
-        _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
+        _controller.rowHeightProbe = { [weak self] i in self?._rowHeightPoints(i) }
         _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
         _controller.pictureCornerProbe = { [weak self] i, id in self?._pictureCorner(i, id) }
         _layout.scale = _w.zoom
@@ -402,6 +402,13 @@ public final class RichEditableState: State<StatefulWidget> {
         _restartBlink()
     }
 
+    /// A row's laid-out height in points: the layout's is in pixels at the zoom (Slides' Table Size read 29 for a 30 pt
+    /// row on a slide drawn at 98.5%, and grew the table too little).
+    private func _rowHeightPoints(_ i: Int) -> Double? {
+        guard let layout = _layout, let h = layout.rowRect(i)?.height else { return nil }
+        return h / (layout.theme.pixelsPerPoint * layout.scale)
+    }
+
     public override func didUpdateWidget(_ oldWidget: StatefulWidget) {
         super.didUpdateWidget(oldWidget)
         let old = oldWidget as! RichEditable
@@ -409,7 +416,7 @@ public final class RichEditableState: State<StatefulWidget> {
             old.controller.removeListeners(owner: self)
             _controller = _w.controller
             _controller.addListener({ [weak self] in self?._onControllerChanged() }, owner: self)
-            _controller.rowHeightProbe = { [weak self] i in self?._layout?.rowRect(i)?.height }
+            _controller.rowHeightProbe = { [weak self] i in self?._rowHeightPoints(i) }
             _controller.pictureSpotProbe = { [weak self] i, id in self?._pictureSpot(i, id) }
             _controller.pictureCornerProbe = { [weak self] i, id in self?._pictureCorner(i, id) }
             _layout = RichLayout(theme: _w.theme, paragraphCount: _shownDocument.paragraphs.count)

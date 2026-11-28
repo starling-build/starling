@@ -983,17 +983,16 @@ final class Ribbon: StatelessWidget {
             ])])
             guard let shape else { return [select, rows, slideSize, slideAlignment] }
             // Table Size: the grid and the rows scale to the new width or height; with the lock on, the other follows.
-            let f = shape.frame, locked = shape.aspectLocked
+            let f = shape.frame, locked = shape.aspectLocked, insets = shape.insets.top + shape.insets.bottom
             let tableSize = Chrome.group("Table Size", fluent, [
                 Chrome.rows([
                     Chrome.spinner("Height", f.height, fluent, step: 7.2, minimum: 1, shown: pt(f.height)) { v in
-                        let k = v / max(1, f.height)
-                        c.scaleTable(kx: locked ? k : 1, ky: k, drawn: grid)
+                        c.scaleTable(kx: locked ? v / max(1, f.height) : 1, rowsHeight: v - insets, drawn: grid)
                     },
                     Chrome.vgap(2),
                     Chrome.spinner("Width", f.width, fluent, step: 7.2, minimum: 1, shown: pt(f.width)) { v in
                         let k = v / max(1, f.width)
-                        c.scaleTable(kx: k, ky: locked ? k : 1, drawn: grid)
+                        c.scaleTable(kx: k, rowsHeight: locked ? f.height * k - insets : nil, drawn: grid)
                     },
                 ]),
                 Chrome.rows([

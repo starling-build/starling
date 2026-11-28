@@ -32,8 +32,10 @@ extension RichDocumentController {
             }
             paras = out + [RichParagraph()] + tail
             let caretAt = out.count + 1
-            perform(.removeParagraphs(at: range.lowerBound, old))
+            // The new rows go in before the old come out: a table that is the whole text never leaves it empty, which
+            // would add a stray empty paragraph under the table (Slides' Custom Margins grew its frame 30 pt).
             perform(.insertParagraphs(at: range.lowerBound, paras))
+            perform(.removeParagraphs(at: range.lowerBound + paras.count, old))
             if let widths = document.tableColumns[id] { perform(.setTableColumns(newID, old: nil, new: widths)) }
             if let style = document.tableStyles[id] {
                 var first = style, second = style
