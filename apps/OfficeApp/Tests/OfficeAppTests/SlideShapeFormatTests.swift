@@ -45,17 +45,17 @@ final class SlideShapeFormatTests: XCTestCase {
         deck.selectShapes([b]); ui.pump()
         XCTAssertTrue(ui.tap(text: "Shape Format")); ui.pump()
         XCTAssertTrue(ui.has(text: "60 pt"), "the height box shows the shape's height")
-        XCTAssertTrue(ui.tap(tip: "More")); ui.pump()   // the first spinner is Height
+        XCTAssertTrue(ui.tap(tip: "Increase")); ui.pump()   // the first spinner is Height
         XCTAssertEqual(b.frame.height, 66)
         XCTAssertEqual(b.frame.width, 120)
-        deck.undo()
+        deck.undo(); ui.pump()
         XCTAssertEqual(b.frame.height, 60)
-        deck.selectShapes([b]); ui.pump()   // (undo leaves nothing selected, and the ribbon went Home)
-        XCTAssertTrue(ui.tap(text: "Shape Format")); ui.pump()
+        XCTAssertTrue(deck.selection.first === b, "undo keeps the shape selected")
+        XCTAssertTrue(ui.has(text: "Shape Styles"), "and the Shape Format tab stays open")
         let below = try XCTUnwrap(deck.currentSlide.shapes.firstIndex { $0 === b })
         XCTAssertTrue(ui.tap(text: "Send Backward")); ui.pump()
         XCTAssertEqual(deck.currentSlide.shapes.firstIndex { $0 === b }, below - 1)
-        XCTAssertTrue(ui.tap(tip: "More")); ui.pump()
+        XCTAssertTrue(ui.tap(tip: "Increase")); ui.pump()
         let (state, theme, pkg) = try Pptx.read(try Pptx.write(deck))
         let again = DeckController(); again.load(state, theme: theme, package: pkg)
         let rects = again.slides[0].shapes.filter { $0.preset == .rect }

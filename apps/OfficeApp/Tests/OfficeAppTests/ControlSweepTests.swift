@@ -38,7 +38,7 @@ final class ControlSweepTests: XCTestCase {
     /// selection or a state they are already in. Anything else dead is a bug.
     /// (Written the Mac way, run through `.keys`: a tip spells its chord for the platform, "⌘Z" here and "Ctrl+Z" on Linux.)
     private static let idle: Set<String> = Set([
-        "Redo (⇧⌘Z)", "Undo (⌘Z)", "Less", "Cancel", "Enter", "Double-click to rename",
+        "Redo (⇧⌘Z)", "Undo (⌘Z)", "Decrease", "Cancel", "Enter", "Double-click to rename",
         "Direction and sequence", "Normal", "Print Layout",
         // Nothing to select on a fresh blank slide (an icon-only button of the Editing group once that group gives way).
         "Select All",
