@@ -72,8 +72,11 @@ final class CommentThreadTests: XCTestCase {
         let (_, _, ext, again) = try parts(c)
         XCTAssertTrue(again.comments()[0].done)
         XCTAssertTrue(ext.containsSubstring("w15:paraId=\"\(again.comments()[0].paraId)\" w15:done=\"1\""), ext)
+        // Word marks the reply resolved with its parent (lab/comments2 reply-resolved: both Done = True).
+        XCTAssertTrue(again.comments()[1].done, ext)
         XCTAssertTrue(again.setCommentResolved("0", false))
         XCTAssertFalse(again.comments()[0].done)
+        XCTAssertFalse(again.comments()[1].done)
         c.undo()
         XCTAssertFalse(c.comments()[0].done)
     }

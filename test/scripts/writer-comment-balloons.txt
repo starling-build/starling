@@ -17,6 +17,14 @@ shot ${OUT}/cb-01-card-second.png
 click 1104 494
 wait 400
 shot ${OUT}/cb-02-resolved.png
+# The card's Delete: open the (resolved) second comment again and delete it. Its balloon goes, the third moves up,
+# and the status line says "Comment deleted" (never the deleted comment's text). The card's labels read dark on white.
+click 1128 400
+wait 400
+shot ${OUT}/cb-02a-card-again.png
+click 1163 494
+wait 400
+shot ${OUT}/cb-02b-deleted.png
 # Open the first comment's card: its text box takes the keys at once. Edit it, then reply.
 click 1128 350
 wait 400
