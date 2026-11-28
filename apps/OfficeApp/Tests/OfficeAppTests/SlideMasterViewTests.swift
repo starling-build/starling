@@ -302,6 +302,77 @@ final class SlideMasterViewTests: XCTestCase {
         XCTAssertNil(l2.range(of: "sz=\"4400\""))
     }
 
+    /// The title and body run tags (rPr, endParaRPr) of one part.
+    private func _placeholderRuns(_ data: Data, _ part: String, only type: String? = nil) throws -> [String] {
+        let p = PptxPackage(try Zip.read(data))
+        var x = String(decoding: try XCTUnwrap(p.parts[part], part), as: UTF8.self)
+        if let type {
+            let sp = try NSRegularExpression(pattern: "<p:sp>.*?</p:sp>", options: [.dotMatchesLineSeparators])
+            x = sp.matches(in: x, range: NSRange(x.startIndex..., in: x)).map { String(x[Range($0.range, in: x)!]) }
+                .filter { $0.range(of: "type=\"\(type)\"") != nil || $0.range(of: "type=\"ctr\(type.capitalized)\"") != nil }
+                .joined()
+        }
+        let re = try NSRegularExpression(pattern: "<a:(rPr|endParaRPr)\\b[^>]*>")
+        return re.matches(in: x, range: NSRange(x.startIndex..., in: x)).map { String(x[Range($0.range, in: x)!]) }
+    }
+
+    /// Duplicate Layout and Duplicate Slide copy the shapes' own XML, as PowerPoint does: the copies' titles
+    /// keep inheriting (no size or italic of their own), and the duplicated layout keeps its own 60 pt.
+    func testDuplicatesKeepInheriting() throws {
+        let d = try _open(try _cleanTitleDeck())
+        d.select(1)
+        d.duplicateSlide(1)
+        try d.enterMasterView()
+        d.select(d.slides.firstIndex { $0.masterRole?.kind == .layout }!)
+        d.duplicateLayout()
+        let name = d.masterPage!.name
+        try d.closeMasterView()
+        let out = try Pptx.write(d)
+        try _assertUnpinned(out, "after duplicating")
+        let p = PptxPackage(try Zip.read(out))
+        let part = try XCTUnwrap(p.parts.keys.sorted().first { k in
+            k.hasPrefix("ppt/slideLayouts/slideLayout") && k.hasSuffix(".xml")
+                && String(decoding: p.parts[k]!, as: UTF8.self).contains("name=\"\(name)\"") })
+        // The title's runs: the sample's date, footer and number placeholders carry their own 12 pt in the original too.
+        let tags = try _placeholderRuns(out, part, only: "title")
+        XCTAssertFalse(tags.isEmpty)
+        for t in tags { XCTAssertNil(t.range(of: " i=\""), t); XCTAssertNil(t.range(of: " sz=\""), t) }
+        XCTAssertTrue(String(decoding: p.parts[part]!, as: UTF8.self).contains("<a:defRPr sz=\"6000\"/>"))
+    }
+
+    /// Insert Layout and Insert Placeholder make placeholders that follow the master: shown in its current
+    /// look, saved with no size, italic, colour or font of their own.
+    func testInsertedLayoutFollowsTheMaster() throws {
+        let d = try _open(try _cleanTitleDeck())
+        try d.enterMasterView()
+        d.select(d.slides.firstIndex { $0.masterRole?.kind == .master }!)
+        let t = d.currentSlide.shapes.first { $0.phType == "title" }!
+        _selectFirstParagraph(t)
+        t.text?.setFontSize(40)
+        t.text?.toggleItalic()
+        d.insertLayout()
+        d.insertMasterPlaceholder("body")
+        let title = try XCTUnwrap(d.currentSlide.shapes.first { $0.phType == "title" })
+        XCTAssertEqual(title.textTheme?.fontSize, 40)
+        XCTAssertEqual(title.text?.document.paragraphs.first?.runs.first?.style.italic, true)
+        let name = d.masterPage!.name
+        try d.closeMasterView()
+        let out = try Pptx.write(d)
+        let p = PptxPackage(try Zip.read(out))
+        _checkXML(p)
+        let part = try XCTUnwrap(p.parts.keys.sorted().first { k in
+            k.hasPrefix("ppt/slideLayouts/slideLayout") && k.hasSuffix(".xml")
+                && String(decoding: p.parts[k]!, as: UTF8.self).contains("name=\"\(name)\"") })
+        let tags = try _placeholderRuns(out, part)
+        XCTAssertGreaterThanOrEqual(tags.count, 2)
+        for t in tags {
+            for attr in [" sz=\"", " i=\"", " b=\""] { XCTAssertNil(t.range(of: attr), t) }
+        }
+        let x = String(decoding: p.parts[part]!, as: UTF8.self)
+        XCTAssertNil(x.range(of: "<a:latin typeface=\"Calibri"), "a new layout names no font of its own")
+        XCTAssertNil(x.range(of: "<a:rPr lang=\"en-US\" dirty=\"0\"><a:solidFill>"), "nor a colour")
+    }
+
     /// Typing in a slide title writes the new text with the run's own properties, not the resolved ones.
     func testTypingInTitleKeepsItInheriting() throws {
         let d = try _open(try _cleanTitleDeck())
@@ -327,6 +398,27 @@ final class SlideMasterViewTests: XCTestCase {
         _selectFirstParagraph(t)
         t.text?.setFontSize(40)
         t.text?.toggleItalic()
+        try d.closeMasterView()
+        try Pptx.write(d).write(to: URL(fileURLWithPath: out))
+    }
+
+    // PowerPoint check: STARLING_MASTER_DUP_OUT writes the clean deck after Duplicate Slide, Duplicate Layout,
+    // Insert Layout with a text placeholder, and the master title set to 40 pt italic.
+    func testWriteDuplicateCheckDeck() throws {
+        guard let out = ProcessInfo.processInfo.environment["STARLING_MASTER_DUP_OUT"] else { return }
+        let d = try _open(try _cleanTitleDeck())
+        d.select(1)
+        d.duplicateSlide(1)
+        try d.enterMasterView()
+        d.select(d.slides.firstIndex { $0.masterRole?.kind == .master }!)
+        let t = d.currentSlide.shapes.first { $0.phType == "title" }!
+        _selectFirstParagraph(t)
+        t.text?.setFontSize(40)
+        t.text?.toggleItalic()
+        d.select(d.slides.firstIndex { $0.masterRole?.kind == .layout }!)
+        d.duplicateLayout()
+        d.insertLayout()
+        d.insertMasterPlaceholder("body")
         try d.closeMasterView()
         try Pptx.write(d).write(to: URL(fileURLWithPath: out))
     }

@@ -2046,14 +2046,16 @@ enum PptxText {
 
     private static func _rPr(_ c: CharStyle, _ s: ShapeState, tag: String) -> String {
         let size = c.fontSize ?? s.size
-        var a = " lang=\"en-US\" sz=\"\(Int((size * 100).rounded()))\""
-        // Spelled out either way: a run that says nothing about bold inherits
-        // the layout's bold (comparison headings), and this app's text is
-        // what the deck showed.
-        a += c.bold ? " b=\"1\"" : " b=\"0\""
-        a += c.italic ? " i=\"1\"" : " i=\"0\""
-        a += c.underline ? " u=\"sng\"" : " u=\"none\""
-        a += c.strikethrough ? " strike=\"sngStrike\"" : " strike=\"noStrike\""
+        let inherit = s.inherits
+        var a = " lang=\"en-US\""
+        // A placeholder that inherits (`ShapeState.inherits`) states only what differs from its layout and
+        // master. Anything else is spelled out either way: a run that says nothing about bold inherits the
+        // layout's bold (comparison headings), and this app's text is what the deck showed.
+        if inherit == nil || size != s.size { a += " sz=\"\(Int((size * 100).rounded()))\"" }
+        if inherit == nil || c.bold != inherit!.bold { a += c.bold ? " b=\"1\"" : " b=\"0\"" }
+        if inherit == nil || c.italic != inherit!.italic { a += c.italic ? " i=\"1\"" : " i=\"0\"" }
+        if inherit == nil || c.underline { a += c.underline ? " u=\"sng\"" : " u=\"none\"" }
+        if inherit == nil || c.strikethrough { a += c.strikethrough ? " strike=\"sngStrike\"" : " strike=\"noStrike\"" }
         if c.caps { a += " cap=\"all\"" } else if c.smallCaps { a += " cap=\"small\"" }
         switch c.script {
         case .superscript: a += " baseline=\"30000\""
@@ -2074,8 +2076,9 @@ enum PptxText {
         }
         let highlight = c.highlight.map { "<a:highlight><a:srgbClr val=\"\(hex($0))\"/></a:highlight>" } ?? ""
         let click = tag == "a:endParaRPr" ? "" : (links?.xml(click: c.link, c.linkTip, hover: c.hoverLink, c.hoverLinkTip) ?? "")
-        return "<\(tag)\(a)><a:solidFill><a:srgbClr val=\"\(hex(color))\"/></a:solidFill>\(shadow)\(highlight)"
-            + "<a:latin typeface=\"\(font)\"/><a:cs typeface=\"\(font)\"/>\(click)</\(tag)>"
+        let fill = inherit != nil && c.color == nil ? "" : "<a:solidFill><a:srgbClr val=\"\(hex(color))\"/></a:solidFill>"
+        let faces = inherit != nil && c.fontFamily == nil ? "" : "<a:latin typeface=\"\(font)\"/><a:cs typeface=\"\(font)\"/>"
+        return "<\(tag)\(a)>\(fill)\(shadow)\(highlight)\(faces)\(click)</\(tag)>"
     }
 
     /// Notes: plain paragraphs, no looks.

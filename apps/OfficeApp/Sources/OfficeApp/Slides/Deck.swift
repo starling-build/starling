@@ -852,6 +852,11 @@ final class SlideShape {
     /// layout's placeholder; kept so a save binds it to the same one.
     var phType: String? = nil
     var phIdx: String? = nil
+    /// A placeholder whose runs take their look from its layout and master: the bold and italic they give it
+    /// (its size is the text theme's). Saved without its own size, bold, italic, colour or font unless a run
+    /// sets one, as PowerPoint writes it, so a later master or theme change still reaches it. Nil: every run
+    /// spelled out (a shape read from a file keeps its own XML instead).
+    var inherits: InheritedText? = nil
     /// A picture's crop: the fraction of the image cut from each edge.
     var crop: EdgeInsets? = nil
     /// A picture's mirroring and its crop to a shape (`prstGeom` other than
