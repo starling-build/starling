@@ -427,12 +427,13 @@ extension RichDocumentController {
     }
 
     /// Move the floating picture at `index` (or its inline picture `id`) by `dx`, `dy` points from where it stands, one undo
-    /// step. False when it does not float, is placed by alignment (left, centre, top…) or its position
-    /// is held in a form this does not rewrite.
+    /// step. One placed by alignment (left, centre, top…) is placed by offset from then on, as Word moves it: from the same
+    /// frame (page, margin, column, paragraph…), where the layout draws it (`pictureCornerProbe`). False when it does not
+    /// float or its position is held in a form this does not rewrite.
     @discardableResult
     public func movePicture(at index: Int, inline id: String? = nil, dx: Double, dy: Double) -> Bool {
-        guard let old = _floating(index, id), let xml = old.sourceXML, var f = old.float, dx != 0 || dy != 0,
-              f.horizontalAlign == nil, f.verticalAlign == nil else { return false }
+        guard let old = _floating(index, id), let xml = old.sourceXML, var f = old.float, dx != 0 || dy != 0 else { return false }
+        if f.horizontalAlign != nil || f.verticalAlign != nil { return _moveAlignedPicture(index, id, old: old, dx: dx, dy: dy) }
         let x = f.x + dx, y = f.y + dy
         guard let patched = String._anchorMoved(xml, x: Int((x * 12700).rounded()), y: Int((y * 12700).rounded())) else { return false }
         var new = old
@@ -442,6 +443,35 @@ extension RichDocumentController {
         new.float = f
         _store(index, id, old: old, new: new)
         return true
+    }
+
+    /// `movePicture` for one placed by alignment on either axis: an aligned axis takes the offset from its frame at which
+    /// the picture stands now, found by placing it at offset 0 from that frame and reading where the layout draws both.
+    private func _moveAlignedPicture(_ index: Int, _ id: String?, old: ImageAttachment, dx: Double, dy: Double) -> Bool {
+        guard let probe = pictureCornerProbe, let xml = old.sourceXML, let f0 = old.float, let now = probe(index, id) else { return false }
+        let alignedH = f0.horizontalAlign != nil, alignedV = f0.verticalAlign != nil
+        func placed(_ x: Double, _ y: Double) -> ImageAttachment? {
+            guard let patched = String._anchorMoved(xml, x: Int((x * 12700).rounded()), y: Int((y * 12700).rounded())) else { return nil }
+            var new = old, f = f0
+            new.sourceXML = patched
+            f.horizontalAlign = nil; f.verticalAlign = nil
+            f.x = x; f.y = y
+            new.float = f
+            return new
+        }
+        guard let zero = placed(alignedH ? 0 : f0.x, alignedV ? 0 : f0.y) else { return false }
+        var moved = false
+        edit {
+            _store(index, id, old: old, new: zero)
+            guard let origin = probe(index, id),
+                  let final = placed(alignedH ? now.x - origin.x + dx : f0.x + dx, alignedV ? now.y - origin.y + dy : f0.y + dy) else {
+                _store(index, id, old: zero, new: old)
+                return
+            }
+            _store(index, id, old: zero, new: final)
+            moved = true
+        }
+        return moved
     }
 
     /// Layout Options' "Move with text": whether the floating picture at `index` (or its inline picture `id`) is placed from
