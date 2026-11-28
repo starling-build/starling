@@ -1958,7 +1958,22 @@ final class DeckController: ChangeNotifier {
         _changed(keepSession: true)
     }
 
-    /// Crop the selected pictures to a shape: width over height, centred.
+    /// The crop after the picture slid `by` (points, in the picture's own axes) under its crop frame: what it cuts
+    /// on one side it gives back on the other, so the picture keeps its size and the frame its place.
+    static func cropAfterPan(_ crop: EdgeInsets?, frame: Rect, by d: Offset) -> EdgeInsets {
+        let c = crop ?? .zero
+        let fullW = frame.width / max(1 - c.left - c.right, 0.001), fullH = frame.height / max(1 - c.top - c.bottom, 0.001)
+        let sx = d.dx / max(fullW, 0.001), sy = d.dy / max(fullH, 0.001)
+        return EdgeInsets(left: c.left - sx, top: c.top - sy, right: c.right + sx, bottom: c.bottom + sy)
+    }
+
+    /// A drag inside a picture in crop mode (`beginFrameEdit` gives it its history entry).
+    func setCropPanLive(_ shape: SlideShape, crop0: EdgeInsets?, by d: Offset) {
+        let c = Self.cropAfterPan(crop0, frame: shape.frame, by: d)
+        shape.crop = c == .zero ? nil : c
+        _changed(keepSession: true)
+    }
+
     /// The selected pictures' transparency, 0-100 % (Picture Format > Transparency): one undo step.
     func setPictureTransparency(_ percent: Double) {
         let pics = selection.filter { $0.picture != nil }

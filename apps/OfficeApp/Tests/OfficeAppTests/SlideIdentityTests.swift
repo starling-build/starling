@@ -165,6 +165,13 @@ final class SlideIdentityTests: XCTestCase {
         // Outward past the picture pads (a negative share), as PowerPoint's crop does.
         XCTAssertEqual(DeckController.cropAfterHandle(nil, old: Rect.fromLTWH(0, 0, 100, 50), new: Rect.fromLTWH(0, -10, 100, 60), handle: 1).top, -0.2, accuracy: 1e-9)
 
+        // Sliding the picture 10 pt right under a 100 pt frame showing half of it gives 5 percent back on the left.
+        let pan = DeckController.cropAfterPan(EdgeInsets(left: 0.25, top: 0.1, right: 0.25, bottom: 0.1), frame: Rect.fromLTWH(0, 0, 100, 80), by: Offset(10, -10))
+        XCTAssertEqual(pan.left, 0.20, accuracy: 1e-9)
+        XCTAssertEqual(pan.right, 0.30, accuracy: 1e-9)
+        XCTAssertEqual(pan.top, 0.2, accuracy: 1e-9)
+        XCTAssertEqual(pan.bottom, 0.0, accuracy: 1e-9)
+
         let d = try load(try Pptx.write(SlidesSample.make()))
         let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })
         d.select(try XCTUnwrap(d.slides.firstIndex { $0.shapes.contains { $0 === pic } }))

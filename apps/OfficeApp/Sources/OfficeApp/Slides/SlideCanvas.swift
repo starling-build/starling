@@ -79,6 +79,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         case resize(shape: SlideShape, handle: Int, start: Offset, frame: Rect)
         /// A crop handle of a picture in crop mode: the frame moves over the picture, which stays.
         case crop(shape: SlideShape, handle: Int, start: Offset, frame: Rect, crop: EdgeInsets?)
+        /// A drag inside a picture in crop mode: the picture slides under the frame, which stays.
+        case pan(shape: SlideShape, start: Offset, crop: EdgeInsets?, moved: Bool)
         /// A handle of one shape in a multi-selection: that shape resizes as alone, and every other selected shape
         /// scales by the same factors about its own opposite handle (PowerPoint's way).
         case resizeAll(lead: SlideShape, handle: Int, start: Offset, frames: [(SlideShape, Rect)])
@@ -576,10 +578,13 @@ final class SlideCanvasState: State<StatefulWidget> {
                      Rect.fromLTRB(full.left, max(h, full.top), full.right, full.bottom),
                      Rect.fromLTRB(full.left, max(0, full.top), min(0, full.right), min(h, full.bottom)),
                      Rect.fromLTRB(max(w, full.left), max(0, full.top), full.right, min(h, full.bottom))]
-        var kids: [Widget] = bands.filter { $0.width > 0 && $0.height > 0 }.map {
-            Positioned(left: $0.left, top: $0.top, width: $0.width, height: $0.height,
-                       child: DecoratedBox(decoration: BoxDecoration(color: Color(0x59808080)), child: SizedBox(expand: ())))
-        }
+        // The cut-away part is the picture itself, faded (PowerPoint's look); grey until the picture has decoded.
+        // (Slivers under half a pixel are rounding, not a cut.)
+        let shown = bands.filter { $0.width > 0.5 && $0.height > 0.5 }
+        var kids: [Widget] = [Positioned(left: 0, top: 0, width: w, height: h, child: CustomPaint(
+            painter: CropGhostPainter(image: shape.picture.flatMap { _w.cache.image($0) }, full: full, bands: shown,
+                                       revision: deck.revision),
+            child: SizedBox(expand: ())))]
         kids.append(Positioned(left: full.left, top: full.top, width: full.width, height: full.height,
                                child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: Color(0xFF606060), width: 1)),
                                                    child: SizedBox(expand: ()))))
@@ -783,6 +788,10 @@ final class SlideCanvasState: State<StatefulWidget> {
             // removed on release if the pointer never moved.
             if wasSelected { _pendingToggle = true } else { deck.toggleSelected(shape) }
         } else if !wasSelected { deck.selectWholeGroup(of: shape) }
+        if deck.cropping === shape, !_additive {
+            _drag = .pan(shape: shape, start: _slidePoint(e.position), crop: shape.crop, moved: false)
+            return
+        }
         let frames = deck.selection.map { ($0, $0.frame) }
         _drag = .move(start: _slidePoint(e.position), frames: frames, shape: shape,
                       wasSelected: wasSelected, moved: false)
@@ -846,6 +855,17 @@ final class SlideCanvasState: State<StatefulWidget> {
             }
             _drag = .move(start: start, frames: frames, shape: shape, wasSelected: wasSelected, moved: moved)
             deck.setFramesLive(frames.map { ($0.0, $0.1.shift(Offset(dx, dy))) })
+        case .pan(let shape, let start, let crop, var moved):
+            let dx = p.dx - start.dx, dy = p.dy - start.dy
+            if !moved {
+                guard abs(dx) * _px > 3 || abs(dy) * _px > 3 else { return }
+                moved = true
+                deck.beginFrameEdit()
+                _drag = .pan(shape: shape, start: start, crop: crop, moved: true)
+            }
+            // The drag in the picture's own axes (it may be turned).
+            let a = -shape.rotation * .pi / 180
+            deck.setCropPanLive(shape, crop0: crop, by: Offset(dx * cos(a) - dy * sin(a), dx * sin(a) + dy * cos(a)))
         case .crop(let shape, let handle, let start, let frame, let crop):
             let r = Self.resizedFrame(frame, rotation: shape.rotation, handle: handle, delta: Offset(p.dx - start.dx, p.dy - start.dy))
             deck.setCropLive(shape, crop0: crop, frame0: frame, frame: r, handle: handle)
@@ -929,6 +949,8 @@ final class SlideCanvasState: State<StatefulWidget> {
             }
         case .resize, .resizeAll, .crop, .rotate, .elbowRun, .adjust:
             deck.endFrameEdit()
+        case .pan(_, _, _, let moved):
+            if moved { deck.endFrameEdit() }
         case .draw(let preset, let a, let b):
             let m = _w.modifiers()
             deck.placeInsert(preset, from: a, to: b, keepProportions: m.contains(.shift))
@@ -1272,4 +1294,41 @@ private final class _ChromePainter: CustomPainter {
     }
 
     override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool { true }
+}
+
+/// Crop mode's cut-away bands: the whole picture drawn over `full` (the frame's own part left to the shape), seen
+/// through a white veil, so what the crop removes still shows and the handles can bring it back.
+final class CropGhostPainter: CustomPainter {
+    let image: Image?
+    let full: Rect
+    let bands: [Rect]
+    let revision: Int
+
+    init(image: Image?, full: Rect, bands: [Rect], revision: Int) {
+        self.image = image; self.full = full; self.bands = bands; self.revision = revision
+        super.init()
+    }
+
+    /// How much of the cut-away picture shows through the veil.
+    static let opacity = 0.45
+
+    override func paint(_ canvas: any Canvas, _ size: Size) {
+        for band in bands {
+            canvas.save()
+            canvas.clipRect(band)
+            if let image, image.width > 0, image.height > 0 {
+                let p = SlidePainter.imagePaint(alpha: Self.opacity, duotone: nil)
+                canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), full, p)
+            } else {
+                let p = Paint(); p.color = Color(0x59808080)
+                canvas.drawRect(band, p)
+            }
+            canvas.restore()
+        }
+    }
+
+    override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
+        guard let old = oldDelegate as? CropGhostPainter else { return true }
+        return old.image !== image || old.full != full || old.bands != bands || old.revision != revision
+    }
 }

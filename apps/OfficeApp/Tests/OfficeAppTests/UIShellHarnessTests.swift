@@ -473,6 +473,23 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(pic.crop?.left ?? 0, 0.25, accuracy: 0.02)
         XCTAssertEqual(pic.frame.right, f0.right, accuracy: 0.01)
         XCTAssertEqual(pic.frame.width, f0.width * 0.75, accuracy: f0.width * 0.02)
+        // The cut-away quarter shows as the picture itself, faded, in one band left of the frame.
+        let ghost = try XCTUnwrap(ui.elements().compactMap { ($0.widget as? CustomPaint)?.painter as? CropGhostPainter }.first)
+        XCTAssertEqual(ghost.bands.count, 1)
+        XCTAssertEqual(ghost.full.width, ghost.bands[0].width * 4, accuracy: 1)
+        // A drag inside the frame slides the picture under it: dragged right by an eighth of the picture, the left cut
+        // shrinks by as much, the right one grows, and the frame stays put. One undo step.
+        let f1 = pic.frame, full = f0.width
+        let a = try XCTUnwrap(canvas.globalPoint(ofSlide: f1.center))
+        let b = try XCTUnwrap(canvas.globalPoint(ofSlide: Offset(f1.center.dx + full / 8, f1.center.dy)))
+        ui.drag(from: a, to: b)
+        ui.pump()
+        XCTAssertEqual(pic.frame, f1)
+        XCTAssertEqual(pic.crop?.left ?? 0, 0.125, accuracy: 0.02)
+        XCTAssertEqual(pic.crop?.right ?? 0, 0.125, accuracy: 0.02)
+        XCTAssertTrue(deck.cropping === pic, "still cropping")
+        deck.undo()
+        XCTAssertEqual(try XCTUnwrap(deck.currentSlide.shapes.first { $0.picture != nil }).crop?.left ?? 0, 0.25, accuracy: 0.02)
         deck.undo()
         let back = try XCTUnwrap(deck.currentSlide.shapes.first { $0.picture != nil })
         XCTAssertEqual(back.frame, f0)
