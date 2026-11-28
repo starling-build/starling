@@ -167,6 +167,36 @@ struct KeptPicture: Equatable {
     var geometry: ShapePreset? = nil
     /// Whether it was cut to a freeform outline (`a:custGeom`): one cleared since is replaced by the preset.
     var freeform = false
+    /// Its border and effects as read: changed ones (Picture Border, Picture Effects) are written in place of the old.
+    var look = PictureLook()
+}
+
+/// A picture's border (`a:ln`) and effects (`a:effectLst`) as the deck models them.
+struct PictureLook: Equatable {
+    var outline: Color? = nil
+    var outlineWidth = 0.75
+    var outlineDash: String? = nil
+    var shadow: CharShadow? = nil
+    var glowRadius: Double? = nil
+    var glowColor: Color? = nil
+    var reflection: Reflection? = nil
+    var softEdge: Double? = nil
+    /// The border's colour from the theme ("accent1"), if it came from one.
+    var outlineScheme: String? = nil
+}
+
+extension SlideShape {
+    var pictureLook: PictureLook {
+        PictureLook(outline: outline, outlineWidth: outlineWidth, outlineDash: outlineDash, shadow: shadow, glowRadius: glowRadius,
+                    glowColor: glowColor, reflection: reflection, softEdge: softEdge, outlineScheme: outlineScheme)
+    }
+}
+
+extension ShapeState {
+    var pictureLook: PictureLook {
+        PictureLook(outline: outline, outlineWidth: outlineWidth, outlineDash: outlineDash, shadow: shadow, glowRadius: glowRadius,
+                    glowColor: glowColor, reflection: reflection, softEdge: softEdge, outlineScheme: outlineScheme)
+    }
 }
 
 /// A shape's look as its file spelled it: the fill, line and effects in its

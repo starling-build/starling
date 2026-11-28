@@ -250,6 +250,8 @@ struct DeckState: Equatable {
 final class DeckController: ChangeNotifier {
     private let _leakProbe = LeakProbe("DeckController")
     var slides: [Slide] = []
+    /// The editor's decoded pictures, for previews drawn outside the slide (Picture Format > Corrections). Set by the shell.
+    weak var pictureImages: SlideTextCache?
     var current = 0 {
         didSet {
             if current != oldValue, slides.indices.contains(current) {

@@ -187,6 +187,7 @@ final class SlidesShellState: State<StatefulWidget> {
         officeScene.setPictureDrop({ [weak self] path in self?._insertPicture(path) }, owner: self)
         deck.addListener({ [weak self] in self?._deckChanged() }, owner: self)
         _publishToolbar()
+        deck.pictureImages = _cache
         _cache.onImageDecoded = { [weak self] in
             guard let self, self.mounted else { return }
             self.setState {}

@@ -1258,7 +1258,7 @@ private struct SlideXML {
             // picture as it was, at its frame — its recolouring, transparency,
             // shape crop, flip, fill and outline are not modelled here.
             if let xml = s.sourceXML, let k = s.keptPicture, k.imageId == image.id, k.crop == s.crop,
-               k.rotation == s.rotation, k.alpha == s.pictureAlpha, k.brightness == s.pictureBrightness, k.contrast == s.pictureContrast, k.geometry == s.pictureGeometry, k.freeform == (s.customPath != nil), let p = source, let part = s.sourcePart {
+               k.rotation == s.rotation, k.alpha == s.pictureAlpha, k.brightness == s.pictureBrightness, k.contrast == s.pictureContrast, k.geometry == s.pictureGeometry, k.look == s.pictureLook, k.freeform == (s.customPath != nil), let p = source, let part = s.sourcePart {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)))
             }
             // The same image, turned or cropped since it was read: the picture as it was with only the turn and the crop changed, so its
@@ -1269,6 +1269,13 @@ private struct SlideXML {
                 let bright = s.pictureBrightness, contrast = s.pictureContrast
                 let lumChanged = k.brightness != bright || k.contrast != contrast
                 let geometry = s.pictureGeometry, geometryChanged = k.geometry != s.pictureGeometry || (k.freeform && s.customPath == nil)
+                let look = s.pictureLook
+                var oldLine = k.look, oldEffects = k.look
+                oldLine.shadow = look.shadow; oldLine.glowRadius = look.glowRadius; oldLine.glowColor = look.glowColor
+                oldLine.reflection = look.reflection; oldLine.softEdge = look.softEdge
+                oldEffects.outline = look.outline; oldEffects.outlineWidth = look.outlineWidth
+                oldEffects.outlineDash = look.outlineDash; oldEffects.outlineScheme = look.outlineScheme
+                let lineChanged = oldLine != look, effectsChanged = oldEffects != look
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId, alt: _altChange(s, pictureAlt: .some(k.alt)), edit: { node in
                     if let lock { Self._lockEdit(lock)(node) }
                     if let x = node.first("p:spPr")?.first("a:xfrm") {
@@ -1284,6 +1291,9 @@ private struct SlideXML {
                         let g = XNode(name: "a:prstGeom", attrs: ["prst": geometry?.rawValue ?? "rect"])
                         g.children = [XNode(name: "a:avLst", attrs: [:])]
                         spPr.children.insert(g, at: min(at, spPr.children.count))
+                    }
+                    if lineChanged || effectsChanged, let spPr = node.first("p:spPr") {
+                        Self._patchPictureLook(spPr, look, line: lineChanged, effects: effectsChanged, styled: node.first("p:style") != nil)
                     }
                     guard let fill = node.first("p:blipFill") else { return }
                     if alphaChanged, let blip = fill.first("a:blip") {
@@ -1310,7 +1320,7 @@ private struct SlideXML {
             return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(name)\"\(PptxText.altAttrs(s))\(hid)\(PptxText.cNvPrEnd(s))<p:cNvPicPr>\(s.aspectLocked ? "<a:picLocks noChangeAspect=\"1\"/>" : "<a:picLocks/>")</p:cNvPicPr><p:nvPr/></p:nvPicPr>"
                 + "<p:blipFill><a:blip r:embed=\"\(rid)\"\(Self._blipEffects(s))\(Self._crop(s.crop))<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
                 + "<p:spPr>\(Self._xfrm(s.frame, rotation: s.rotation, flipH: s.flipH, flipV: s.flipV))"
-                + "<a:prstGeom prst=\"\(s.pictureGeometry?.rawValue ?? "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+                + "<a:prstGeom prst=\"\(s.pictureGeometry?.rawValue ?? "rect")\"><a:avLst/></a:prstGeom>\(Self._pictureLookXML(s.pictureLook))</p:spPr></p:pic>"
         case .table:
             // Unedited since it was read: the table as it was, in place.
             if let xml = s.sourceXML, let doc = s.text, doc == s.sourceText, let p = source, let part = s.sourcePart {
@@ -2171,6 +2181,48 @@ extension SlideXML {
     /// `a:scene3d` and `a:sp3d`, in that order; empty for a new shape). With `lists`, the shadow, glow, reflection
     /// and soft edge are rebuilt from the model and the list's other effects kept; with `bevel`, the `a:bevelT` is
     /// swapped and the rest of the 3-D settings kept.
+    /// A picture's border: `a:ln` with its colour, width and dash; none when it has no border (`a:noFill`
+    /// when its `p:style` would draw one).
+    static func _pictureLineXML(_ l: PictureLook, styled: Bool) -> String {
+        guard let c = l.outline else { return styled ? "<a:ln><a:noFill/></a:ln>" : "" }
+        return "<a:ln w=\"\(_emu(l.outlineWidth))\">\(_fill(c, scheme: l.outlineScheme))\(_dashXML(l.outlineDash))</a:ln>"
+    }
+
+    /// A picture's effects list built from the model: shadow, glow, reflection and soft edges.
+    static func _pictureEffectsXML(_ l: PictureLook, over old: String = "") -> String {
+        _effectsEdited(old, shadow: l.shadow, glow: l.glowRadius.flatMap { r in r > 0 ? (r, l.glowColor ?? Color(0x66000000)) : nil },
+                       reflection: l.reflection, softEdge: l.softEdge, bevel: nil, lists: true, bevelEdit: false)
+    }
+
+    /// A new picture's border and effects, after its geometry in `p:spPr`.
+    static func _pictureLookXML(_ l: PictureLook) -> String { _pictureLineXML(l, styled: false) + _pictureEffectsXML(l) }
+
+    /// A kept picture's changed border and/or effects written in place of the old in its `p:spPr`; the list's
+    /// other effects (blur, inner shadow...) stay.
+    static func _patchPictureLook(_ spPr: XNode, _ l: PictureLook, line: Bool, effects: Bool, styled: Bool) {
+        // spPr order: xfrm, geometry, fill, ln, effectLst/effectDag, scene3d, sp3d, extLst.
+        func after(_ names: Set<String>) -> Int { (spPr.children.lastIndex { names.contains($0.name) } ?? -1) + 1 }
+        let geometryAndFill: Set<String> = ["a:xfrm", "a:prstGeom", "a:custGeom", "a:noFill", "a:solidFill", "a:gradFill",
+                                            "a:blipFill", "a:pattFill", "a:grpFill"]
+        if line {
+            let at = spPr.children.firstIndex { $0.name == "a:ln" } ?? after(geometryAndFill)
+            spPr.children.removeAll { $0.name == "a:ln" }
+            if let n = _fragment(_pictureLineXML(l, styled: styled)) { spPr.children.insert(n, at: min(at, spPr.children.count)) }
+        }
+        if effects {
+            let oldList = spPr.first("a:effectLst").map { PptxXML.serialize($0) } ?? ""
+            let at = spPr.children.firstIndex { $0.name == "a:effectLst" } ?? after(geometryAndFill.union(["a:ln"]))
+            spPr.children.removeAll { $0.name == "a:effectLst" }
+            if let n = _fragment(_pictureEffectsXML(l, over: oldList)) { spPr.children.insert(n, at: min(at, spPr.children.count)) }
+        }
+    }
+
+    /// One element parsed from its XML text (prefixed names, no namespace declarations needed).
+    static func _fragment(_ xml: String) -> XNode? {
+        guard !xml.isEmpty, let root = XNode.parse(Data("<r>\(xml)</r>".utf8)) else { return nil }
+        return root.children.first
+    }
+
     static func _effectsEdited(_ effects: String, shadow: CharShadow?, glow: (Double, Color)?, reflection: Reflection?,
                                softEdge: Double?, bevel: ShapeBevel?, lists: Bool, bevelEdit: Bool, emptyList: Bool = false) -> String {
         var list = _element(effects, "a:effectLst").map { String(effects[$0]) }
