@@ -1537,6 +1537,7 @@ extension DocxFormat {
         default: break
         }
         setup.orientStated = sz["w:orient"] != nil
+        setup.orientAcrossShape = (sz["w:orient"] == "landscape") != setup.isLandscape
         if let t = sect.first("w:titlePg"), !_isOff(t) { setup.titlePage = true }
         if let v = sect.first("w:vAlign")?["w:val"], v == "center" || v == "bottom" || v == "both" { setup.verticalAlign = v }
         if let ln = sect.first("w:lnNumType") {

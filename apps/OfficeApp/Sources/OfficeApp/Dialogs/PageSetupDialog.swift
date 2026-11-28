@@ -4,7 +4,8 @@
 // W-PG-1: the Page Setup dialog. Margins (top, bottom, left, right, and how far the header and
 // footer stand from the page edge), orientation, and paper size (presets or a custom width and
 // height). "Apply to" says whether the caret's section or every section changes; OK is one undo step
-// (`changePageSetup`). Gutter and mirror margins are not offered: the editor cannot save them yet.
+// (`changePageSetup`). Multiple pages: Normal, Mirror margins, 2 pages per sheet or Book fold (with its pages per
+// booklet), saved in the document's settings (W-PG-1).
 
 import Flutter
 import FlutterSwiftBridge
@@ -48,8 +49,14 @@ struct PageSetupValues: Equatable {
     /// The binding gutter beside the left (inside) margin, and the section's vertical alignment of its text
     /// (`w:vAlign`: nil top, "center", "both" justified, "bottom").
     var gutter: Double, verticalAlign: String?
-    /// Multiple pages: Mirror margins (the document's `w:mirrorMargins`).
-    var mirror = false
+    /// Multiple pages: Normal, Mirror margins, 2 pages per sheet or Book fold (the document's settings, W-PG-1).
+    var pages: RichDocumentController.MultiplePages = .normal
+    var mirror: Bool {
+        get { pages == .mirror }
+        set { pages = newValue ? .mirror : .normal }
+    }
+    /// Book fold's Sheets per booklet, as Word lists it: all, or a number of pages a multiple of 4.
+    static let bookletPages: [Int?] = [nil] + stride(from: 4, through: 40, by: 4).map { $0 }
     var allSections = false
     var options = RichDocumentController.PageOptions(titlePage: false, evenAndOdd: false, pageNumberStart: nil)
 
@@ -97,13 +104,13 @@ final class PageSetupDialog: StatefulWidget {
     let sectionCount: Int
     let unit: LengthUnit
     let options: RichDocumentController.PageOptions?
-    let mirrorMargins: Bool
+    let multiplePages: RichDocumentController.MultiplePages
     let onOK: (PageSetupValues) -> Void
     let onCancel: () -> Void
     init(initial: PageSetup, sectionCount: Int = 1, unit: LengthUnit = .inch, options: RichDocumentController.PageOptions? = nil,
-         mirrorMargins: Bool = false, onOK: @escaping (PageSetupValues) -> Void, onCancel: @escaping () -> Void) {
+         multiplePages: RichDocumentController.MultiplePages = .normal, onOK: @escaping (PageSetupValues) -> Void, onCancel: @escaping () -> Void) {
         self.initial = initial; self.sectionCount = sectionCount; self.unit = unit; self.options = options
-        self.mirrorMargins = mirrorMargins; self.onOK = onOK; self.onCancel = onCancel
+        self.multiplePages = multiplePages; self.onOK = onOK; self.onCancel = onCancel
         super.init()
     }
     override func createState() -> State<StatefulWidget> { PageSetupDialogState() }
@@ -117,7 +124,7 @@ final class PageSetupDialogState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         v = PageSetupValues(_w.initial)
-        v.mirror = _w.mirrorMargins
+        v.pages = _w.multiplePages
         if let o = _w.options { v.options = o; _startText.text = o.pageNumberStart.map(String.init) ?? "1" }
     }
 
@@ -156,15 +163,26 @@ final class PageSetupDialogState: State<StatefulWidget> {
         ]) : Chrome.gap(0)
         let warning: Widget = v.valid ? Chrome.gap(0)
             : Text("The margins leave no room for text.", style: fluent.typography.caption?.copyWith(color: Color(0xFFC42B1C)))
+        // Book fold's Sheets per booklet: all of the document in one booklet, or booklets of so many pages.
+        var bookletRow: Widget = Chrome.gap(0)
+        if case .bookFold(let have) = v.pages {
+            bookletRow = PSKeyed("ps-booklet", Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(crossAxisAlignment: .center, children: [
+                SizedBox(width: 90, height: nil, child: Text("Sheets per booklet")),
+                SizedBox(width: 100, height: nil, child: ComboBox<Int>(
+                    value: have ?? 0,
+                    items: PageSetupValues.bookletPages.map { n in ComboBoxItem(value: n ?? 0, child: Text(n.map(String.init) ?? "All")) },
+                    onChanged: { [weak self] n in self?.setState { self?.v.pages = .bookFold(pagesPerBooklet: (n ?? 0) > 0 ? n : nil) } })),
+            ])))
+        }
         let margins = Column(crossAxisAlignment: .start, children: [
             Row(children: [
                 spin("ps-top", "Top", v.top) { [weak self] n in self?.v.top = n },
                 spin("ps-bottom", "Bottom", v.bottom) { [weak self] n in self?.v.bottom = n },
             ]),
-            // (Facing pages name the left and right margins Inside and Outside, as Word's dialog does.)
+            // (Facing pages and a booklet name the left and right margins Inside and Outside, as Word's dialog does.)
             Row(children: [
-                spin("ps-left", v.mirror ? "Inside" : "Left", v.left) { [weak self] n in self?.v.left = n },
-                spin("ps-right", v.mirror ? "Outside" : "Right", v.right) { [weak self] n in self?.v.right = n },
+                spin("ps-left", v.pages.facing ? "Inside" : "Left", v.left) { [weak self] n in self?.v.left = n },
+                spin("ps-right", v.pages.facing ? "Outside" : "Right", v.right) { [weak self] n in self?.v.right = n },
             ]),
             Row(children: [spin("ps-gutter", "Gutter", v.gutter) { [weak self] n in self?.v.gutter = n }]),
             Row(children: [
@@ -173,9 +191,15 @@ final class PageSetupDialogState: State<StatefulWidget> {
             ]),
             orientation,
             row("Multiple pages", [
-                choice("ps-normal", "Normal", !v.mirror) { [weak self] in self?.setState { self?.v.mirror = false } },
-                choice("ps-mirror", "Mirror margins", v.mirror) { [weak self] in self?.setState { self?.v.mirror = true } },
+                choice("ps-normal", "Normal", v.pages == .normal) { [weak self] in self?.setState { self?.v.pages = .normal } },
+                choice("ps-mirror", "Mirror margins", v.pages == .mirror) { [weak self] in self?.setState { self?.v.pages = .mirror } },
             ]),
+            row("", [
+                choice("ps-twoonone", "2 pages per sheet", v.pages == .twoOnOne) { [weak self] in self?.setState { self?.v.pages = .twoOnOne } },
+                choice("ps-bookfold", "Book fold", v.pages.isBookFold) { [weak self] in
+                    self?.setState { if self?.v.pages.isBookFold == false { self?.v.pages = .bookFold(pagesPerBooklet: nil) } } },
+            ]),
+            bookletRow,
             applyTo, warning,
         ])
         let paper = Column(crossAxisAlignment: .start, children: [

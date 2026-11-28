@@ -3385,7 +3385,7 @@ enum DocxFormat {
             document.flipsMirrorIndents = !(settings.first("w:compat")?.all("w:compatSetting")
                 .contains { $0["w:name"] == "doNotFlipMirrorIndents" && ["1", "true", "on"].contains($0["w:val"] ?? "") } ?? false)
             document.addsParagraphSpacing = settings.first("w:compat")?.first("w:doNotUseHTMLParagraphAutoSpacing").map { !_isOff($0) } ?? false
-            let margins = ["w:mirrorMargins", "w:gutterAtTop"].compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
+            let margins = (RichDocumentController._multiplePagesNames + ["w:gutterAtTop"]).compactMap { settings.first($0) }.map { PptxXML.serialize($0) }.joined()
             document.marginSettingsXML = margins.isEmpty ? nil : margins
             for name in _keptSettingNames.flatMap({ $0 }) {
                 if let n = settings.first(name) { document.keptSettings[name] = PptxXML.serialize(n) }
