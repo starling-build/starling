@@ -451,6 +451,8 @@ final class OfficeSession {
     var onListFormatDialog: ((Bool) -> Void)?
     /// Opens Define New Multilevel List.
     var onMultilevelDialog: (() -> Void)?
+    /// Multilevel List > Define New List Style…
+    var onListStyleDialog: (() -> Void)?
     var onNewStyleDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true

@@ -847,6 +847,7 @@ enum DocxFormat {
         var kindByNum: [String: [Int: ListKind]] = [:]
         var listFormats: [String: [Int: ListLevelFormat]] = [:]
         var listCounterOf: [String: String] = [:]
+        var listStyleIdOf: [String: String] = [:]   // list id -> the numbering style (by id) its definition is
         var listRestarts: [String: [Int: Int]] = [:]
         if let numData = part("word/numbering.xml"), let numbering = XNode.parse(numData) {
             _wrapWordWidths(numbering)
@@ -932,6 +933,8 @@ enum DocxFormat {
                         kept.children = rPr.children.filter { c in ["w:", "w14:", "w15:"].contains { c.name.hasPrefix($0) } }
                         if !kept.children.isEmpty, !formats[ilvl]!.pictureBullet { formats[ilvl]!.numberRPrXML = PptxXML.serialize(kept) }
                     }
+                    if let lgl = lvl.first("w:isLgl"), !["0", "false", "off"].contains(lgl["w:val"] ?? "") { formats[ilvl]!.legal = true }
+                    if let ps = lvl.first("w:pStyle")?["w:val"] { formats[ilvl]!.styleLink = ps }
                     if let suff = lvl.first("w:suff")?["w:val"] { formats[ilvl]!.suffix = suff }
                     // No label, no tab after it: 3922c734's empty-label items start at the
                     // margin in Word; a tab there ran to the next default stop (65 pt in).
@@ -984,6 +987,7 @@ enum DocxFormat {
                 // Lists over one definition share its numbers; a list's
                 // startOverride restarts a level the first time it is used.
                 listCounterOf[id] = "abstract:" + aid
+                if let name = styleLinked.first(where: { $0.value == aid })?.key { listStyleIdOf[id] = name }
                 for ov in n.all("w:lvlOverride") {
                     guard let v = Int(ov.first("w:startOverride")?["w:val"] ?? "") else { continue }
                     listRestarts[id, default: [:]][Int(ov["w:ilvl"] ?? "0") ?? 0] = v
@@ -3144,6 +3148,7 @@ enum DocxFormat {
         document.fileFonts = _declaredFonts(docData).union(_declaredFonts(part("word/styles.xml")))
         document.listFormats = listFormats
         document.listCounterOf = listCounterOf
+        document.listStyleNames = listStyleIdOf.mapValues { notes.styleDisplayNames[$0] ?? $0 }
         document.listRestarts = listRestarts
         document.keptNumberingXML = part("word/numbering.xml").flatMap { String(data: $0, encoding: .utf8) }
         document.listFormatsSnapshot = listFormats

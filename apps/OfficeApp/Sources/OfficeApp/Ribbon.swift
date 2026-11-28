@@ -708,6 +708,16 @@ final class Ribbon: StatelessWidget {
         if session.onMultilevelDialog != nil {
             items.append(MenuFlyoutItem(text: Text("Define New Multilevel List…"), onPressed: { [session] in session.onMultilevelDialog?() }))
         }
+        if session.onListStyleDialog != nil {
+            items.append(MenuFlyoutItem(text: Text("Define New List Style…"), onPressed: { [session] in session.onListStyleDialog?() }))
+        }
+        // The document's list styles, as Word lists them under List Styles.
+        let styles = c.listStyles
+        if !styles.isEmpty {
+            items.append(MenuFlyoutSeparator())
+            items.append(MenuFlyoutItem(text: Text("List Styles"), onPressed: nil))
+            for s in styles { items.append(MenuFlyoutItem(text: Text(s.name), onPressed: { c.applyListStyle(s.id) })) }
+        }
         return items
     }
 

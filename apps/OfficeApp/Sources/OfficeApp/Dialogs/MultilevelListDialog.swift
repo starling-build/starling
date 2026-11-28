@@ -5,7 +5,10 @@
 // the text around the numbers (`%1`..`%9` stand for the numbers of levels 1 to 9), where its
 // numbering starts, and its two indents (the number's position and the text's). A preview
 // shows levels 1 to 3 nested. OK applies all nine levels to the caret's list as one
-// undoable step (`setMultilevelFormat`).
+// undoable step (`setMultilevelFormat`). Per level also: what follows the number (tab, space,
+// nothing), the paragraph style the level is linked to, and Legal style numbering (every number
+// in the label in digits). With `listStyleName` set it is "Define New List Style": a Name field,
+// and OK names a new list style instead of changing the text.
 
 import Flutter
 import FlutterSwiftBridge
@@ -22,9 +25,16 @@ final class MultilevelListDialog: StatefulWidget {
     let startLevel: Int
     let onOK: ([ListLevelFormat]) -> Void
     let onCancel: () -> Void
-    init(initial: [ListLevelFormat], startLevel: Int = 0,
-         onOK: @escaping ([ListLevelFormat]) -> Void, onCancel: @escaping () -> Void) {
+    /// Styles a level can link to, as (the id a level stores, the name shown).
+    let linkable: [(id: String, name: String)]
+    /// Non-nil: Define New List Style, starting with this name.
+    let listStyleName: String?
+    let onOKNamed: (([ListLevelFormat], String) -> Void)?
+    init(initial: [ListLevelFormat], startLevel: Int = 0, linkable: [(id: String, name: String)] = [],
+         listStyleName: String? = nil, onOKNamed: (([ListLevelFormat], String) -> Void)? = nil,
+         onOK: @escaping ([ListLevelFormat]) -> Void = { _ in }, onCancel: @escaping () -> Void) {
         self.initial = initial; self.startLevel = startLevel; self.onOK = onOK; self.onCancel = onCancel
+        self.linkable = linkable; self.listStyleName = listStyleName; self.onOKNamed = onOKNamed
         super.init()
     }
     override func createState() -> State<StatefulWidget> { MultilevelListDialogState() }
@@ -40,6 +50,10 @@ final class MultilevelListDialogState: State<StatefulWidget> {
     private let _start = TextEditingController()
     private let _aligned = TextEditingController()
     private let _indent = TextEditingController()
+    private let _name = TextEditingController()
+
+    static let follows: [(id: String, title: String)] = [("tab", "Tab character"), ("space", "Space"), ("nothing", "Nothing")]
+    static let noStyle = "(no style)"
 
     static let styles: [(id: String, title: String, format: ListNumberFormat)] = [
         ("decimal", "1, 2, 3", .decimal), ("lower-letter", "a, b, c", .lowerLetter),
@@ -52,6 +66,7 @@ final class MultilevelListDialogState: State<StatefulWidget> {
         levels = Array(_w.initial.prefix(9))
         while levels.count < 9 { levels.append(.plain(levels.count)) }
         level = max(0, min(8, _w.startLevel))
+        _name.text = _w.listStyleName ?? ""
         _load()
     }
 
@@ -104,8 +119,24 @@ final class MultilevelListDialogState: State<StatefulWidget> {
         }
     }
 
-    /// The nine levels, or nil while a field holds something invalid.
-    var result: [ListLevelFormat]? { _bad.isEmpty ? levels : nil }
+    /// Follow number with: "tab" (Word's default, stored as none), "space" or "nothing".
+    func setFollow(_ id: String) { setState { levels[level].suffix = id == "tab" ? nil : id } }
+    /// Link level to style: the id to store, nil for none.
+    func setLink(_ id: String?) { setState { levels[level].styleLink = id } }
+    func setLegal(_ on: Bool) { setState { levels[level].legal = on ? true : nil } }
+    func setName(_ name: String) { setState { _name.text = name } }
+
+    /// The nine levels, or nil while a field holds something invalid (or the name is empty).
+    var result: [ListLevelFormat]? {
+        guard _bad.isEmpty else { return nil }
+        if _w.listStyleName != nil, _name.text.trimmingWhitespace().isEmpty { return nil }
+        return levels
+    }
+
+    private func _ok() {
+        guard let r = result else { return }
+        if _w.listStyleName != nil { _w.onOKNamed?(r, _name.text.trimmingWhitespace()) } else { _w.onOK(r) }
+    }
 
     /// The label level `l` shows for its first item under the first items above it.
     func label(_ l: Int) -> String {
@@ -115,8 +146,8 @@ final class MultilevelListDialogState: State<StatefulWidget> {
         var chars = f.text.makeIterator()
         while let ch = chars.next() {
             if ch == "%", let d = chars.next(), let k = Int(String(d)), k >= 1, k <= 9 {
-                let src = levels[k - 1]
-                out += src.format == .bullet ? "" : src.number(max(1, src.start ?? 1))
+                let src = levels[k - 1], n = max(1, src.start ?? 1)
+                out += src.format == .bullet ? "" : f.legal == true ? String(n) : src.number(n)
             } else { out.append(ch) }
         }
         return out
@@ -131,10 +162,11 @@ final class MultilevelListDialogState: State<StatefulWidget> {
         func field(_ id: String, _ c: TextEditingController, width: Double = 90) -> Widget {
             SizedBox(width: width, height: Chrome.fieldHeight, child: MLKeyed(id, FluentTextBox(
                 controller: c, onChanged: { [weak self] _ in self?.setState { self?._store() } },
-                onSubmitted: { [weak self] _ in if let r = self?.result { self?._w.onOK(r) } })))
+                onSubmitted: { [weak self] _ in self?._ok() })))
         }
         let f = levels[level]
         var rows: [Widget] = []
+        if _w.listStyleName != nil { rows.append(row("Name", [field("ml-name", _name, width: 220)])) }
         rows.append(row("Level to modify", (0 ..< 9).map { l in
             MLKeyed("ml-level-\(l + 1)", Chrome.textToggle("\(l + 1)", l == level, fluent) { [weak self] in self?._pick(l) })
         }))
@@ -150,14 +182,29 @@ final class MultilevelListDialogState: State<StatefulWidget> {
         if f.format != .bullet { rows.append(row("Start at", [field("ml-start", _start)])) }
         rows.append(row("Aligned at (pt)", [field("ml-aligned", _aligned)]))
         rows.append(row("Text indent at (pt)", [field("ml-indent", _indent)]))
+        rows.append(row("Follow number with", Self.follows.map { fo in
+            MLKeyed("ml-follow-\(fo.id)", Chrome.textToggle(fo.title, (f.suffix ?? "tab") == fo.id, fluent) { [weak self] in self?.setFollow(fo.id) })
+        }))
+        let names = [Self.noStyle] + _w.linkable.map(\.name)
+        let linked = f.styleLink.flatMap { id in _w.linkable.first { $0.id == id }?.name ?? id } ?? Self.noStyle
+        rows.append(row("Link level to style", [SizedBox(width: 220, height: nil, child: MLKeyed("ml-link", ComboBox<String>(
+            value: names.contains(linked) ? linked : Self.noStyle,
+            items: names.map { ComboBoxItem<String>(value: $0, child: Text($0, style: fluent.typography.body)) },
+            onChanged: { [weak self] v in
+                guard let self, let v else { return }
+                self.setLink(v == Self.noStyle ? nil : self._w.linkable.first { $0.name == v }?.id)
+            })))]))
+        rows.append(Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: MLKeyed("ml-legal", Checkbox(
+            checked: f.legal == true, onChanged: { [weak self] c in self?.setLegal(c ?? false) },
+            content: Text("Legal style numbering", style: fluent.typography.body)))))
         let preview = (0 ..< 3).map { l in
             String(repeating: "    ", count: l) + label(l) + " Level \(l + 1)"
         }
         rows.append(row("Preview", [MLKeyed("ml-preview", Column(crossAxisAlignment: .start, children: preview.map { Text($0) }))]))
-        return DialogShell(title: "Define New Multilevel List",
+        return DialogShell(title: _w.listStyleName != nil ? "Define New List Style" : "Define New Multilevel List",
                            page: Column(crossAxisAlignment: .start, children: rows),
                            okEnabled: result != nil, width: 520,
-                           onOK: { [weak self] in if let r = self?.result { self?._w.onOK(r) } },
+                           onOK: { [weak self] in self?._ok() },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }
 }

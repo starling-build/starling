@@ -1965,6 +1965,14 @@ public struct ListLevelFormat: Hashable, Codable, Sendable {
     public var rawFormat: String? = nil
     public var start: Int? = nil
     public var justification: String? = nil
+    /// Word's Legal style numbering (`w:isLgl`): every number in this
+    /// level's label is written in digits ("Article II" over a "1.1"
+    /// level reads "2.1").
+    public var legal: Bool? = nil
+    /// The paragraph style this level is linked to (`w:pStyle` on the
+    /// level, Word's "Link level to style"), by the id the file uses:
+    /// giving a paragraph that style makes it an item at this level.
+    public var styleLink: String? = nil
 
     public init(text: String, format: ListNumberFormat = .decimal) {
         self.text = text
@@ -2258,7 +2266,8 @@ public enum RichListNumbering {
             while let ch = chars.next() {
                 if ch == "%", let d = chars.next(), let k = Int(String(d)), k >= 1, k <= 9 {
                     let n = c[k - 1] == Int.min ? max(1, formats[k - 1]?.start ?? 1) : max(1, c[k - 1])
-                    label += (formats[k - 1] ?? .plain(k - 1)).number(n)
+                    let src = formats[k - 1] ?? .plain(k - 1)
+                    label += f.legal == true && src.format != .bullet ? String(n) : src.number(n)
                 } else {
                     label.append(ch)
                 }
@@ -3012,6 +3021,10 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// definition count as one (zh-64044a1d's 二、 after a restart in
     /// another list, not 五、). Absent for the editor's own lists.
     public var listCounterOf: [String: String] = [:]
+    /// Per list id, the name of the list style it is (Word's numbering
+    /// style, Define New List Style): offered under List Styles in the
+    /// Multilevel List menu, saved as a numbering style.
+    public var listStyleNames: [String: String] = [:]
     /// Per list id, the levels it restarts the first time it is used, at
     /// these numbers (Word's w:lvlOverride/w:startOverride).
     public var listRestarts: [String: [Int: Int]] = [:]

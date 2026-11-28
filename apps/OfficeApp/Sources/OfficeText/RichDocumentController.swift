@@ -154,6 +154,8 @@ public indirect enum EditOp: Equatable, Sendable {
     /// The number a list's level restarts at, the first time it is used (nil: none).
     case setListRestart(String, level: Int, old: Int?, new: Int?)
     case setListCounter(String, old: String?, new: String?)
+    /// The list style name of one list (nil: not a list style).
+    case setListStyleName(String, old: String?, new: String?)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -332,6 +334,10 @@ public indirect enum EditOp: Equatable, Sendable {
             for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
             changes.append(.lists)
             return .setListCounter(id, old: new, new: old)
+        case .setListStyleName(let id, let old, let new):
+            doc.listStyleNames[id] = new
+            changes.append(.lists)
+            return .setListStyleName(id, old: new, new: old)
         }
     }
 }
@@ -4431,7 +4437,40 @@ public final class RichDocumentController: ChangeNotifier {
     /// Apply a style from the document's sheet to the selected paragraphs.
     public func setNamedStyle(_ id: String) {
         let sheet = document.styles
-        applyParagraphStyle { sheet.apply(id, to: &$0) }
+        let link = _levelLinked(to: id)
+        applyParagraphStyle { style in
+            sheet.apply(id, to: &style)
+            // A list level linked to the style (Link level to style): the paragraph becomes its item.
+            if let link {
+                style.list = document.listFormats[link.list]?[0]?.format == .bullet ? .bullet : .numbered
+                style.listId = link.list
+                style.listLevel = link.level
+            }
+        }
+    }
+
+    /// The list and level linked to the paragraph style `id` (a level's
+    /// `styleLink`, which holds the id the file uses), if any.
+    private func _levelLinked(to id: String) -> (list: String, level: Int)? {
+        let names = Set([id, document.styleSource[id] ?? id])
+        for list in document.listFormats.keys.sorted() {
+            for (level, f) in document.listFormats[list]!.sorted(by: { $0.key < $1.key }) where f.styleLink.map(names.contains) == true {
+                return (list, level)
+            }
+        }
+        return nil
+    }
+
+    /// The style id a level's "Link level to style" stores for our style `id`.
+    public func styleLinkId(_ id: String) -> String { document.styleSource[id] ?? id }
+
+    /// Paragraph styles a list level can link to, as (id, name): Heading 1 to 9
+    /// first, then the sheet's other paragraph styles by name.
+    public var linkableStyles: [(id: String, name: String)] {
+        var out: [(id: String, name: String)] = (1 ... 9).map { (RichNamedStyle.headingId($0), "Heading \($0)") }
+        let rest = document.styles.styles.filter { $0.paragraph.heading == nil }.map { (id: $0.id, name: $0.name) }
+        out += rest.sorted { $0.name < $1.name }
+        return out
     }
 
     /// The sheet id of the caret paragraph's style ("Normal" for body text).
@@ -4492,6 +4531,93 @@ public final class RichDocumentController: ChangeNotifier {
                     if old != f { perform(.setListFormat(id, level: level, old: old, new: f)) }
                 }
             }
+            _numberLinkedParagraphs()
+        }
+    }
+
+    /// After a multilevel definition: each level linked to a paragraph style
+    /// numbers the paragraphs of that style at that level, in the caret's list.
+    private func _numberLinkedParagraphs() {
+        guard let id = document.paragraphs[selection.focus.paragraph].style.listId,
+              let formats = document.listFormats[id] else { return }
+        for (level, f) in formats.sorted(by: { $0.key < $1.key }) {
+            guard let link = f.styleLink else { continue }
+            for i in document.paragraphs.indices {
+                let old = document.paragraphs[i].style
+                let ours = document.styles.id(of: old)
+                guard ours == link || document.styleSource[ours] == link else { continue }
+                var new = old
+                new.list = f.format == .bullet ? .bullet : .numbered
+                new.listId = id
+                new.listLevel = level
+                if new != old { perform(.setParagraphStyle(i, old: old, new: new)) }
+            }
+        }
+    }
+
+    /// Word's Adjust List Indents (a list item's right-click): the caret's
+    /// level, in its list and every list counting with it, gets the number
+    /// at `numberAt` pt, the text at `textAt` pt and `follow` after the
+    /// number ("tab", "space", "nothing"). One undo step.
+    public func adjustListIndents(numberAt: Double, textAt: Double, follow: String) {
+        let st = document.paragraphs[selection.focus.paragraph].style
+        guard st.list != nil else { return }
+        edit {
+            if st.listId == nil { _assignListId(around: selection.focus.paragraph) }
+            guard let id = document.paragraphs[selection.focus.paragraph].style.listId else { return }
+            let level = st.listLevel
+            for lid in _listIdsSharing(id) {
+                let old = document.listFormats[lid]?[level]
+                var f = old ?? (st.list == .bullet ? ListLevelFormat(text: ListLevelFormat.defaultBullet(level), format: .bullet) : .plain(level))
+                f.indentLeft = textAt
+                f.hanging = textAt - numberAt
+                f.suffix = follow == "tab" ? nil : follow
+                if old != f { perform(.setListFormat(lid, level: level, old: old, new: f)) }
+            }
+        }
+    }
+
+    /// The caret's list level as Adjust List Indents shows it: number
+    /// position, text indent (pt) and what follows the number.
+    public var currentListIndents: (numberAt: Double, textAt: Double, follow: String)? {
+        let st = document.paragraphs[selection.focus.paragraph].style
+        guard st.list != nil else { return nil }
+        let f = st.listId.flatMap { document.listFormats[$0]?[st.listLevel] }
+        let left = f?.indentLeft ?? Double(36 * (st.listLevel + 1)), hang = f?.hanging ?? 18
+        return (left - hang, left, f?.suffix ?? "tab")
+    }
+
+    /// The document's list styles (Define New List Style), as (list id,
+    /// name), one per name, by name.
+    public var listStyles: [(id: String, name: String)] {
+        var seen = Set<String>()
+        var out: [(id: String, name: String)] = []
+        for (id, name) in document.listStyleNames.sorted(by: { $0.key < $1.key }) where !seen.contains(name) {
+            seen.insert(name); out.append((id, name))
+        }
+        return out.sorted { $0.name < $1.name }
+    }
+
+    /// Word's Define New List Style: a new list whose nine levels are
+    /// `levels`, named `name` (one undo step). The text is not changed.
+    @discardableResult
+    public func defineListStyle(name: String, levels: [ListLevelFormat]) -> String {
+        let id = _freshListId()
+        edit {
+            for (level, f) in levels.prefix(9).enumerated() { perform(.setListFormat(id, level: level, old: nil, new: f)) }
+            perform(.setListStyleName(id, old: nil, new: name))
+        }
+        return id
+    }
+
+    /// The Multilevel List menu's List Styles: the selected paragraphs
+    /// become items of that list, each keeping its level (body text: level 1).
+    public func applyListStyle(_ id: String) {
+        guard let formats = document.listFormats[id] else { return }
+        applyParagraphStyle { style in
+            if style.list == nil { style.listLevel = 0 }
+            style.list = formats[0]?.format == .bullet ? .bullet : .numbered
+            style.listId = id
         }
     }
 

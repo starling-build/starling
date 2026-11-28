@@ -212,14 +212,16 @@ final class ParagraphDialogState: State<StatefulWidget> {
                                    self?.setState { if let b = self?._tabsBefore { self?.v.tabs = b }; self?.showTabs = false } })
         }
         let unit = _w.unit
+        var ghost = false
+        func keyed(_ id: String, _ w: Widget) -> Widget { ghost ? w : PKeyed(id, w) }
         func choice(_ id: String, _ label: String, _ on: Bool, _ action: @escaping () -> Void) -> Widget {
-            PKeyed(id, Chrome.textToggle(label, on, fluent, action: action))
+            keyed(id, Chrome.textToggle(label, on, fluent, action: action))
         }
         func spin(_ id: String, _ label: String, _ pts: Double, max: Double = 1584, min: Double = 0,
                   _ set: @escaping (Double) -> Void) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 12, bottom: 8), child: Column(crossAxisAlignment: .start, children: [
                 Text(label), Chrome.vgap(2),
-                PKeyed(id, UnitSpinner(points: pts, unit: unit, min: min, max: max, width: 90) { [weak self] n in
+                keyed(id, UnitSpinner(points: pts, unit: unit, min: min, max: max, width: 90) { [weak self] n in
                     self?.setState { set(n) } }),
             ]))
         }
@@ -233,46 +235,22 @@ final class ParagraphDialogState: State<StatefulWidget> {
         let lines: [(String, String, ParagraphLineKind)] = [
             ("pa-line-single", "Single", .single), ("pa-line-1.5", "1.5 lines", .oneHalf), ("pa-line-double", "Double", .double),
             ("pa-line-multiple", "Multiple", .multiple), ("pa-line-atleast", "At least", .atLeast), ("pa-line-exactly", "Exactly", .exactly)]
+        func indents() -> Widget {
         var lineRows: [Widget] = [
             row("Line spacing", lines.prefix(3).map { id, t, k in choice(id, t, v.line == k) { [weak self] in self?.setState { self?.v.line = k } } }),
             row("", lines.suffix(3).map { id, t, k in choice(id, t, v.line == k) { [weak self] in self?.setState { self?.v.line = k } } }),
         ]
-        if v.line == .multiple {
-            lineRows.append(row("Multiple of", [SizedBox(width: 90, height: Chrome.fieldHeight, child: PKeyed("pa-multiple", FluentTextBox(
+        if v.line == .multiple && !ghost {
+            lineRows.append(row("Multiple of", [SizedBox(width: 90, height: Chrome.fieldHeight, child: keyed("pa-multiple", FluentTextBox(
                 controller: _multiple, onSubmitted: { [weak self] _ in self?.commitMultiple() },
                 onFocusChanged: { [weak self] f in if !f { self?.commitMultiple() } })))]))
-        } else if v.line == .atLeast || v.line == .exactly {
+        } else if v.line == .atLeast || v.line == .exactly || ghost {
             lineRows.append(row(v.line == .atLeast ? "At least" : "Exactly", [
-                PKeyed("pa-points", UnitSpinner(points: v.points, unit: .pt, min: 1, max: 1584, width: 90) { [weak self] n in
+                keyed("pa-points", UnitSpinner(points: v.points, unit: .pt, min: 1, max: 1584, width: 90) { [weak self] n in
                     self?.setState { self?.v.points = n } })]))
         }
-        let pages = Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Row(children: [
-            choice("pa-page-indents", "Indents and Spacing", !showBreaks) { [weak self] in self?.setState { self?.showBreaks = false } },
-            choice("pa-page-breaks", "Line and Page Breaks", showBreaks) { [weak self] in self?.setState { self?.showBreaks = true } },
-        ]))
-        if showBreaks {
-            func box(_ id: String, _ label: String, _ on: Bool, _ set: @escaping (Bool) -> Void) -> Widget {
-                Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: PKeyed(id, Checkbox(
-                    checked: on, onChanged: { [weak self] c in self?.setState { set(c ?? false) } },
-                    content: Text(label, style: fluent.typography.body))))
-            }
-            let breaks = Column(crossAxisAlignment: .start, children: [
-                pages,
-                Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Text("Pagination", style: fluent.typography.bodyStrong)),
-                box("pa-widow", "Widow/Orphan control", v.widow) { [weak self] c in self?.v.widow = c },
-                box("pa-keep-next", "Keep with next", v.keepNext) { [weak self] c in self?.v.keepNext = c },
-                box("pa-keep-lines", "Keep lines together", v.keepLines) { [weak self] c in self?.v.keepLines = c },
-                box("pa-break-before", "Page break before", v.breakBefore) { [weak self] c in self?.v.breakBefore = c },
-                Padding(padding: EdgeInsets(left: 0, top: 4, right: 0, bottom: 8), child: Text("Formatting exceptions", style: fluent.typography.bodyStrong)),
-                box("pa-no-line-numbers", "Suppress line numbers", v.noLineNumbers) { [weak self] c in self?.v.noLineNumbers = c },
-                box("pa-no-hyphens", "Don't hyphenate", v.noHyphens) { [weak self] c in self?.v.noHyphens = c },
-            ])
-            return DialogShell(title: "Paragraph", page: breaks, width: 480,
-                               onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v.format(since: ParagraphDialogValues(self._w.initial))) },
-                               onCancel: { [weak self] in self?._w.onCancel() })
-        }
-        let page = Column(crossAxisAlignment: .start, children: [
-            pages,
+        return Column(crossAxisAlignment: .start, children: [
+            pages(),
             row("Alignment", aligns.map { id, t, a in choice(id, t, v.alignment == a) { [weak self] in self?.setState { self?.v.alignment = a } } }),
             Row(children: [
                 spin("pa-left", "Left indent", v.left) { [weak self] n in self?.v.left = n },
@@ -285,16 +263,16 @@ final class ParagraphDialogState: State<StatefulWidget> {
                 choice("pa-special-hanging", "Hanging", v.special == .hanging) { [weak self] in
                     self?.setState { self?.v.special = .hanging; if (self?.v.by ?? 0) == 0 { self?.v.by = 36 } } },
             ]),
-            v.special == .none ? Chrome.gap(0) : spin("pa-by", "By", v.by) { [weak self] n in self?.v.by = n },
+            v.special == .none && !ghost ? Chrome.gap(0) : spin("pa-by", "By", v.by) { [weak self] n in self?.v.by = n },
             Row(children: [
                 spin("pa-before", "Space before", v.before) { [weak self] n in self?.v.before = n },
                 spin("pa-after", "Space after", v.after) { [weak self] n in self?.v.after = n },
             ]),
-            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: PKeyed("pa-contextual", Checkbox(
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: keyed("pa-contextual", Checkbox(
                 checked: v.contextual, onChanged: { [weak self] c in self?.setState { self?.v.contextual = c ?? false } },
                 content: Text("Don't add space between paragraphs of the same style", style: fluent.typography.body)))),
         ] + lineRows + [
-            row("", [PKeyed("pa-tabs", Chrome.textToggle("Tabs…", false, fluent) { [weak self] in
+            row("", [keyed("pa-tabs", Chrome.textToggle("Tabs…", false, fluent) { [weak self] in
                 guard let self else { return }
                 self.setState {
                     self._tabsBefore = self.v.tabs; self.showTabs = true
@@ -303,7 +281,39 @@ final class ParagraphDialogState: State<StatefulWidget> {
                     self._tabKind = first.map(TabKind.init) ?? .left; self._tabLeader = first.map(TabLeader.init) ?? .none
                 } })]),
         ])
-        return DialogShell(title: "Paragraph", page: page, width: 480,
+        }
+        func pages() -> Widget { Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Row(children: [
+            choice("pa-page-indents", "Indents and Spacing", !showBreaks) { [weak self] in self?.setState { self?.showBreaks = false } },
+            choice("pa-page-breaks", "Line and Page Breaks", showBreaks) { [weak self] in self?.setState { self?.showBreaks = true } },
+        ])) }
+        // Word keeps the dialog one size whichever page or options show: both pages are laid out
+        // over an invisible copy of the tallest Indents and Spacing page (every optional row in).
+        ghost = true; let sizer = indents(); ghost = false
+        func sized(_ w: Widget) -> Widget {
+            Stack(children: [w, IgnorePointer(child: ExcludeSemantics(child: Opacity(opacity: 0, child: sizer)))])
+        }
+        if showBreaks {
+            func box(_ id: String, _ label: String, _ on: Bool, _ set: @escaping (Bool) -> Void) -> Widget {
+                Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: keyed(id, Checkbox(
+                    checked: on, onChanged: { [weak self] c in self?.setState { set(c ?? false) } },
+                    content: Text(label, style: fluent.typography.body))))
+            }
+            let breaks = Column(crossAxisAlignment: .start, children: [
+                pages(),
+                Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Text("Pagination", style: fluent.typography.bodyStrong)),
+                box("pa-widow", "Widow/Orphan control", v.widow) { [weak self] c in self?.v.widow = c },
+                box("pa-keep-next", "Keep with next", v.keepNext) { [weak self] c in self?.v.keepNext = c },
+                box("pa-keep-lines", "Keep lines together", v.keepLines) { [weak self] c in self?.v.keepLines = c },
+                box("pa-break-before", "Page break before", v.breakBefore) { [weak self] c in self?.v.breakBefore = c },
+                Padding(padding: EdgeInsets(left: 0, top: 4, right: 0, bottom: 8), child: Text("Formatting exceptions", style: fluent.typography.bodyStrong)),
+                box("pa-no-line-numbers", "Suppress line numbers", v.noLineNumbers) { [weak self] c in self?.v.noLineNumbers = c },
+                box("pa-no-hyphens", "Don't hyphenate", v.noHyphens) { [weak self] c in self?.v.noHyphens = c },
+            ])
+            return DialogShell(title: "Paragraph", page: sized(breaks), width: 480,
+                               onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v.format(since: ParagraphDialogValues(self._w.initial))) },
+                               onCancel: { [weak self] in self?._w.onCancel() })
+        }
+        return DialogShell(title: "Paragraph", page: sized(indents()), width: 480,
                            onOK: { [weak self] in guard let self else { return }; self._w.onOK(self.v.format(since: ParagraphDialogValues(self._w.initial))) },
                            onCancel: { [weak self] in self?._w.onCancel() })
     }
