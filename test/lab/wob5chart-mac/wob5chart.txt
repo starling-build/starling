@@ -34,12 +34,18 @@ wait 400
 click 524.5 201.5
 wait 400
 shot ${OUT}/07-stacked.png
-# Quick Layout > Layout 4 (no title, no axis titles, legend bottom, data labels).
+# Quick Layout > Layout 4 (no title, no axis titles, legend bottom, no gridlines, 9 pt data labels on every series).
 click 278 116
 wait 400
 click 282 210
 wait 400
 shot ${OUT}/08-quick-layout-4.png
+# Quick Layout > Layout 9 (title, legend right, gridlines back, labels on the last series only, inside the bar ends).
+click 278 116
+wait 400
+click 282 322
+wait 400
+shot ${OUT}/08b-quick-layout-9.png
 # Change Chart Type > Bar.
 click 62.5 149
 wait 400

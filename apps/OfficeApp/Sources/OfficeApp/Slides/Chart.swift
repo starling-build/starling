@@ -7767,9 +7767,10 @@ enum ChartPainter {
                         // (A reversed category axis stands series 1 topmost in its group, as the categories run down from the top: 81d28d42 p29.)
                         let top = revCat && c.onSlide ? centre - group / 2 + Double(j) * step : centre + group / 2 - Double(j) * step - bar
                         rect = Rect.fromLTRB(min(p0, p1), top, max(p0, p1), top + bar)
-                        // (A Word chart's bar label that says "inEnd" stands inside the bar's end, its right edge 6.8 pt in, its
+                        // (A Word chart's bar label that says "inEnd" (its series' own position, else the first series' or the
+                        // group's: Word's Quick Layout 9 labels only the last series, lab wobql) stands inside the bar's end, its right edge 6.8 pt in, its
                         // baseline 1.9 pt lower than a centred one: f15415f0's chart 1 in Word's print, white 159 and 144 in the bars.)
-                        if !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, raw > 0, c.barLabelPos == "inEnd" {
+                        if !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, raw > 0, (c.series[safe: j]?.labelPos ?? c.barLabelPos) == "inEnd" {
                             insideEnd.insert(labels.count)
                             RuleTrace.hit("word-horizontal-bar-label-inside-end")
                         }
@@ -7816,7 +7817,7 @@ enum ChartPainter {
                         }
                         // (A Word column's label that says "inEnd" stands inside the column's top, its line 4.6 pt under the
                         // top: c11d31f3's chart 7, white 10 pt "120" in Word's print, 213.2 under a bar topping at 208.6.)
-                        if raw > 0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
+                        if raw > 0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, (c.series[safe: j]?.labelPos ?? c.barLabelPos) == "inEnd", p0 - p1 > 2.5 * size * k {
                             labelAt = Offset(labelAt.dx, min(p0, p1) + 1.065 * size * k)
                             RuleTrace.hit("word-column-label-inside-end")
                         }
