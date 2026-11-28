@@ -12,6 +12,7 @@
 // remounts, and a remounted editor loses the typing under the click.
 
 import Flutter
+import FluentSystemIcons
 import OfficeText
 import FlutterSwiftBridge
 import Foundation
@@ -32,14 +33,18 @@ final class SlideCanvas: StatefulWidget {
     let animationBadges: Bool
     /// A right-click: where, and on which shape (nil for the empty slide).
     let onContextMenu: ((Offset, SlideShape?) -> Void)?
+    /// The Paste Options button was pressed: open its menu at this window point (S-ED-1 step 3).
+    let onPasteOptions: ((Offset) -> Void)?
 
     init(key: (any Key)? = nil, deck: DeckController, cache: SlideTextCache, active: SlideShape?,
          onEdit: @escaping (SlideShape?) -> Void,
          onShortcut: @escaping (KeyData, KeyModifiers) -> Bool,
          modifiers: @escaping () -> KeyModifiers = { [] },
          spellChecker: RichSpellChecker?, animationBadges: Bool = false,
-         onContextMenu: ((Offset, SlideShape?) -> Void)? = nil) {
+         onContextMenu: ((Offset, SlideShape?) -> Void)? = nil,
+         onPasteOptions: ((Offset) -> Void)? = nil) {
         self.modifiers = modifiers
+        self.onPasteOptions = onPasteOptions
         self.onContextMenu = onContextMenu
         self.animationBadges = animationBadges
         self.deck = deck
@@ -485,7 +490,39 @@ final class SlideCanvasState: State<StatefulWidget> {
                 }
             }
         }
+        if let button = _pasteOptionsButton(ox: ox, oy: oy, px: px, fluent: fluent) { children.append(button) }
         return Stack(children: children)
+    }
+
+    /// Where the Paste Options button sits, in the canvas: just past the bottom right of what the last paste put
+    /// on the slide, as PowerPoint puts it; nil while there is none to show.
+    func pasteOptionsRect() -> Rect? {
+        _pasteOptionsRect(ox: _ox, oy: _oy, px: _px)
+    }
+
+    private func _pasteOptionsRect(ox: Double, oy: Double, px: Double) -> Rect? {
+        guard _w.onPasteOptions != nil, _w.active == nil, _drag == nil, deck.slidePasteOptions != nil,
+              let first = deck.selection.first else { return nil }
+        let box = deck.selection.dropFirst().reduce(first.frame) { $0.expandToInclude($1.frame) }
+        let x = min(ox + box.right * px + 4, _area.width - 34), y = min(oy + box.bottom * px + 4, _area.height - 24)
+        return Rect.fromLTWH(max(0, x), max(0, y), 30, 20)
+    }
+
+    private func _pasteOptionsButton(ox: Double, oy: Double, px: Double, fluent: FluentThemeData) -> Widget? {
+        guard let r = _pasteOptionsRect(ox: ox, oy: oy, px: px) else { return nil }
+        let ink = fluent.resources.textFillColorPrimary
+        return Positioned(key: ValueKey("paste-options"), left: r.left, top: r.top, width: r.width, height: r.height,
+                          child: DecoratedBox(
+            decoration: BoxDecoration(color: OfficeAppearance.surface(fluent),
+                                      border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: BorderRadius.circular(3)),
+            child: FlatButton(child: Icon(FluentSystemIcons.paste, size: 14, color: ink), tip: "Paste Options",
+                              width: r.width, height: r.height,
+                              action: { [weak self] in
+                                  guard let self, let open = self._w.onPasteOptions else { return }
+                                  let local = Offset(r.left, r.bottom)
+                                  open(self._box?.localToGlobal(local) ?? local)
+                              })))
     }
 
     /// The bar of 44 pt buttons over a selected shape on touch: Duplicate, Delete, and More (the shape's whole menu). It sits

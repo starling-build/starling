@@ -145,6 +145,7 @@ enum ShortcutTable {
         ShortcutEntry("Edit", "Copy", "c"),
         ShortcutEntry("Edit", "Cut", "x"),
         ShortcutEntry("Edit", "Paste", "v"),
+        ShortcutEntry("Edit", "Paste Special", "v", .alt),
         ShortcutEntry("Edit", "Duplicate", "d"),
         ShortcutEntry("Slides", "New slide", "n", .shift),
         ShortcutEntry("Slides", "New slide", "m"),

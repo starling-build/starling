@@ -1126,6 +1126,24 @@ final class DeckController: ChangeNotifier {
 
     // MARK: Shapes
 
+    /// Plain text pasted onto the slide: a text box holding it, one paragraph a line, in the middle of the slide.
+    @discardableResult func addTextBox(text: String) -> SlideShape {
+        _checkpoint()
+        let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: self.theme.text)
+        let style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+        let lines = text.replacingAll("\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false)
+        let w = (slideSize.width * 0.6).rounded(), h = (Double(lines.count) * 18 * 1.2 + 7.2).rounded(.up)
+        let frame = Rect.fromLTWH(((slideSize.width - w) / 2).rounded(), max(0, ((slideSize.height - h) / 2).rounded()), w, h)
+        let shape = SlideShape(id: _id(), name: "TextBox \(_nextId)", kind: .textBox, frame: frame,
+                               text: _textController(RichDocument(paragraphs: lines.map { RichParagraph(text: String($0), style: style) })),
+                               textTheme: theme)
+        currentSlide.shapes.append(shape)
+        _watch(shape)
+        selection = [shape]
+        _changed()
+        return shape
+    }
+
     func addTextBox(at frame: Rect) -> SlideShape {
         _checkpoint()
         let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: self.theme.text)
@@ -2009,6 +2027,10 @@ final class DeckController: ChangeNotifier {
     // would name nothing.
     private(set) var shapeClipboard: [ShapeState] = []
     private var _pasteCount = 0
+    /// The last paste onto a slide, for the Paste Options button (SlidesClipboard.swift).
+    var _lastSlidePaste: SlidePasteRecord? = nil
+    /// An undone shape paste gives its offset back, so the next one lands where it did.
+    func _unpasteShapes() { _pasteCount = max(0, _pasteCount - 1) }
     var canPasteShapes: Bool { !shapeClipboard.isEmpty }
     /// What the last copy put under `DeckController.shapesMime` on the system clipboard: finding it there again
     /// means the clipboard still holds this deck's shapes (see SlidesClipboard.swift).

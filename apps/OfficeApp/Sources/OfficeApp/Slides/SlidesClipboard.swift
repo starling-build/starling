@@ -94,24 +94,82 @@ extension DeckController {
         return text.isEmpty ? .nothing : .text(text)
     }
 
-    /// Paste `data` onto the slide as `pasteChoice` decides. One undo step. False when it made nothing (text is
-    /// the caller's: it goes to the text being edited).
+    /// Paste `data` onto the slide as `pasteChoice` decides: shapes, a picture, or the text in a new text box. One
+    /// undo step, which the Paste Options button can then redo another way. False when it made nothing.
     @discardableResult func pasteOnSlide(_ data: ClipboardData?) -> Bool {
+        let way: SlidePasteWay
         switch pasteChoice(for: data) {
-        case .shapes:
-            return pasteShapes()
-        case .deckShapes(let pptx):
-            if let states = DeckController.shapes(fromPptx: pptx) {
-                paste(states, offset: 0)
-                return true
-            }
-            guard let png = data?.png, !png.isEmpty else { return false }
-            return _pastePicture(png)
-        case .picture(let png):
-            return _pastePicture(png)
-        case .text, .nothing:
-            return false
+        case .shapes, .deckShapes: way = .keepSource
+        case .picture: way = .picture
+        case .text: way = .textOnly
+        case .nothing: return false
         }
+        if paste(data!, way: way) { return true }
+        // Another deck's shapes that do not read back still came with their picture.
+        return way == .keepSource && paste(data!, way: .picture)
+    }
+
+    /// Whether `data` can be pasted as `way`.
+    func canPaste(_ data: ClipboardData, way: SlidePasteWay) -> Bool {
+        switch way {
+        case .keepSource:
+            return _ownShapes(data) || _otherDeckShapes(data) != nil
+        case .picture:
+            return data.png.flatMap { ImageAttachment.pngPixelSize($0) } != nil
+        case .textOnly:
+            return data.text?.isEmpty == false
+        }
+    }
+
+    /// Paste `data` as `way`, in one undo step, and keep it for the Paste Options button. False when it made nothing.
+    @discardableResult func paste(_ data: ClipboardData, way: SlidePasteWay) -> Bool {
+        guard canPaste(data, way: way) else { return false }
+        switch way {
+        case .keepSource:
+            if _ownShapes(data) {
+                guard pasteShapes() else { return false }
+            } else if let states = _otherDeckShapes(data) {
+                paste(states, offset: 0)
+            } else { return false }
+        case .picture:
+            guard let png = data.png, _pastePicture(png) else { return false }
+        case .textOnly:
+            addTextBox(text: data.text ?? "")
+        }
+        _lastSlidePaste = SlidePasteRecord(data: data, way: way, revision: revision)
+        return true
+    }
+
+    /// The way the last paste was made, while nothing has changed since (the Paste Options button shows then).
+    var slidePasteOptions: SlidePasteWay? {
+        guard let p = _lastSlidePaste, p.revision == revision else { return nil }
+        return p.way
+    }
+
+    /// Whether the last paste can be redone as `way` (the menu greys the ways that cannot).
+    func canRepaste(_ way: SlidePasteWay) -> Bool {
+        guard let p = _lastSlidePaste, p.revision == revision else { return false }
+        return canPaste(p.data, way: way)
+    }
+
+    /// Redo the last paste as `way`: the paste is undone and made again, so one Undo still takes it all out.
+    func repaste(_ way: SlidePasteWay) {
+        guard let p = _lastSlidePaste, p.revision == revision, p.way != way, canPaste(p.data, way: way), canUndo else { return }
+        undo()
+        if p.way == .keepSource, _ownShapes(p.data) { _unpasteShapes() }
+        paste(p.data, way: way)
+    }
+
+    /// The clipboard holds this deck's own copied shapes (its token matches).
+    private func _ownShapes(_ data: ClipboardData) -> Bool {
+        let token = data.custom[DeckController.shapesMime].map { String(decoding: $0, as: UTF8.self) }
+        return token != nil && token == shapeClipboardToken && canPasteShapes
+    }
+
+    /// Shapes another deck window or process copied, read from their one-slide pptx.
+    private func _otherDeckShapes(_ data: ClipboardData) -> [ShapeState]? {
+        guard let pptx = data.custom[DeckController.shapesPptxMime], !pptx.isEmpty else { return nil }
+        return DeckController.shapes(fromPptx: pptx)
     }
 
     private func _pastePicture(_ png: Data) -> Bool {
@@ -122,4 +180,40 @@ extension DeckController {
         addPicture(image, naturalSize: Size(w, h))
         return true
     }
+}
+
+/// The ways a paste onto a slide can be made, as PowerPoint's Paste Options button lists them (S-ED-1 step 3).
+enum SlidePasteWay: CaseIterable, Equatable {
+    case keepSource, picture, textOnly
+
+    /// The Paste Options menu's entry, with PowerPoint's letter.
+    var label: String {
+        switch self {
+        case .keepSource: return "Keep Source Formatting (K)"
+        case .picture: return "Picture (U)"
+        case .textOnly: return "Keep Text Only (T)"
+        }
+    }
+    var letter: Character {
+        switch self {
+        case .keepSource: return "k"
+        case .picture: return "u"
+        case .textOnly: return "t"
+        }
+    }
+    /// Paste Special's name for the format.
+    var formatLabel: String {
+        switch self {
+        case .keepSource: return "Starling Slides Shapes"
+        case .picture: return "Picture (PNG)"
+        case .textOnly: return "Unformatted Text"
+        }
+    }
+}
+
+/// The last paste onto a slide: what was on the clipboard, how it went in, and the deck's revision just after.
+struct SlidePasteRecord {
+    var data: ClipboardData
+    var way: SlidePasteWay
+    var revision: Int
 }
