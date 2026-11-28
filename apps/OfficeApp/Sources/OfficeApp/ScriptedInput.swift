@@ -45,9 +45,19 @@ enum ScriptedInput {
     static func startIfRequested() {
         guard let path = ProcessInfo.processInfo.environment["OFFICE_SCRIPT"], !path.isEmpty,
               let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }
-        let lines = text.split(separator: "\n").map { $0.trimmingWhitespace() }.filter { !$0.isEmpty && !$0.hasPrefix("#") }
+        let lines = scriptLines(text)
         // Let the window come up and the first frames land.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { _run(lines[...]) }
+    }
+
+    /// The commands of a script: blank lines and comments dropped, each line trimmed, except the text of a `type` line,
+    /// which keeps its own trailing spaces ("type Today: " must type the space after the colon).
+    static func scriptLines(_ text: String) -> [String] {
+        text.split(whereSeparator: { $0.isNewline }).map { raw -> String in
+            let lead = raw.trimmingWhitespace()
+            guard lead.hasPrefix("type ") else { return lead }
+            return String(raw.drop(while: { $0.isWhitespace }))
+        }.filter { !$0.isEmpty && !$0.hasPrefix("#") }
     }
 
     private static var _pointerId: Int64 = 1
