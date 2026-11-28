@@ -14,6 +14,9 @@ enum SlidesPdf {
     /// What a print makes of the chosen slides: the slides, a notes page for each, or handouts (six to a page).
     enum Output: Int { case slides, notes, handouts }
 
+    // On the main actor: after its first await a nonisolated async function resumes on a worker thread with a
+    // 512 KB stack, and laying a slide out at twenty pixels a point overflowed it (a SIGBUS in the print test).
+    @MainActor
     static func write(_ deck: DeckController, cache: SlideTextCache, to path: String, title: String,
                       slides only: [Int]? = nil, output: Output = .slides, notesTheme: RichTextTheme? = nil,
                       deliver: ((Data) -> Void)? = nil) async -> Bool {
