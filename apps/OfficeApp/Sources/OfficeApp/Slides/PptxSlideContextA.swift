@@ -304,7 +304,7 @@ extension SlideContext {
         s.sourceXML = PptxXML.serialize(el)
         s.sourcePart = part
         s.altText = el.descendant("p:cNvPr")?["descr"].flatMap { $0.isEmpty ? nil : $0 }
-        s.keptPicture = KeptPicture(imageId: image.id, alt: s.altText, crop: crop, rotation: rotation)
+        s.keptPicture = KeptPicture(imageId: image.id, alt: s.altText, crop: crop, rotation: rotation, alpha: s.pictureAlpha)
         return s
     }
 

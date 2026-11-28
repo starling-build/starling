@@ -360,6 +360,24 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(asked)
     }
 
+    func testSlidesPictureTransparencyMenuSetsTheAmount() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        deck.selectShapes([pic])
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Picture Format"))
+        XCTAssertTrue(ui.tap(text: "Transparency"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Transparency: 50%"))
+        ui.pump()
+        XCTAssertEqual(pic.pictureAlpha, 0.5, accuracy: 1e-9)
+        deck.undo()
+        XCTAssertEqual(deck.currentSlide.shapes.first { $0.picture != nil }?.pictureAlpha ?? 0, 1, accuracy: 1e-9)
+    }
+
     func testSlidesCropButtonTurnsCropModeOnAndEnterEndsIt() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))

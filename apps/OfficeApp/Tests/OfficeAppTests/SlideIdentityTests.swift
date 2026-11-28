@@ -197,6 +197,48 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertNil(d.cropping)
     }
 
+    func testPictureTransparencyIsOneUndoStepAndSaves() throws {
+        func picture(_ d: DeckController) throws -> SlideShape {
+            let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })
+            d.select(try XCTUnwrap(d.slides.firstIndex { $0.shapes.contains { $0 === pic } }))
+            d.selectShapes([pic])
+            return pic
+        }
+        func blips(_ data: Data) throws -> [String] {
+            let package = PptxPackage(try Zip.read(data))
+            return package.parts.keys.sorted().filter { $0.hasPrefix("ppt/slides/slide") && $0.hasSuffix(".xml") }.flatMap { part -> [String] in
+                let xml = String(decoding: package.parts[part] ?? Data(), as: UTF8.self)
+                return xml.components(separatedBy: "<a:blip ").dropFirst().map { String($0.prefix(200)) }
+            }
+        }
+        let d = try load(try Pptx.write(SlidesSample.make()))
+        let pic = try picture(d)
+        XCTAssertEqual(pic.pictureAlpha, 1)
+        d.setPictureTransparency(30)
+        XCTAssertEqual(pic.pictureAlpha, 0.7, accuracy: 1e-9)
+        d.undo()
+        XCTAssertEqual(try picture(d).pictureAlpha, 1, "one undo step")
+        d.redo()
+        // The picture as read, its element kept: the transparency is patched into its blip.
+        let saved = try Pptx.write(d)
+        XCTAssertEqual(try blips(saved).filter { $0.containsSubstring("alphaModFix amt=\"70000\"") }.count, 1)
+        let again = try load(saved)
+        XCTAssertEqual(try picture(again).pictureAlpha, 0.7, accuracy: 1e-6)
+        // Changed again on the re-read picture: one alphaModFix, the new amount; back to 0 % removes it.
+        again.setPictureTransparency(50)
+        let twice = try Pptx.write(again)
+        XCTAssertEqual(try blips(twice).filter { $0.containsSubstring("alphaModFix") }.count, 1)
+        XCTAssertEqual(try picture(try load(twice)).pictureAlpha, 0.5, accuracy: 1e-6)
+        again.setPictureTransparency(0)
+        XCTAssertEqual(try blips(try Pptx.write(again)).filter { $0.containsSubstring("alphaModFix") }.count, 0)
+        XCTAssertEqual(try picture(try load(try Pptx.write(again))).pictureAlpha, 1)
+        // A picture written fresh (no kept element) carries it too.
+        let fresh = try picture(again)
+        fresh.keptPicture = nil
+        again.setPictureTransparency(65)
+        XCTAssertEqual(try picture(try load(try Pptx.write(again))).pictureAlpha, 0.35, accuracy: 1e-6)
+    }
+
     func testACroppedAndTurnedPictureKeepsItsRecolouring() throws {
         var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
         let part = try XCTUnwrap(package.parts.keys.first { $0.hasPrefix("ppt/slides/slide") && !$0.contains("_rels")
