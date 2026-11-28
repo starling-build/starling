@@ -1779,7 +1779,10 @@ final class OfficeShellState: State<StatefulWidget> {
             return ""
         })
         h.places = targets.isEmpty ? [] : places
-        h.address = controller.currentLink ?? ""
+        // (A link to a place in the document opens on that place; an e-mail link on its address and subject.)
+        let now = controller.currentLink ?? ""
+        if let i = RichDocumentController.linkTargetIndex(of: now, in: targets) { h.place = "\(i)" } else { h.address = now }
+        h.hasEmail = true
         h.displayText = controller.selectedText
         h.tip = controller.currentLinkTip ?? ""
         h.canRemove = controller.currentLink != nil
