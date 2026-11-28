@@ -29,6 +29,37 @@ final class SlideGroupTests: XCTestCase {
         XCTAssertNotNil(s[0].group, "undo brings the group back")
     }
 
+    /// Regroup: after Ungroup and an edit, one former member selected brings the whole group back, name and all.
+    func testRegroupBringsTheGroupBack() {
+        let (deck, s) = deckWithThree()
+        deck.selectShapes([s[0], s[1], s[2]]); deck.groupSelection()
+        let name = s[0].group?.name
+        deck.ungroupSelection()
+        deck.selectShapes([s[1]])
+        deck.setSize(width: 50, height: 50)
+        XCTAssertTrue(deck.canRegroup)
+        deck.regroupSelection()
+        XCTAssertEqual(Set(s.map { $0.group?.key }).count, 1)
+        XCTAssertNotNil(s[0].group)
+        XCTAssertEqual(s[2].group?.name, name, "the group keeps its name")
+        XCTAssertEqual(deck.selection.count, 3)
+        XCTAssertFalse(deck.canRegroup)
+        deck.undo()
+        XCTAssertNil(s[0].group)
+        XCTAssertTrue(deck.canRegroup, "undo puts back what Regroup needs")
+    }
+
+    func testRegroupNeedsTwoFormerMembersStillFree() {
+        let (deck, s) = deckWithThree()
+        deck.selectShapes([s[0], s[1]]); deck.groupSelection()
+        deck.ungroupSelection()
+        deck.selectShapes([s[1], s[2]]); deck.groupSelection()
+        deck.selectShapes([s[0]])
+        XCTAssertFalse(deck.canRegroup, "the other member is in a new group")
+        deck.regroupSelection()
+        XCTAssertNil(s[0].group)
+    }
+
     func testDuplicateGivesTheCopiesAGroupOfTheirOwn() {
         let (deck, s) = deckWithThree()
         deck.selectShapes([s[0], s[1]]); deck.groupSelection()
