@@ -47,6 +47,7 @@ struct ShapeState: Equatable {
     /// The same for the outline (`SchemeColor`).
     var outlineScheme: String? = nil
     var themeStyle = false
+    var quickStyle: ShapeQuickStyle? = nil
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
     var flipH = false
@@ -2381,6 +2382,8 @@ final class DeckController: ChangeNotifier {
 
     /// Colours picked lately in Shape Fill and Outline (not part of the document, not undone).
     var recentShapeColors = RecentColors()
+    /// The selected shapes as they were before a Shape Styles entry was previewed on them (S-SH-4).
+    var _quickStylePreview: [(SlideShape, ShapeState)]? = nil
     /// Set while the eyedropper waits for a click on the slide (false: for the fill, true: for the outline).
     var eyedropperFor: Bool? = nil
 
@@ -2525,7 +2528,10 @@ final class DeckController: ChangeNotifier {
     /// `new`'s, and text that followed `old`'s fonts and colours follows `new`'s (Design > Themes, and a paste in
     /// Use Destination Theme).
     func restyleShape(_ shape: SlideShape, from old: DeckTheme, to new: DeckTheme) {
-        if shape.kind == .table, shape.fillScheme?.hasPrefix("accent") == true, let id = shape.tableId, let text = shape.text {
+        // A Shape Styles entry is redrawn whole in the new colours, its text included, unless its fill or
+        // line was changed since.
+        if let q = shape.quickStyle, Self._showsLook(shape, q.look(tableStyleColors(old))) { _giveQuickStyle(q, to: shape) }
+        else if shape.kind == .table, shape.fillScheme?.hasPrefix("accent") == true, let id = shape.tableId, let text = shape.text {
             var doc = text.document
             let kept = doc.tableStyles[id]?.styleId
             doc.tableStyles[id] = tableStyle(accent: new.accents[0])
@@ -2543,7 +2549,8 @@ final class DeckController: ChangeNotifier {
         let heading = shape.role == .title || shape.role == .ctrTitle
         if shape.role != nil || shape.kind == .textBox {
             let fresh = _textTheme(font: heading ? new.headingFont : new.bodyFont, size: tt.fontSize,
-                                   color: tt.textColor == old.subtle ? new.subtle : new.text)
+                                   color: shape.quickStyle.map { $0.look(tableStyleColors(new)).text }
+                                       ?? (tt.textColor == old.subtle ? new.subtle : new.text))
             fresh.listIndent = tt.listIndent
             shape.textTheme = fresh
         }
@@ -3080,6 +3087,7 @@ final class DeckController: ChangeNotifier {
         st.outlineFill = s.outlineFill
         st.outlineScheme = s.outlineScheme
         st.themeStyle = s.themeStyle
+        st.quickStyle = s.quickStyle
         st.headEnd = s.headEnd
         st.connStart = s.connStart
         st.adjusts = s.adjusts
@@ -3121,6 +3129,12 @@ final class DeckController: ChangeNotifier {
         if !inMasterView, st.readShape != nil, let base = s.readState, !Self._onlyPatchableEdits(st, since: base) { st.readShape = nil }
         return st
     }
+
+    /// Redraws without recording anything (a preview).
+    func _redrawOnly() { revision += 1; notifyListeners() }
+
+    /// Puts a shape back as `st` was, after a preview drew on it.
+    func _restoreLook(_ st: ShapeState, to shape: SlideShape) { _apply(st, to: shape) }
 
     private func _apply(_ st: ShapeState, to shape: SlideShape) {
         shape.name = st.name
@@ -3205,6 +3219,7 @@ final class DeckController: ChangeNotifier {
         shape.fillScheme = st.fillScheme
         shape.outlineScheme = st.outlineScheme
         shape.themeStyle = st.themeStyle
+        shape.quickStyle = st.quickStyle
         shape.sourceXML = st.sourceXML
         shape.sourceText = st.sourceText
         shape.sourcePart = st.sourcePart
