@@ -966,6 +966,14 @@ struct PptxReader {
                                    colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
                                    tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart,
                                    unsaidKern: unsaidKern, looseKinsoku: looseKinsoku)
+            if n == 0 {
+                // What a text box that says nothing draws in, for the ones made here (Insert > Text Box, pasted text).
+                let level = ctx._level(0, shapeList: nil, ph: nil, inherited: (nil, nil))
+                if let f = level.font, f != "+mn-lt" { deckTheme.textBoxFont = ctx._font(f) }
+                deckTheme.textBoxSize = level.size
+                if let c = level.color, c != deckTheme.text { deckTheme.textBoxColor = c }
+                if let a = level.algn, a != "l" { deckTheme.textBoxAlign = a }
+            }
             var shapes: [ShapeState] = []
             // A shape whose `p:cNvPr` has no `id` breaks the schema (id is
             // required): PowerPoint prints that slide as a blank page, its

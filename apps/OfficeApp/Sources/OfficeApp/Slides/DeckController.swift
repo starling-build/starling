@@ -495,7 +495,7 @@ final class DeckController: ChangeNotifier {
 
     /// A copy of a slide with new ids, its animations aimed at the copies of
     /// its shapes. Not yet in the deck.
-    private func _cloneSlide(_ source: Slide) -> Slide {
+    func _cloneSlide(_ source: Slide) -> Slide {
         let shapes = source.shapes.map { _copy($0) }
         let copy = Slide(id: _id(), layout: source.layout, shapes: shapes,
                          notes: _textController(source.notes.document))
@@ -634,8 +634,20 @@ final class DeckController: ChangeNotifier {
     /// Copies of the picked slides, ready to paste (this deck's own images).
     private(set) var slideClipboard: [Slide] = []
     var canPasteSlides: Bool { !slideClipboard.isEmpty }
+    /// What the last slide copy put under `DeckController.slidesMime` on the system clipboard: finding it there
+    /// again means the clipboard still holds this deck's slides (see SlidesClipboard.swift).
+    private(set) var slideClipboardToken: String? = nil
+    /// The last slide paste, for its Paste Options button (SlidesClipboard.swift).
+    var _lastSlidesPaste: SlidesPasteRecord? = nil
 
-    func copySlides() { slideClipboard = selectedSlides.map { _cloneSlide(slides[$0]) } }
+    /// Copy the picked slides. The system clipboard gets them too, as a deck of their own, so another window or
+    /// process can paste them.
+    func copySlides() {
+        slideClipboard = selectedSlides.map { _cloneSlide(slides[$0]) }
+        let token = DeckController.nextShapesToken()
+        slideClipboardToken = token
+        Clipboard.setData(slidesClipboardData(token: token))
+    }
 
     func cutSlides() {
         copySlides()
@@ -645,10 +657,15 @@ final class DeckController: ChangeNotifier {
     /// The clipboard's slides after the last picked one, which become the pick.
     func pasteSlides() {
         guard !slideClipboard.isEmpty else { return }
+        _insertSlides(slideClipboard.map { _cloneSlide($0) }, at: (selectedSlides.last ?? current) + 1)
+    }
+
+    /// Put `copies` (new slides, not yet in the deck) in at `at`, in one undo step; they become the pick.
+    func _insertSlides(_ copies: [Slide], at index: Int) {
+        guard !copies.isEmpty else { return }
         _checkpoint()
-        var at = (selectedSlides.last ?? current) + 1
+        var at = max(0, min(slides.count, index))
         let first = at
-        let copies = slideClipboard.map { _cloneSlide($0) }
         for copy in copies { _watch(copy); slides.insert(copy, at: at); at += 1 }
         _adoptSection(first ..< at)
         current = at - 1
@@ -656,6 +673,37 @@ final class DeckController: ChangeNotifier {
         _slideAnchor = first
         selection = []
         _changed()
+    }
+
+    /// The slides of another deck (`state`, read in `source`'s theme), made over as slides of this one, not yet
+    /// in it. Use Destination Theme: they take this deck's theme, background and fonts, as a new slide would.
+    /// Keep Source Formatting: they keep their own look: the background their master gave them is spelled out on
+    /// each, their colours stop following a theme, and the master's own shapes stay drawn behind them.
+    /// Nothing that names a part of the other file comes along (its layouts, comments, controls, tags).
+    func _foreignSlides(_ state: DeckState, theme source: DeckTheme, package: PptxPackage?, way: SlidePasteWay) -> [Slide] {
+        let scratch = DeckController()
+        scratch.load(state, theme: source, package: package)
+        return scratch.slides.map { s in
+            let copy = _cloneSlide(s)
+            copy.layoutPart = nil
+            copy.commentsFrom = nil
+            copy.section = nil
+            copy.clrMapOvrXML = nil
+            copy.controlsXML = nil
+            copy.custDataXML = nil
+            copy.background = s.background
+            switch way {
+            case .keepSource:
+                if copy.background == nil { copy.background = s.inheritedBackground ?? source.backgroundFill }
+                for shape in copy.shapes { shape.fillScheme = nil; shape.outlineScheme = nil }
+            default:
+                copy.decorations = []
+                copy.hideMasterShapes = false
+                copy.inheritedBackground = masterBackground
+                for shape in copy.shapes { restyleShape(shape, from: source, to: theme) }
+            }
+            return copy
+        }
     }
 
     /// Duplicate Slide with several picked: copies of all of them, in order, after the last picked one, and the
@@ -1126,14 +1174,34 @@ final class DeckController: ChangeNotifier {
 
     // MARK: Shapes
 
-    /// Plain text pasted onto the slide: a text box holding it, one paragraph a line, in the middle of the slide.
-    @discardableResult func addTextBox(text: String) -> SlideShape {
+    /// The text theme and paragraph style of a text box made here: the deck's text-box defaults (`DeckTheme.textBoxFont`
+    /// and the rest), else the theme's body font at 18 pt in its text colour, left aligned.
+    func _textBoxLook() -> (theme: RichTextTheme, style: RichParagraphStyle, size: Double) {
+        let size = theme.textBoxSize ?? 18
+        let look = _textTheme(font: theme.textBoxFont ?? theme.bodyFont, size: size, color: theme.textBoxColor ?? theme.text)
+        var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+        switch theme.textBoxAlign {
+        case "ctr": style.alignment = .center
+        case "r": style.alignment = .right
+        case "just": style.alignment = .justify
+        default: break
+        }
+        return (look, style, size)
+    }
+
+    /// Plain text pasted onto the slide: a text box holding it, one paragraph a line, with its top left at `at` (where
+    /// the shapes it was copied from were) or else in the middle of the slide.
+    @discardableResult func addTextBox(text: String, at: Rect? = nil) -> SlideShape {
         _checkpoint()
-        let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: self.theme.text)
-        let style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+        let (theme, style, size) = _textBoxLook()
         let lines = text.replacingAll("\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false)
-        let w = (slideSize.width * 0.6).rounded(), h = (Double(lines.count) * 18 * 1.2 + 7.2).rounded(.up)
-        let frame = Rect.fromLTWH(((slideSize.width - w) / 2).rounded(), max(0, ((slideSize.height - h) / 2).rounded()), w, h)
+        let h = (Double(lines.count) * size * 1.2 + 7.2).rounded(.up)
+        var w = (slideSize.width * 0.6).rounded()
+        var frame = Rect.fromLTWH(((slideSize.width - w) / 2).rounded(), max(0, ((slideSize.height - h) / 2).rounded()), w, h)
+        if let at {
+            if at.width >= 72 { w = at.width }
+            frame = Rect.fromLTWH(at.left, at.top, w, h)
+        }
         let shape = SlideShape(id: _id(), name: "TextBox \(_nextId)", kind: .textBox, frame: frame,
                                text: _textController(RichDocument(paragraphs: lines.map { RichParagraph(text: String($0), style: style) })),
                                textTheme: theme)
@@ -1146,8 +1214,7 @@ final class DeckController: ChangeNotifier {
 
     func addTextBox(at frame: Rect) -> SlideShape {
         _checkpoint()
-        let theme = _textTheme(font: self.theme.bodyFont, size: 18, color: self.theme.text)
-        let style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+        let (theme, style, _) = _textBoxLook()
         let shape = SlideShape(id: _id(), name: "TextBox \(_nextId)", kind: .textBox, frame: frame,
                                text: _textController(RichDocument(paragraphs: [RichParagraph(text: "", style: style)])),
                                textTheme: theme)
@@ -1229,13 +1296,14 @@ final class DeckController: ChangeNotifier {
     /// A picture, centred, at its natural size shrunk to fit four fifths of
     /// the slide.
     @discardableResult
-    func addPicture(_ image: ImageAttachment, naturalSize: Size) -> SlideShape {
+    /// A picture in the middle of the slide, or filling `at` (a picture of copied shapes, where they were).
+    func addPicture(_ image: ImageAttachment, naturalSize: Size, at: Rect? = nil) -> SlideShape {
         _checkpoint()
         var w = naturalSize.width, h = naturalSize.height
         let fit = min(1, slideSize.width * 0.8 / max(w, 1), slideSize.height * 0.8 / max(h, 1))
         w *= fit; h *= fit
         let shape = SlideShape(id: _id(), name: "Picture \(_nextId)", kind: .picture(image),
-                               frame: Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h),
+                               frame: at ?? Rect.fromLTWH((slideSize.width - w) / 2, (slideSize.height - h) / 2, w, h),
                                text: nil, textTheme: nil)
         currentSlide.shapes.append(shape)
         selection = [shape]
@@ -2026,7 +2094,7 @@ final class DeckController: ChangeNotifier {
     // picture names an image the deck holds: pasted into another deck it
     // would name nothing.
     private(set) var shapeClipboard: [ShapeState] = []
-    private var _pasteCount = 0
+    private(set) var _pasteCount = 0
     /// The last paste onto a slide, for the Paste Options button (SlidesClipboard.swift).
     var _lastSlidePaste: SlidePasteRecord? = nil
     /// An undone shape paste gives its offset back, so the next one lands where it did.
@@ -2370,6 +2438,11 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         let old = theme
         theme = new
+        // The deck's own text-box face, size and alignment stay (the presentation says them, not the theme); a
+        // colour taken from the old theme's slot goes with it.
+        if new.textBoxFont == nil && new.textBoxSize == nil && new.textBoxAlign == nil {
+            theme.textBoxFont = old.textBoxFont; theme.textBoxSize = old.textBoxSize; theme.textBoxAlign = old.textBoxAlign
+        }
         // A deck from a file keeps its masters and layouts; only its theme part is recoloured.
         let fromFile = package != nil
         if fromFile { recolourTheme = true } else { ownTemplates = true }
@@ -2380,44 +2453,49 @@ final class DeckController: ChangeNotifier {
                 if let bg = slide.background, bg.image == nil { slide.background = nil }
             }
             slide.inheritedBackground = nil
-            for shape in slide.shapes {
-                if shape.kind == .table, shape.fillScheme?.hasPrefix("accent") == true, let id = shape.tableId, let text = shape.text {
-                    var doc = text.document
-                    let kept = doc.tableStyles[id]?.styleId
-                    doc.tableStyles[id] = tableStyle(accent: new.accents[0])
-                    doc.tableStyles[id]?.styleId = kept
-                    text.load(doc)
-                } else if let scheme = shape.fillScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) {
-                    let plainAccent = SchemeColor.parse(scheme).map { $0.slot >= 4 && $0.mod == 100 && $0.off == 0 } ?? false
-                    if shape.preset?.isLine == true { shape.outline = c } else {
-                        shape.fill = c
-                        if plainAccent { shape.outline = Self.darker(c) }
-                    }
-                }
-                if let scheme = shape.outlineScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) { shape.outline = c }
-                guard let tt = shape.textTheme, let text = shape.text else { continue }
-                let heading = shape.role == .title || shape.role == .ctrTitle
-                if shape.role != nil || shape.kind == .textBox {
-                    let fresh = _textTheme(font: heading ? new.headingFont : new.bodyFont, size: tt.fontSize,
-                                           color: tt.textColor == old.subtle ? new.subtle : new.text)
-                    fresh.listIndent = tt.listIndent
-                    shape.textTheme = fresh
-                }
-                // Runs that spelled out the old theme's look follow the new one.
-                var doc = text.document
-                var touched = false
-                for p in doc.paragraphs.indices {
-                    for r in doc.paragraphs[p].runs.indices {
-                        var st = doc.paragraphs[p].runs[r].style
-                        if st.color == old.text || st.color == old.subtle { st.color = nil; touched = true }
-                        if st.fontFamily == old.headingFont || st.fontFamily == old.bodyFont { st.fontFamily = nil; touched = true }
-                        doc.paragraphs[p].runs[r].style = st
-                    }
-                }
-                if touched { text.load(doc) }
-            }
+            for shape in slide.shapes { restyleShape(shape, from: old, to: new) }
         }
         _changed()
+    }
+
+    /// `shape` as it would look had it been made in `new` rather than `old`: colours from `old`'s slots take
+    /// `new`'s, and text that followed `old`'s fonts and colours follows `new`'s (Design > Themes, and a paste in
+    /// Use Destination Theme).
+    func restyleShape(_ shape: SlideShape, from old: DeckTheme, to new: DeckTheme) {
+        if shape.kind == .table, shape.fillScheme?.hasPrefix("accent") == true, let id = shape.tableId, let text = shape.text {
+            var doc = text.document
+            let kept = doc.tableStyles[id]?.styleId
+            doc.tableStyles[id] = tableStyle(accent: new.accents[0])
+            doc.tableStyles[id]?.styleId = kept
+            text.load(doc)
+        } else if let scheme = shape.fillScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) {
+            let plainAccent = SchemeColor.parse(scheme).map { $0.slot >= 4 && $0.mod == 100 && $0.off == 0 } ?? false
+            if shape.preset?.isLine == true { shape.outline = c } else {
+                shape.fill = c
+                if plainAccent { shape.outline = Self.darker(c) }
+            }
+        }
+        if let scheme = shape.outlineScheme, let c = SchemeColor.resolve(scheme, slots: new.slots) { shape.outline = c }
+        guard let tt = shape.textTheme, let text = shape.text else { return }
+        let heading = shape.role == .title || shape.role == .ctrTitle
+        if shape.role != nil || shape.kind == .textBox {
+            let fresh = _textTheme(font: heading ? new.headingFont : new.bodyFont, size: tt.fontSize,
+                                   color: tt.textColor == old.subtle ? new.subtle : new.text)
+            fresh.listIndent = tt.listIndent
+            shape.textTheme = fresh
+        }
+        // Runs that spelled out the old theme's look follow the new one.
+        var doc = text.document
+        var touched = false
+        for p in doc.paragraphs.indices {
+            for r in doc.paragraphs[p].runs.indices {
+                var st = doc.paragraphs[p].runs[r].style
+                if st.color == old.text || st.color == old.subtle { st.color = nil; touched = true }
+                if st.fontFamily == old.headingFont || st.fontFamily == old.bodyFont { st.fontFamily = nil; touched = true }
+                doc.paragraphs[p].runs[r].style = st
+            }
+        }
+        if touched { text.load(doc) }
     }
 
     /// The current slide's background, or every slide's; nil returns to
