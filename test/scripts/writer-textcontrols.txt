@@ -1,0 +1,33 @@
+# Writer text controls (W-RV-3): a click on a text control's grey placeholder selects all of it and typing replaces it in
+# black; emptying a control brings its placeholder back. Run with OFFICE_FILE=lab/textctl1/start.docx (amd-5's checkout;
+# "Name:" a plain text control and "Notes:" a rich text control showing their placeholders, "City:" a plain text control
+# holding Paris), window 1440x932. Delete any start.docx~ first.
+# Harness points at 1440x932, from DocxTests.testTextControlPlaceholdersInTheApp (TEXTCTL1_OUT writes them):
+# Name placeholder 542,351; Notes placeholder 515,381; City's "Paris" 454,411.
+wait 1500
+shot ${OUT}/tc-00-start.png
+# One click selects the whole grey "Click or tap here to enter text."
+click 542 351
+wait 300
+shot ${OUT}/tc-01-name-selected.png
+# Typing replaces it in black: "Name: Ada".
+type Ada
+wait 300
+shot ${OUT}/tc-02-name-typed.png
+# Same for Notes: "Notes: Fine".
+click 515 381
+wait 300
+type Fine
+wait 300
+shot ${OUT}/tc-03-notes-typed.png
+# A double-click selects Paris; Backspace empties the control and the grey placeholder comes back.
+dclick 454 411
+wait 300
+key backspace
+wait 300
+shot ${OUT}/tc-04-city-placeholder.png
+# One undo puts Paris back.
+chord cmd z
+wait 300
+shot ${OUT}/tc-05-undone.png
+quit

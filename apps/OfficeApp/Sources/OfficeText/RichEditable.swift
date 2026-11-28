@@ -1149,6 +1149,23 @@ public final class RichEditableState: State<StatefulWidget> {
         return nil
     }
 
+    /// Selects the placeholder of the text control under `local`, if the point is over one; whether it did.
+    private func _selectPlaceholder(at local: Offset) -> Bool {
+        guard _layout.width > 0, _layout.count > 0 else { return false }
+        _syncLayoutIfNeeded()
+        let doc = _shownDocument
+        let flow = _layout.flowPoint(_canvasPoint(local))
+        let pos = _layout.canvasPosition(at: _canvasPoint(local), doc)
+        guard pos.paragraph < doc.paragraphs.count, !doc.paragraphs[pos.paragraph].isImage,
+              let r = _controller.placeholderControl(at: pos) else { return false }
+        let l = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: r.lowerBound), doc)
+        let h = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: r.upperBound), doc)
+        guard Self._over(flow, l, h) else { return false }
+        _controller.selection = RichSelection(anchor: RichPosition(paragraph: pos.paragraph, offset: r.lowerBound),
+                                              focus: RichPosition(paragraph: pos.paragraph, offset: r.upperBound))
+        return true
+    }
+
     private func _toggle(_ box: (paragraph: Int, id: Int?, offset: Int)) {
         if let id = box.id { _controller.toggleCheckBox(in: box.paragraph, control: id) }
         else { _controller.toggleFormCheckBox(in: box.paragraph, at: box.offset) }
@@ -1411,6 +1428,11 @@ public final class RichEditableState: State<StatefulWidget> {
             _focus.requestFocus()
             let shift = Offset(event.position.dx - event.localPosition.dx, event.position.dy - event.localPosition.dy)
             _w.onDropDown?(d.paragraph, d.dropDown, Offset(d.below.dx + shift.dx, d.below.dy + shift.dy))
+            return
+        }
+        // A click on a text control's placeholder selects all of it, so typing replaces it, as in Word.
+        if !_controller.readOnly, !_chords.shift, !_chords.primary, event.buttons & 1 != 0, _selectPlaceholder(at: event.localPosition) {
+            _focus.requestFocus()
             return
         }
         if _chords.primary, !_chords.shift, event.buttons & 1 != 0, _layout.width > 0 {
@@ -1761,6 +1783,10 @@ public final class RichEditableState: State<StatefulWidget> {
                     _focus.requestFocus()
                     let shift = Offset(event.position.dx - event.localPosition.dx, event.position.dy - event.localPosition.dy)
                     _w.onDropDown?(d.paragraph, d.dropDown, Offset(d.below.dx + shift.dx, d.below.dy + shift.dy))
+                    return
+                }
+                if !_controller.readOnly, _selectPlaceholder(at: event.localPosition) {
+                    _focus.requestFocus()
                     return
                 }
                 _syncLayoutIfNeeded()
