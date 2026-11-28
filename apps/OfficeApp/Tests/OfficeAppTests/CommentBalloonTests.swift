@@ -83,6 +83,21 @@ final class CommentBalloonTests: XCTestCase {
         XCTAssertTrue(ui.tap(id: "comment-delete")); ui.pump(); ui.pump()
         XCTAssertEqual(state.session.controller.comments(), [])
         XCTAssertEqual(balloons(ui).count, 0)
+        XCTAssertEqual(state._status, "Comment deleted")      // (never the deleted comment's text: job 71)
+    }
+
+    /// The card is white paper in every app theme, so its labels and text boxes take a light theme: in the dark app theme
+    /// they were pale lavender (about 1.1:1) and the boxes dark grey (job 71).
+    func testTheCardReadsDarkOnWhiteInTheDarkAppTheme() {
+        let white = Color(0xFFFFFFFF)
+        for app in [OfficeAppearance.theme(.dark), OfficeAppearance.theme(.light)] {
+            let card = OfficeShellState.commentCardTheme(app)
+            XCTAssertEqual(card.brightness, .light)
+            XCTAssertGreaterThanOrEqual(ContrastAuditTests.ratio(card.resources.textFillColorPrimary, white), 4.5)
+            let box = Color.alphaBlend(foreground: card.resources.controlFillColorDefault, background: white)
+            XCTAssertGreaterThan(box.computeLuminance(), 0.8, "the text box fill is light on the white card")
+            XCTAssertGreaterThanOrEqual(ContrastAuditTests.ratio(card.resources.textFillColorPrimary, box), 4.5)
+        }
     }
 
     func testShowCommentsHidesTheBalloonsAndOnlyAllMarkupShowsThem() {

@@ -355,7 +355,9 @@ final class Ribbon: StatelessWidget {
             Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.delete, "Delete", "Delete the comment", fluent, items: [
                     MenuFlyoutItem(text: Text("Delete"), onPressed: { [session] in
-                        if c.deleteComments() == 0 { session.onStatus?("No comment here") }
+                        // (Says what happened, so the status line never keeps the deleted comment's text: job 71.)
+                        let n = c.deleteComments()
+                        session.onStatus?(n == 0 ? "No comment here" : n == 1 ? "Comment deleted" : "\(n) comments deleted")
                     }),
                     MenuFlyoutItem(text: Text("Delete All Comments in Document"), onPressed: { [session] in
                         let n = c.deleteAllComments()

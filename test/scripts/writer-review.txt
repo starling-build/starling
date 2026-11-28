@@ -108,4 +108,19 @@ wait 300
 click 716 208
 wait 400
 shot ${OUT}/rv-17-accept-all.png
+# The Accept and Reject BUTTONS themselves (not their arrows): each acts on the selected change and moves to the next.
+# Undo brings the changes back; Next from the top selects the first; Accept takes it and selects the second;
+# Reject puts the second back as it was and selects the third.
+chord cmd z
+wait 400
+key up cmd
+click 768 133
+wait 300
+shot ${OUT}/rv-18-first-selected.png
+click 683 116
+wait 400
+shot ${OUT}/rv-19-accept-button.png
+click 680 144
+wait 400
+shot ${OUT}/rv-20-reject-button.png
 quit

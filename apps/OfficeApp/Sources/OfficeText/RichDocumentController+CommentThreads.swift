@@ -104,16 +104,21 @@ extension RichDocumentController {
             parts.append((Self.commentsPart, Data(Self._givingParaId(paraId, toComment: c.id, in: Self._withNamespace("w14", Self.w14NS, root: "<w:comments", xml)).utf8)))
         }
         var ext = document.keptParts[Self.commentsExtendedPart].map { String(decoding: $0, as: UTF8.self) } ?? Self.freshCommentsEx
-        if let r = Self._elementRange("w15:commentEx", attribute: "w15:paraId", value: paraId, in: ext) {
-            var tag = String(ext[r])
-            if let a = tag.rangeOfSubstring(" w15:done=\""), let q = tag.rangeOfSubstring("\"", in: a.upperBound ..< tag.endIndex) {
-                tag.replaceSubrange(a.lowerBound ..< q.upperBound, with: " w15:done=\"\(done ? 1 : 0)\"")
-            } else if let end = Self._lastRange("/>", in: tag) ?? Self._lastRange(">", in: tag) {
-                tag.insert(contentsOf: " w15:done=\"\(done ? 1 : 0)\"", at: end.lowerBound)
+        // Word resolves the whole thread: the top comment and every reply under it get w15:done (lab/comments2).
+        func top(_ x: DocComment) -> String { var x = x; while let p = x.parent, let up = all.first(where: { $0.id == p }) { x = up }; return x.id }
+        let replies = all.filter { $0.id != c.id && $0.parent != nil && !$0.paraId.isEmpty && top($0) == c.id }.map(\.paraId)
+        for pid in [paraId] + replies {
+            if let r = Self._elementRange("w15:commentEx", attribute: "w15:paraId", value: pid, in: ext) {
+                var tag = String(ext[r])
+                if let a = tag.rangeOfSubstring(" w15:done=\""), let q = tag.rangeOfSubstring("\"", in: a.upperBound ..< tag.endIndex) {
+                    tag.replaceSubrange(a.lowerBound ..< q.upperBound, with: " w15:done=\"\(done ? 1 : 0)\"")
+                } else if let end = Self._lastRange("/>", in: tag) ?? Self._lastRange(">", in: tag) {
+                    tag.insert(contentsOf: " w15:done=\"\(done ? 1 : 0)\"", at: end.lowerBound)
+                }
+                ext.replaceSubrange(r, with: tag)
+            } else {
+                ext = Self._appending("<w15:commentEx w15:paraId=\"\(pid)\" w15:done=\"\(done ? 1 : 0)\"/>", before: "</w15:commentsEx>", in: ext)
             }
-            ext.replaceSubrange(r, with: tag)
-        } else {
-            ext = Self._appending("<w15:commentEx w15:paraId=\"\(paraId)\" w15:done=\"\(done ? 1 : 0)\"/>", before: "</w15:commentsEx>", in: ext)
         }
         parts.append((Self.commentsExtendedPart, Data(ext.utf8)))
         edit { for (name, data) in parts { perform(.setKeptPart(name, old: document.keptParts[name], new: data)) } }

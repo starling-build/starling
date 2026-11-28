@@ -55,7 +55,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _findOpen = false
     private var _findReplace = false
     private var _findStatus = ""
-    private var _status: String? = nil
+    private(set) var _status: String? = nil
     private var _statusGeneration = 0
     private var _savedRevision = 0
     /// The revision the page's recovery copy holds (a browser tab): a flush
@@ -1753,6 +1753,12 @@ final class OfficeShellState: State<StatefulWidget> {
         _editorFocus.requestFocus()
     }
 
+    /// The comment card is a white paper card in the margin whatever the app theme: its buttons and text boxes take a light
+    /// theme (with the app's accent) so labels are dark on white, not the dark theme's pale text on a white card (job 71).
+    static func commentCardTheme(_ fluent: FluentThemeData) -> FluentThemeData {
+        FluentThemeData(brightness: .light, accentColor: fluent.accentColor)
+    }
+
     private func _commentCard(_ id: String, _ fluent: FluentThemeData) -> Widget {
         guard let t = controller.commentThread(id) else { return SizedBox(width: 0, height: 0) }
         let px = 96.0 / 72 * session.zoom
@@ -1776,7 +1782,8 @@ final class OfficeShellState: State<StatefulWidget> {
         func button(_ key: String, _ label: String, _ action: @escaping () -> Void) -> Widget {
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 0),
                     child: CardKeyed(key, FlatButton(
-                        child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 6, bottom: 0), child: Text(label)), width: nil, action: action)))
+                        child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 6, bottom: 0),
+                                       child: Text(label, style: TextStyle(color: ink, fontSize: 9 * px))), width: nil, action: action)))
         }
         rows.append(Row(children: [
             button("comment-post", "Reply") { [weak self] in self?._commitCommentCard() },
@@ -1796,7 +1803,8 @@ final class OfficeShellState: State<StatefulWidget> {
         return DecoratedBox(decoration: BoxDecoration(color: Color(0xFFFFFFFF), border: Border.all(color: Color(0xFF2B579A), width: 1.5),
                                                       borderRadius: BorderRadius.circular(4)),
                             child: Padding(padding: EdgeInsets(all: 8),
-                                child: KeyboardRegion(name: "Comment", modal: true, child: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: rows))))
+                                child: FluentTheme(data: Self.commentCardTheme(fluent),
+                                    child: KeyboardRegion(name: "Comment", modal: true, child: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: rows)))))
     }
 
     // MARK: Shortcuts
