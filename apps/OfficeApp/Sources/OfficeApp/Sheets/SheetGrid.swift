@@ -3578,6 +3578,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         style.gdi = gdi
         style.doubleUnderline = st.underline && (st.doubleUnderline || st.accounting == 2)
+        style.accounting = st.underline && st.accounting > 0
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
         if printing { style.myanmar = true; style.kannada = true }
         if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
@@ -3596,18 +3597,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var rtl: Bool { !printing && controller.sheet.rightToLeft }
 
     /// Paints text (and its rules) upright inside a mirrored canvas.
-    func _put(_ tp: TextPainter, _ o: Offset, _ canvas: any Canvas, rules: GridTextStyle? = nil) {
+    func _put(_ tp: TextPainter, _ o: Offset, _ canvas: any Canvas, rules: GridTextStyle? = nil, span: (Double, Double)? = nil) {
         if rtl {
             canvas.save()
             let cx = o.dx + tp.width / 2
             canvas.translate(cx, 0); canvas.scale(-1, 1); canvas.translate(-cx, 0)
         }
         tp.paint(canvas, o)
-        if let rules { _drawRules(tp, rules, at: o, canvas) }
+        if let rules { _drawRules(tp, rules, at: o, canvas, span: rtl ? nil : span) }
         if rtl { canvas.restore() }
     }
 
-    func _drawRules(_ tp: TextPainter, _ s: GridTextStyle, at o: Offset, _ canvas: any Canvas) {
+    func _drawRules(_ tp: TextPainter, _ s: GridTextStyle, at o: Offset, _ canvas: any Canvas, span: (Double, Double)? = nil) {
         guard let m = s.rule, s.underline || s.strike else { return }
         let paint = Paint()
         paint.style = .fill
@@ -3615,15 +3616,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lines = tp.computeLineMetrics()
         guard let first = lines.first?.baseline else { return }
         let base = tp.computeDistanceToActualBaseline(.alphabetic)
-        // The glyphs sit at base less the half-leading (first - base) the painter adds: 59775's Calibri 12 link rule was 0.44 pt low from the baseline.
+        // The glyphs stand on the actual baseline rounded to a whole unit (Calibri 9 to 28 in a
+        // sheet print: 9, 10, 10, 11, 13 ... 27 under the text's top, where the actual baseline is
+        // 8.57, 9.52, 10.47, 11.43, 13.33 ... 26.66), so the rules hang from that: Excel's Calibri 11
+        // single underline is 1.2 pt under the glyphs (post table 1.25), ours stood 2.15.
         for line in lines where line.width > 0 {
+            let glyph = o.dy + (base + line.baseline - first).rounded()
             if s.underline {
-                let y = o.dy + 2 * base - first + line.baseline - first - m[0] * s.size, t = m[1] * s.size
-                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, y, line.width, t), paint)
-                if s.doubleUnderline { canvas.drawRect(Rect.fromLTWH(o.dx + line.left, y + 2 * t, line.width, t), paint) }
+                for r in GridTextStyle.underlineRects(s, glyph: glyph, descent: line.descent, left: o.dx + line.left, width: line.width, span: span) {
+                    canvas.drawRect(r, paint)
+                }
             }
             if s.strike {
-                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + 2 * base - first + line.baseline - first - m[2] * s.size, line.width, m[3] * s.size), paint)
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, glyph - m[2] * s.size, line.width, m[3] * s.size), paint)
             }
         }
     }
@@ -3953,7 +3958,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return
             }
         }
-        _put(tp, at(tx), canvas, rules: style)
+        // An accounting underline under text runs across the cell's text room, as Excel's (the
+        // underline lab: 52.80-100.94 in a column whose right-aligned number ends at 100.10); a
+        // number's stays under the number.
+        var span: (Double, Double)? = nil
+        if style.accounting { if case .number = cell.value {} else { span = (left + margin + inset, right - rightMargin - inset) } }
+        _put(tp, at(tx), canvas, rules: style, span: span)
         canvas.restore()
     }
 
@@ -4614,6 +4624,8 @@ struct GridTextStyle: Hashable {
     var underline = false
     /// Two underlines (Double, or Double Accounting), the second a gap of one line's thickness below the first.
     var doubleUnderline = false
+    /// An accounting underline (single or double): drawn at the descent, across the cell for text.
+    var accounting = false
     var strike = false
     /// The face's rule table (position, thickness, strike position, thickness, em) where the cell draws its own
     /// underline and strike (`_drawRules`), the named face's as Slides does; nil leaves them to the engine.
@@ -4646,6 +4658,21 @@ struct GridTextStyle: Hashable {
     var screen = 0.0
     /// The screen's pixels an em of it (the font size rounded), where `screen` is a pixel.
     var screenEm = 0.0
+
+    /// The underline rules of a line whose glyphs stand on `glyph` (Excel's, the underline lab, Calibri 11
+    /// and 20): a single at the face's post-table place; a double's first rule one rule-width over it and a
+    /// clear gap of one rule between; an accounting rule at the face's descent under the baseline (3.0 and
+    /// 5.4 pt), across `span` (the cell's text room, for text) or else under the text (a number).
+    static func underlineRects(_ s: GridTextStyle, glyph: Double, descent: Double, left: Double, width: Double, span: (Double, Double)?) -> [Rect] {
+        guard let m = s.rule else { return [] }
+        let t = m[1] * s.size
+        let y = s.accounting ? glyph + descent : glyph - m[0] * s.size - (s.doubleUnderline ? t : 0)
+        let x0 = s.accounting ? (span?.0 ?? left) : left
+        let w = s.accounting ? (span.map { $0.1 - $0.0 } ?? width) : width
+        var out = [Rect.fromLTWH(x0, y, w, t)]
+        if s.doubleUnderline { out.append(Rect.fromLTWH(x0, y + 2 * t, w, t)) }
+        return out
+    }
 
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
