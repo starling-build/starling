@@ -441,6 +441,8 @@ final class OfficeSession {
     var onUpdateFields: (() -> Void)?
     /// Opens Define New Number Format (false) or Define New Bullet (true).
     var onListFormatDialog: ((Bool) -> Void)?
+    /// Opens Define New Multilevel List.
+    var onMultilevelDialog: (() -> Void)?
     var onNewStyleDialog: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true

@@ -4483,8 +4483,8 @@ public final class RichDocumentController: ChangeNotifier {
     /// whose every level (0 to 8) takes its format from `scheme`.
     public func setMultilevelFormat(_ scheme: [ListLevelFormat]) {
         guard let top = scheme.first else { return }
-        setListFormat(top)   // converts the kind, assigns the id, formats the levels in use
-        edit {
+        edit {   // one undo step: the kind and id below, then all nine levels
+            setListFormat(top)   // converts the kind, assigns the id, formats the levels in use
             let ids = Set(document.paragraphIndices(in: selection).compactMap { document.paragraphs[$0].style.listId })
             for id in ids.sorted() {
                 for (level, f) in scheme.prefix(9).enumerated() {
@@ -4492,6 +4492,37 @@ public final class RichDocumentController: ChangeNotifier {
                     if old != f { perform(.setListFormat(id, level: level, old: old, new: f)) }
                 }
             }
+        }
+    }
+
+    /// The nine levels of the caret's list as Define New Multilevel List
+    /// starts from: each level's own format, else the default one, with
+    /// its indents filled in as the file saves them (level n at n × 36 pt,
+    /// hanging 18 pt). Outside a list: the gallery's first scheme.
+    public var multilevelScheme: [ListLevelFormat] {
+        let st = document.paragraphs[selection.focus.paragraph].style
+        let own = st.list == .numbered ? st.listId.flatMap { document.listFormats[$0] } ?? [:] : [:]
+        let base = ListLevelFormat.multilevelLibrary[0].levels
+        return (0 ..< 9).map { l in
+            var f = own[l] ?? (st.list == .numbered ? .plain(l) : base[l])
+            if f.indentLeft == nil { f.indentLeft = Double(36 * (l + 1)) }
+            if f.hanging == nil { f.hanging = 18 }
+            return f
+        }
+    }
+
+    /// The caret's list level (0 to 8), nil outside a list.
+    public var currentListLevel: Int? {
+        let st = document.paragraphs[selection.focus.paragraph].style
+        return st.list == nil ? nil : st.listLevel
+    }
+
+    /// Word's Change List Level: every selected list item moves to
+    /// `level` (0 to 8), as one undoable step. Body paragraphs are left.
+    public func setListLevel(_ level: Int) {
+        let l = max(0, min(8, level))
+        applyParagraphStyle { style in
+            if style.list != nil { style.listLevel = l }
         }
     }
 
