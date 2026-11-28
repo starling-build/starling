@@ -5,6 +5,12 @@ import XCTest
 @testable import OfficeApp
 
 final class SlidesThaiLineTests: XCTestCase {
+    /// The measured tables stand in only for a face the machine lacks: a Mac has Tahoma and Angsana New and draws them itself
+    /// (SlideFonts.face is nil there), so these tests read the faces this app ships, whatever the machine has.
+    private var unpin: (() -> Void)?
+    override func setUp() { super.setUp(); unpin = ShapeSelectTests.pinBundledFonts() }
+    override func tearDown() { unpin?(); unpin = nil; super.tearDown() }
+
     /// TH SarabunPSK is on PowerPoint's machine and not on ours. PowerPoint stands its baseline by the face's own Windows
     /// ascent and descent (850 and 460 of 1000) in the 1.2 em line, not by the stand-in's (Noto Sans Thai), which stood every
     /// title of th-cb034815ae 8 pt low and its cover's first line 15 pt low; table cells take the same ascent and descent.
