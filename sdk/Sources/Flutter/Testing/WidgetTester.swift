@@ -132,6 +132,7 @@ public final class WidgetTester {
         let gb = WidgetTester.gestures!
         var hit: HitTestResult?
         func send(_ event: PointerEvent) {
+            LastPointerKind.note(event)   // the binding does this for real events
             if event is PointerDownEvent {
                 hit = HitTestResult()
                 _ = renderView.hitTest(hit!, position: event.position)
