@@ -418,6 +418,8 @@ final class OfficeSession {
     var onShapeCopy: (() -> Bool)?
     var onShapeCut: (() -> Bool)?
     var onShapePaste: (() -> Bool)?
+    /// Slides: Select All picks every shape on the slide when no text is being edited (true when it did).
+    var onShapeSelectAll: (() -> Bool)?
     /// Paste from the system clipboard; true = plain text only.
     var onPaste: ((Bool) -> Void)?
     /// Paste Options (W-ED-1): paste the clipboard in the chosen way.
