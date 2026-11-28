@@ -130,6 +130,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setKeptHeaderFooters(old: [KeptHeaderFooter], new: [KeptHeaderFooter])
     /// The last section's `w:type` (how it starts), as the file writes it.
     case setLastSectionType(old: String?, new: String?)
+    /// W-PG-3: the last section's document grid and text direction, and the layout values the grid gives.
+    case setLastSectionGrid(old: LastSectionGrid, new: LastSectionGrid)
     /// The settings' margin options (`w:mirrorMargins`, `w:gutterAtTop`) as the file writes them (W-PG-1).
     case setMarginSettings(old: String?, new: String?)
     /// A part the file carries as is (the comments' `word/comments.xml`), set or removed (nil).
@@ -267,6 +269,11 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.sectionTypeXML = new
             changes.append(.all)
             return .setLastSectionType(old: new, new: old)
+        case .setLastSectionGrid(let old, let new):
+            doc.docGridXML = new.docGridXML; doc.sectionTailXML = new.sectionTailXML; doc.lineGridPitch = new.lineGridPitch
+            doc.characterGridSpace = new.characterGridSpace; doc.characterGridCellBase = new.characterGridCellBase
+            changes.append(.all)
+            return .setLastSectionGrid(old: new, new: old)
         case .setMarginSettings(let old, let new):
             doc.marginSettingsXML = new
             changes.append(.all)

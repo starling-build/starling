@@ -2301,6 +2301,8 @@ final class OfficeShellState: State<StatefulWidget> {
                     initial: session.sectionSetup(), sectionCount: sections,
                     options: controller.pageOptions(sectionMark: controller.sectionMark(containing: controller.selection.focus.paragraph)),
                     multiplePages: controller.multiplePages,
+                    grid: controller.documentGrid,
+                    normalSize: controller.document.styles[RichNamedStyle.normalId]?.char.fontSize ?? 11,
                     onOK: { [weak self] v in
                         guard let self else { return }
                         self.setState {
@@ -2309,6 +2311,7 @@ final class OfficeShellState: State<StatefulWidget> {
                                 self.controller.changePageSetup(allSections: v.allSections, lastSetup: self.session.pageSetup) { v.apply(to: &$0) }
                                 self.controller.changePageOptions(allSections: v.allSections, v.options, lastSetup: self.session.pageSetup)
                                 self.controller.setMultiplePages(v.pages)
+                                if let grid = v.grid, grid != self.controller.documentGrid { self.controller.setDocumentGrid(grid, allSections: v.allSections, lastSetup: self.session.pageSetup) }
                             }
                             self.session.syncPageSetup()
                             self._pageSetupOpen = false

@@ -58,6 +58,31 @@ struct PageSetupValues: Equatable {
     /// Book fold's Sheets per booklet, as Word lists it: all, or a number of pages a multiple of 4.
     static let bookletPages: [Int?] = [nil] + stride(from: 4, through: 40, by: 4).map { $0 }
     var allSections = false
+    /// W-PG-3: the Document Grid tab (text direction and grid); nil shows no tab.
+    var grid: DocumentGrid? = nil
+    /// The Normal style's size, which a character pitch counts from.
+    var normalSize: Double = 11
+    /// The text area across and down the lines (a vertical section's lines run down the paper).
+    var lineLength: Double { grid?.vertical == true ? height - top - bottom : width - left - right - gutter }
+    var lineSpan: Double { grid?.vertical == true ? width - left - right - gutter : height - top - bottom }
+    /// Characters per line and lines per page as the tab shows them.
+    var charactersPerLine: Int {
+        let pitch = normalSize + Double(grid?.charSpace ?? 0) / 4096
+        return pitch > 0 ? max(1, Int((lineLength / pitch).rounded(.down))) : 1
+    }
+    var linesPerPage: Int {
+        let pitch = Double(grid?.linePitch ?? 360) / 20
+        return pitch > 0 ? max(1, Int((lineSpan / pitch).rounded(.down))) : 1
+    }
+    /// The character pitch in points (the Normal size plus what the grid adds).
+    var characterPitch: Double {
+        get { normalSize + Double(grid?.charSpace ?? 0) / 4096 }
+        set { grid?.charSpace = Int(((newValue - normalSize) * 4096).rounded()) }
+    }
+    var linePitch: Double {
+        get { Double(grid?.linePitch ?? 360) / 20 }
+        set { grid?.linePitch = max(1, Int((newValue * 20).rounded())) }
+    }
     var options = RichDocumentController.PageOptions(titlePage: false, evenAndOdd: false, pageNumberStart: nil)
 
     init(_ p: PageSetup) {
@@ -105,12 +130,14 @@ final class PageSetupDialog: StatefulWidget {
     let unit: LengthUnit
     let options: RichDocumentController.PageOptions?
     let multiplePages: RichDocumentController.MultiplePages
+    let grid: DocumentGrid?
+    let normalSize: Double
     let onOK: (PageSetupValues) -> Void
     let onCancel: () -> Void
     init(initial: PageSetup, sectionCount: Int = 1, unit: LengthUnit = .inch, options: RichDocumentController.PageOptions? = nil,
-         multiplePages: RichDocumentController.MultiplePages = .normal, onOK: @escaping (PageSetupValues) -> Void, onCancel: @escaping () -> Void) {
+         multiplePages: RichDocumentController.MultiplePages = .normal, grid: DocumentGrid? = nil, normalSize: Double = 11, onOK: @escaping (PageSetupValues) -> Void, onCancel: @escaping () -> Void) {
         self.initial = initial; self.sectionCount = sectionCount; self.unit = unit; self.options = options
-        self.multiplePages = multiplePages; self.onOK = onOK; self.onCancel = onCancel
+        self.multiplePages = multiplePages; self.grid = grid; self.normalSize = normalSize; self.onOK = onOK; self.onCancel = onCancel
         super.init()
     }
     override func createState() -> State<StatefulWidget> { PageSetupDialogState() }
@@ -125,6 +152,7 @@ final class PageSetupDialogState: State<StatefulWidget> {
         super.initState()
         v = PageSetupValues(_w.initial)
         v.pages = _w.multiplePages
+        v.grid = _w.grid; v.normalSize = _w.normalSize
         if let o = _w.options { v.options = o; _startText.text = o.pageNumberStart.map(String.init) ?? "1" }
     }
 
@@ -260,6 +288,37 @@ final class PageSetupDialogState: State<StatefulWidget> {
         ])
         var tabs = [DialogTab(title: "Margins", page: margins), DialogTab(title: "Paper", page: paper)]
         if _w.options != nil { tabs.append(DialogTab(title: "Layout", page: layout)) }
+        if let grid = v.grid {
+            func pitchSpin(_ id: String, _ label: String, _ pts: Double, _ set: @escaping (Double) -> Void) -> Widget {
+                Padding(padding: EdgeInsets(left: 0, top: 0, right: 12, bottom: 8), child: Column(crossAxisAlignment: .start, children: [
+                    Text(label), Chrome.vgap(2),
+                    PSKeyed(id, UnitSpinner(points: pts, unit: .pt, min: 1, max: 1584, width: 90) { [weak self] n in self?.setState { set(n) } }),
+                ]))
+            }
+            let kinds: [(DocumentGrid.Kind, String)] = [(.none, "No grid"), (.lines, "Specify line grid only"),
+                                                        (.linesAndChars, "Specify line and character grid"), (.snapToChars, "Text snaps to character grid")]
+            let chars = grid.kind == .linesAndChars || grid.kind == .snapToChars
+            let gridTab = Column(crossAxisAlignment: .start, children: [
+                row("Text direction", [
+                    choice("ps-horizontal", "Horizontal", !grid.vertical) { [weak self] in self?.setState { self?.v.grid?.vertical = false } },
+                    choice("ps-vertical", "Vertical", grid.vertical) { [weak self] in self?.setState { self?.v.grid?.vertical = true } },
+                ]),
+                row("Grid", kinds.prefix(2).map { k in
+                    choice("ps-grid-\(k.0.rawValue)", k.1, grid.kind == k.0) { [weak self] in self?.setState { self?.v.grid?.kind = k.0 } } }),
+                row("", kinds.suffix(2).map { k in
+                    choice("ps-grid-\(k.0.rawValue)", k.1, grid.kind == k.0) { [weak self] in self?.setState { self?.v.grid?.kind = k.0 } } }),
+                chars ? Row(crossAxisAlignment: .end, children: [
+                    pitchSpin("ps-charpitch", "Character pitch", v.characterPitch) { [weak self] n in self?.v.characterPitch = n },
+                    PSKeyed("ps-chars", Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Text("\(v.charactersPerLine) characters per line"))),
+                ]) : Chrome.gap(0),
+                grid.kind != .none ? Row(crossAxisAlignment: .end, children: [
+                    pitchSpin("ps-linepitch", "Line pitch", v.linePitch) { [weak self] n in self?.v.linePitch = n },
+                    PSKeyed("ps-lines", Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12), child: Text("\(v.linesPerPage) lines per page"))),
+                ]) : Chrome.gap(0),
+                applyTo,
+            ])
+            tabs.append(DialogTab(title: "Document Grid", page: gridTab))
+        }
         return DialogShell(title: "Page Setup",
                            tabs: tabs,
                            okEnabled: v.valid, width: 480,
