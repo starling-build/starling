@@ -124,6 +124,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _replaceTarget: (index: Int, inline: String?)?
     private var _numberingValueOpen = false
     private var _multilevelOpen = false
+    private var _listStyleOpen = false
+    var _adjustIndentsOpen = false
     private var _commentOpen = false
     private var _dateTimeOpen = false
     private var _fieldOpen = false
@@ -728,6 +730,11 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.controller.breakUndoCoalescing()
             self.setState { self._multilevelOpen = true }
+        }
+        session.onListStyleDialog = { [weak self] in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()
+            self.setState { self._listStyleOpen = true }
         }
         session.onNumberingValueDialog = { [weak self] in
             guard let self else { return }
@@ -1617,6 +1624,13 @@ final class OfficeShellState: State<StatefulWidget> {
             item("Restart at 1") { c.restartNumbering() }
             item("Continue Numbering", enabled: c.canContinueNumbering) { c.continueNumbering() }
             item("Set Numbering Value…") { [weak self] in self?.session.onNumberingValueDialog?() }
+        }
+        if c.currentListIndents != nil {
+            item("Adjust List Indents…") { [weak self] in
+                guard let self else { return }
+                self.controller.breakUndoCoalescing()
+                self.setState { self._adjustIndentsOpen = true }
+            }
             sep()
         }
         let has = c.hasSelection
@@ -1866,7 +1880,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if _shortcutsOpen { return false }   // the dialog's own Esc closes it
             if LinkCard.link(caret: _cardLink, hover: _hoverCard, dismissed: _cardDismissed) != nil { setState { _cardDismissed = true }; return true }
             if _listSymbolPick != nil { setState { _listSymbolPick = nil }; return true }
-            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _multilevelOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _bookmarkOpen || _crossReferenceOpen || _captionOpen || _pageDesign != nil || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
+            if _paragraphOpen || _tablePropsOpen || _fontOpen || _insertTableOpen || _splitCellOpen || _contentsOpen || _noteOptionsOpen || _convertTextTable != nil || _formulaOpen || _sortTable != nil || _bordersOpen || _pictureDialog != nil || _linkDialogOpen || _numberingValueOpen || _multilevelOpen || _listStyleOpen || _adjustIndentsOpen || _commentOpen || _dateTimeOpen || _fieldOpen || _bookmarkOpen || _crossReferenceOpen || _captionOpen || _pageDesign != nil || _propertiesOpen || _listFormatOpen != nil || _newStyleOpen || _pasteSpecialData != nil { return false }   // the dialog's own Esc closes it
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; _editorFocus.requestFocus(); return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -2636,6 +2650,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 window,
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: MultilevelListDialog(
                     initial: controller.multilevelScheme, startLevel: controller.currentListLevel ?? 0,
+                    linkable: controller.linkableStyles.map { (controller.styleLinkId($0.id), $0.name) },
                     onOK: { [weak self] levels in
                         guard let self else { return }
                         self.controller.setMultilevelFormat(levels)
@@ -2646,6 +2661,47 @@ final class OfficeShellState: State<StatefulWidget> {
                         self?.setState { self?._multilevelOpen = false }
                         self?._editorFocus.requestFocus()
                     })),
+            ])
+        }
+        if _listStyleOpen {
+            let close: () -> Void = { [weak self] in
+                self?.setState { self?._listStyleOpen = false }
+                self?._editorFocus.requestFocus()
+            }
+            var n = 1
+            while controller.listStyles.contains(where: { $0.name == "List Style \(n)" }) { n += 1 }
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: MultilevelListDialog(
+                    initial: ListLevelFormat.multilevelLibrary[0].levels.enumerated().map { l, f in
+                        var f = f
+                        if f.indentLeft == nil { f.indentLeft = Double(36 * (l + 1)) }
+                        if f.hanging == nil { f.hanging = 18 }
+                        return f
+                    },
+                    linkable: controller.linkableStyles.map { (controller.styleLinkId($0.id), $0.name) },
+                    listStyleName: "List Style \(n)",
+                    onOKNamed: { [weak self] levels, name in
+                        self?.controller.defineListStyle(name: name, levels: levels)
+                        close()
+                    },
+                    onCancel: close)),
+            ])
+        }
+        if _adjustIndentsOpen, let ind = controller.currentListIndents {
+            let close: () -> Void = { [weak self] in
+                self?.setState { self?._adjustIndentsOpen = false }
+                self?._editorFocus.requestFocus()
+            }
+            return Stack(children: [
+                window,
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: AdjustListIndentsDialog(
+                    numberAt: ind.numberAt, textAt: ind.textAt, follow: ind.follow,
+                    onOK: { [weak self] a, t, fo in
+                        self?.controller.adjustListIndents(numberAt: a, textAt: t, follow: fo)
+                        close()
+                    },
+                    onCancel: close)),
             ])
         }
         if _numberingValueOpen {

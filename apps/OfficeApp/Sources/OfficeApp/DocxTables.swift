@@ -2549,13 +2549,39 @@ extension DocxFormat {
                                                              with: "<Default Extension=\"\(ext)\" ContentType=\"\(mime)\"/><Override PartName=\"/word/document.xml\"")
         }
 
+        // List styles (Define New List Style): one numbering style each, its
+        // definition linked back to it (w:styleLink). One the file already had
+        // is kept as the file wrote it.
+        var listStyleLinks: [Int: String] = [:]
+        var listStylesXML = ""
+        var listStyleIdsTaken = Set<String>()
+        for (id, name) in doc.listStyleNames.sorted(by: { $0.key < $1.key }) where doc.listFormatsSnapshot[id] == nil {
+            if numIds[id] == nil {
+                numIds[id] = nextId
+                numFormats[nextId] = doc.listFormats[id] ?? [:]
+                numKinds[nextId] = doc.listFormats[id]?[0]?.format == .bullet ? .bullet : .numbered
+                nextId += 1
+            }
+            var sid = String(name.filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
+            if sid.isEmpty { sid = "ListStyle" }
+            let base = sid
+            var k = 1
+            while listStyleIdsTaken.contains(sid) || doc.styles[sid] != nil { k += 1; sid = base + String(k) }
+            listStyleIdsTaken.insert(sid)
+            listStyleLinks[numIds[id]!] = sid
+            listStylesXML += "<w:style w:type=\"numbering\" w:customStyle=\"1\" w:styleId=\"\(_esc(sid))\"><w:name w:val=\"\(_esc(name))\"/><w:pPr><w:numPr><w:numId w:val=\"\(numIds[id]!)\"/></w:numPr></w:pPr></w:style>"
+        }
         let generatedStyles = _stylesPart(doc.styles, notes: doc.keptParts.keys.contains { !$0.hasPrefix("docProps/") && !$0.hasPrefix("customXml/") && $0 != "word/webSettings.xml" }, aliases: doc.styleAliases, fileFonts: doc.fileFonts, fromFile: doc.readFromFile,
                                                                          characterStyles: doc.keptCharacterStyles, characterStyleIds: doc.keptCharacterStyleIds, tableStyles: doc.keptTableStyles)
                 .replacingAll("<w:lang w:val=\"en-US\"/>", with: doc.defaultLangXML ?? "<w:lang w:val=\"en-US\"/>")
-        let stylesXML = doc.readFromFile ? (doc.keptStylesXML.flatMap { _patchedStyles(original: $0, generated: generatedStyles, doc: doc, usedIn: document + extraParts.filter { $0.name.hasSuffix(".xml") && !$0.name.containsSubstring("styles") }.map { String(decoding: $0.data, as: UTF8.self) }.joined()) } ?? generatedStyles) : generatedStyles
+        var stylesXML = doc.readFromFile ? (doc.keptStylesXML.flatMap { _patchedStyles(original: $0, generated: generatedStyles, doc: doc, usedIn: document + extraParts.filter { $0.name.hasSuffix(".xml") && !$0.name.containsSubstring("styles") }.map { String(decoding: $0.data, as: UTF8.self) }.joined()) } ?? generatedStyles) : generatedStyles
+        if !listStylesXML.isEmpty, let end = stylesXML.rangeOfSubstring("</w:styles>") {
+            stylesXML.replaceSubrange(end, with: listStylesXML + "</w:styles>")
+        }
         let generatedNumbering = _numberingPart(numKinds, numFormats, bulletId: bulletId, decimalId: decimalId,
                                                 counterOf: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listCounterOf[k].map { (v, $0) } }),
-                                                restarts: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listRestarts[k].map { (v, $0) } }))
+                                                restarts: Dictionary(uniqueKeysWithValues: numIds.compactMap { k, v in doc.listRestarts[k].map { (v, $0) } }),
+                                                styleLinks: listStyleLinks)
         let numberingXML = doc.readFromFile ? (doc.keptNumberingXML.flatMap { _patchedNumbering(original: $0, generated: generatedNumbering, doc: doc, usedIds: Set(numIdOf)) } ?? generatedNumbering) : generatedNumbering
         let entries: [ZipEntry] = [
             ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
@@ -3038,7 +3064,8 @@ extension DocxFormat {
     /// carrying its level formats.
     static func _numberingPart(_ kinds: [Int: ListKind], _ formats: [Int: [Int: ListLevelFormat]],
                                        bulletId: Int, decimalId: Int,
-                                       counterOf: [Int: String] = [:], restarts: [Int: [Int: Int]] = [:]) -> String {
+                                       counterOf: [Int: String] = [:], restarts: [Int: [Int: Int]] = [:],
+                                       styleLinks: [Int: String] = [:]) -> String {
         var bulletLevels = ""
         var decimalLevels = ""
         let bullets = ["\u{2022}", "o", "\u{25AA}"]
@@ -3064,7 +3091,10 @@ extension DocxFormat {
                 let left = own?.indentLeft.map { Int(($0 * 20).rounded()) } ?? 720 * (i + 1)
                 let hang = own?.hanging.map { Int(($0 * 20).rounded()) } ?? 360
                 let ind = hang >= 0 ? "<w:ind w:left=\"\(left)\" w:hanging=\"\(hang)\"/>" : "<w:ind w:left=\"\(left)\" w:firstLine=\"\(-hang)\"/>"
-                let suff = own?.suffix.map { "<w:suff w:val=\"\(_esc($0))\"/>" } ?? ""
+                // (Schema order: pStyle, isLgl, suff after the number format.)
+                let suff = (own?.styleLink.map { "<w:pStyle w:val=\"\(_esc($0))\"/>" } ?? "")
+                    + (own?.legal == true ? "<w:isLgl/>" : "")
+                    + (own?.suffix.map { "<w:suff w:val=\"\(_esc($0))\"/>" } ?? "")
                 let numRPr = own?.numberRPrXML ?? ""
                 if kinds[numId] == .bullet {
                     var glyph = formats[numId]?[i].flatMap { $0.format == .bullet ? $0.text : nil } ?? bullets[i % 3]
@@ -3095,7 +3125,8 @@ extension DocxFormat {
             var overrides = ""
             if leader == numId {
                 leaderLevels[numId] = lvls
-                extraAbstract += "<w:abstractNum w:abstractNumId=\"\(numId + 1)\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(lvls.joined())</w:abstractNum>"
+                let link = styleLinks[numId].map { "<w:styleLink w:val=\"\(_esc($0))\"/>" } ?? ""
+                extraAbstract += "<w:abstractNum w:abstractNumId=\"\(numId + 1)\"><w:multiLevelType w:val=\"\(link.isEmpty ? "hybridMultilevel" : "multilevel")\"/>\(link)\(lvls.joined())</w:abstractNum>"
             }
             for i in 0 ..< 9 {
                 let restart = restarts[numId]?[i].map { "<w:startOverride w:val=\"\($0)\"/>" } ?? ""
