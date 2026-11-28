@@ -488,19 +488,41 @@ extension WorkbookController {
         if clip.cut {
             structural { _move(clip, to: origin) }
         } else {
+            // Excel's plain paste brings everything the copied cells carry: values, formulas and formats, and
+            // their notes, validation, conditional formats and merged cells, in place of the pasted cells' own.
+            // (The rows' and columns' sizes and hidden state stay the target's.)
             let ws = sheet
-            var before: [CellAddress: Cell?] = [:]
-            for row in dst.top ... dst.bottom {
-                for col in dst.left ... dst.right {
-                    let a = CellAddress(row: row, col: col)
-                    let rel = CellAddress(row: row - dst.top, col: col - dst.left)
-                    before[a] = .some(ws.cells[a])
-                    ws.cells[a] = _copied(clip.cells[rel], from: CellAddress(row: clip.range.top + rel.row, col: clip.range.left + rel.col), to: a)
+            let source: Worksheet? = clip.sheet < book.sheets.count ? book.sheets[clip.sheet] : nil
+            structural {
+                for row in dst.top ... dst.bottom {
+                    for col in dst.left ... dst.right {
+                        let a = CellAddress(row: row, col: col)
+                        let rel = CellAddress(row: row - dst.top, col: col - dst.left)
+                        ws.cells[a] = _copied(clip.cells[rel], from: CellAddress(row: clip.range.top + rel.row, col: clip.range.left + rel.col), to: a)
+                    }
                 }
+                guard let source else { return }
+                _pasteNotes(clip, source: source, at: origin, transpose: false, skipBlanks: false)
+                _pasteValidation(clip, source: source, dst: dst, transpose: false)
+                // (A rule whose relative formula would move with its first cell keeps the pasted cells: the
+                // copied rules are laid over it.)
+                _conditionalFormatsClearing([dst]).1?()
+                _mergeConditionalFormats(clip, source: source, dst: dst, transpose: false)
+                _pasteMerges(clip, source: source, dst: dst)
             }
-            _record(sheet: activeSheet, before: before)
         }
         select(range: dst, active: origin)
+    }
+
+    /// The copied block's merged cells, moved to the paste, in place of any merge the paste overlaps.
+    func _pasteMerges(_ clip: Clip, source: Worksheet, dst: CellRange) {
+        let dr = dst.top - clip.range.top, dc = dst.left - clip.range.left
+        let landed = source.merges.filter { clip.range.contains($0.topLeft) && clip.range.contains($0.bottomRight) }.map {
+            CellRange(top: $0.top + dr, left: $0.left + dc, bottom: $0.bottom + dr, right: $0.right + dc)
+        }
+        let ws = sheet
+        ws.merges.removeAll { $0.intersects(dst) }
+        ws.merges += landed
     }
 
     // MARK: Format Painter
