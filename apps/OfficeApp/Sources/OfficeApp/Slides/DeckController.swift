@@ -47,8 +47,17 @@ struct ShapeState: Equatable {
     /// The same for the outline (`SchemeColor`).
     var outlineScheme: String? = nil
     var themeStyle = false
-    var quickStyle: ShapeQuickStyle? = nil
-    var quickStyleLook: ShapeQuickStyle.Look? = nil
+    /// The Shape Styles entry and its look, boxed: the look is large and a state is kept per shape (deep groups
+    /// hold thousands), so an unstyled shape pays one pointer for it.
+    var _quickStyleBox: QuickStyleBox? = nil
+    var quickStyle: ShapeQuickStyle? {
+        get { _quickStyleBox?.style }
+        set { _quickStyleBox = QuickStyleBox.make(newValue, _quickStyleBox?.look) }
+    }
+    var quickStyleLook: ShapeQuickStyle.Look? {
+        get { _quickStyleBox?.look }
+        set { _quickStyleBox = QuickStyleBox.make(_quickStyleBox?.style, newValue) }
+    }
     /// A picture's crop, as fractions cut from each edge.
     var crop: EdgeInsets? = nil
     var flipH = false
@@ -145,6 +154,20 @@ struct ShapeState: Equatable {
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
     var readShape: ReadShape? = nil
+}
+
+/// A shape state's Shape Styles entry and look, shared by value (never changed once made).
+final class QuickStyleBox: Equatable {
+    let style: ShapeQuickStyle?
+    let look: ShapeQuickStyle.Look?
+
+    private init(_ style: ShapeQuickStyle?, _ look: ShapeQuickStyle.Look?) { self.style = style; self.look = look }
+
+    static func make(_ style: ShapeQuickStyle?, _ look: ShapeQuickStyle.Look?) -> QuickStyleBox? {
+        style == nil && look == nil ? nil : QuickStyleBox(style, look)
+    }
+
+    static func == (a: QuickStyleBox, b: QuickStyleBox) -> Bool { a.style == b.style && a.look == b.look }
 }
 
 extension ShapeState {
