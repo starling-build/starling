@@ -601,7 +601,37 @@ final class Ribbon: StatelessWidget {
         let look = c.tableLook(of: t)
         func on(_ bit: Int) -> Bool { look & bit != 0 }
         func toggle(_ bit: Int) { c.setTableLook(bit, on: !on(bit)) }
-        return [Chrome.group("Table Style Options", fluent, [
+        // Table Styles: Word's built-in styles, a submenu per family (plain + Accent 1-6), swatched with the theme's accent.
+        let palette = TableStyleGallery.palette(of: c.document)
+        let current = c.document.tableStyleIds[t]
+        func item(_ e: TableStyleGallery.Entry) -> MenuFlyoutItemBase {
+            MenuFlyoutItem(text: Text(e.id == current ? "\(e.name) ✓" : e.name),
+                           leading: SizedBox(width: 14, height: 14, child: DecoratedBox(decoration: BoxDecoration(
+                               color: TableStyleGallery.swatch(e, palette: palette),
+                               border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1)))),
+                           onPressed: { TableStyleGallery.apply(e.id, to: c) })
+        }
+        var styleItems: [MenuFlyoutItemBase] = []
+        for (group, entries) in TableStyleGallery.groups {
+            if group == "Plain Tables" {
+                styleItems.append(MenuFlyoutSubItem(text: Text(group), items: entries.map(item)))
+                continue
+            }
+            var families: [String: [TableStyleGallery.Entry]] = [:]
+            var order: [String] = []
+            for e in entries {
+                let fam = e.name.rangeOfSubstring(" - Accent").map { String(e.name[..<$0.lowerBound]) } ?? e.name
+                if families[fam] == nil { order.append(fam) }
+                families[fam, default: []].append(e)
+            }
+            for fam in order { styleItems.append(MenuFlyoutSubItem(text: Text(fam), items: families[fam]!.map(item))) }
+        }
+        styleItems.append(MenuFlyoutSeparator())
+        styleItems.append(MenuFlyoutItem(text: Text("Clear"), onPressed: current == nil ? nil : { TableStyleGallery.apply("TableNormal", to: c) }))
+        let styles = Chrome.group("Table Styles", fluent, [
+            Chrome.menuButton(FluentSystemIcons.table, "Table Styles", "Choose a table style", fluent, items: styleItems),
+        ])
+        return [styles, Chrome.group("Table Style Options", fluent, [
             Chrome.rows([
                 Chrome.textToggle("Header Row", on(TableLook.firstRow), fluent) { toggle(TableLook.firstRow) },
                 Chrome.textToggle("Total Row", on(TableLook.lastRow), fluent) { toggle(TableLook.lastRow) },
