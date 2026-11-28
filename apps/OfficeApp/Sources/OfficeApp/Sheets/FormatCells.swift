@@ -32,6 +32,7 @@ struct CellFormatEdit: Equatable {
     var hAlign: CellFieldEdit<CellStyle.HAlign> = .keep
     var vAlign: CellFieldEdit<CellStyle.VAlign> = .keep
     var wrap: CellFieldEdit<Bool> = .keep
+    var shrink: CellFieldEdit<Bool> = .keep
     var justify: CellFieldEdit<Bool> = .keep
     var indent: CellFieldEdit<Int> = .keep
     var rotation: CellFieldEdit<Int> = .keep
@@ -59,7 +60,7 @@ struct CellFormatEdit: Equatable {
         var script: Int
         var color: UInt32?, fill: UInt32?
         var hAlign: CellStyle.HAlign, vAlign: CellStyle.VAlign
-        var wrap: Bool
+        var wrap: Bool, shrink: Bool
         var justify: Bool, indent: Int, rotation: Int
         var locked: Bool, formulaHidden: Bool
         var top: Bool, left: Bool, bottom: Bool, right: Bool
@@ -68,7 +69,7 @@ struct CellFormatEdit: Equatable {
         init(_ s: CellStyle) {
             numberFormat = s.numberFormat; fontName = s.fontName; fontSize = s.fontSize
             bold = s.bold; italic = s.italic; underline = s.underline; strike = s.strike; script = s.script
-            color = s.color; fill = s.fill; hAlign = s.hAlign; vAlign = s.vAlign; wrap = s.wrap
+            color = s.color; fill = s.fill; hAlign = s.hAlign; vAlign = s.vAlign; wrap = s.wrap; shrink = s.shrink
             justify = s.justify; indent = s.indent; rotation = s.rotation
             locked = s.locked; formulaHidden = s.formulaHidden
             top = s.borders.top; left = s.borders.left; bottom = s.borders.bottom; right = s.borders.right
@@ -92,7 +93,7 @@ struct CellFormatEdit: Equatable {
         e.script = .diff(new.script, from: old.script)
         e.color = .diff(new.color, from: old.color); e.fill = .diff(new.fill, from: old.fill)
         e.hAlign = .diff(new.hAlign, from: old.hAlign); e.vAlign = .diff(new.vAlign, from: old.vAlign)
-        e.wrap = .diff(new.wrap, from: old.wrap)
+        e.wrap = .diff(new.wrap, from: old.wrap); e.shrink = .diff(new.shrink, from: old.shrink)
         e.justify = .diff(new.justify, from: old.justify); e.indent = .diff(new.indent, from: old.indent)
         e.rotation = .diff(new.rotation, from: old.rotation)
         e.locked = .diff(new.locked, from: old.locked); e.formulaHidden = .diff(new.formulaHidden, from: old.formulaHidden)
@@ -108,7 +109,7 @@ struct CellFormatEdit: Equatable {
         fontName.apply(&s.fontName); fontSize.apply(&s.fontSize)
         bold.apply(&s.bold); italic.apply(&s.italic); underline.apply(&s.underline); strike.apply(&s.strike); script.apply(&s.script)
         color.apply(&s.color); fill.apply(&s.fill)
-        hAlign.apply(&s.hAlign); vAlign.apply(&s.vAlign); wrap.apply(&s.wrap)
+        hAlign.apply(&s.hAlign); vAlign.apply(&s.vAlign); wrap.apply(&s.wrap); shrink.apply(&s.shrink)
         justify.apply(&s.justify); indent.apply(&s.indent); rotation.apply(&s.rotation)
         locked.apply(&s.locked); formulaHidden.apply(&s.formulaHidden)
         Self._side(borderTop, "top", &s.borders, \.top)

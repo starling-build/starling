@@ -174,6 +174,7 @@ final class FormatCellsDialogState: State<StatefulWidget> {
             Row(children: r.map { n, d in _choice("fc-rot-\(n)", n, selected: values.rotation == d) { [weak self] in self?._set { $0.rotation = d } } }),
             turned ? SizedBox(width: 1, height: 1) : Text(note, style: fluent.typography.caption),
             _check("fc-wrap", "Wrap text", values.wrap) { $0.wrap = $1 },
+            _check("fc-shrink", "Shrink to fit", values.shrink) { $0.shrink = $1 },
         ])
     }
 

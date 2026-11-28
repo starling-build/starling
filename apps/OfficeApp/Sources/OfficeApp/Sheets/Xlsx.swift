@@ -810,6 +810,7 @@ enum Xlsx {
                 default: break
                 }
                 s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true" || justified
+                s.shrink = al["shrinkToFit"] == "1" || al["shrinkToFit"] == "true"
                 s.readingOrder = Int(al["readingOrder"] ?? "") ?? 0
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
                 s.rotation = Int(al["textRotation"] ?? "") ?? 0
@@ -1942,11 +1943,12 @@ enum Xlsx {
             switch st.hAlign { case .left: align += st.justify ? " horizontal=\"justify\"" : " horizontal=\"left\""; case .center: align += " horizontal=\"center\""; case .right: align += " horizontal=\"right\""; case .general: break }
             switch st.vAlign { case .top: align += " vertical=\"top\""; case .center: align += " vertical=\"center\""; case .bottom: break }
             if st.wrap { align += " wrapText=\"1\"" }
+            if st.shrink { align += " shrinkToFit=\"1\"" }
             if st.indent > 0 { align += " indent=\"\(st.indent)\"" }
             if st.rotation != 0 { align += " textRotation=\"\(st.rotation)\"" }
             // Alignment the change left alone keeps its indent, rotation…
             var alignment = align.isEmpty ? "" : "<alignment\(align)/>"
-            if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap, st.justify == base.style.justify,
+            if let base, st.hAlign == base.style.hAlign, st.vAlign == base.style.vAlign, st.wrap == base.style.wrap, st.shrink == base.style.shrink, st.justify == base.style.justify,
                st.indent == base.style.indent, st.rotation == base.style.rotation {
                 alignment = base.xf.alignment ?? ""
             }
