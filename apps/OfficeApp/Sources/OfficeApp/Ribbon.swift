@@ -948,11 +948,19 @@ final class Ribbon: StatelessWidget {
         ])])
         // PowerPoint's Layout tab: no table indent, width, alignment, AutoFit or row breaks (a slide table has
         // none), borders live on Table Design, and Cell Margins set the chosen cells' own insets (a:tcPr marL..).
-        if session.deck != nil {
+        if let deck = session.deck {
+            let shape = deck.currentSlide.shapes.first { $0.kind == .table && $0.text === c }
+            let grid = shape.map(DeckController.drawnGrid) ?? []
+            let col = c.currentCell?.column ?? 0
+            func pt(_ v: Double) -> String { let r = (v * 10).rounded() / 10; return r == r.rounded() ? "\(Int(r)) pt" : "\(r) pt" }
             let slideSize = Chrome.group("Cell Size", fluent, [
                 Chrome.rows([
                     Chrome.spinner("Row Height", style.rowHeights[row] ?? 0, fluent, step: 2, shown: style.rowHeights[row].map { "\(Int($0.rounded())) pt" } ?? "Auto") { v in
                         c.setRowHeight(v < 1 ? nil : v)
+                    },
+                    Chrome.vgap(2),
+                    Chrome.spinner("Column Width", col < grid.count ? grid[col] : 0, fluent, step: 7.2, minimum: 1, shown: col < grid.count ? pt(grid[col]) : nil) { v in
+                        c.setColumnWidth(v, drawn: grid)
                     },
                 ]),
                 Chrome.rows([
@@ -962,11 +970,30 @@ final class Ribbon: StatelessWidget {
             ])
             let slideAlignment = Chrome.group("Alignment", fluent, [Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Where the cell's text stands, across and down", fluent, items: alignItems + directionItems),
-                Chrome.menuButton(nil, "Cell Margins", "Margins inside the chosen cells", fluent, items: Self.slideCellMarginPresets.map { p in
+                Chrome.menuButton(nil, "Cell Margins", "Margins inside the chosen cells", fluent, items: Self.slideCellMarginPresets.map { p -> MenuFlyoutItemBase in
                     MenuFlyoutItem(text: Text("Cell Margins: \(p.name)"), onPressed: { c.setCellMargins(top: p.top, left: p.side, bottom: p.top, right: p.side) })
-                }),
+                } + [MenuFlyoutSeparator(), MenuFlyoutItem(text: Text("Custom Margins…"), onPressed: { self.session.onCellMarginsDialog?() })]),
             ])])
-            return [select, rows, slideSize, slideAlignment]
+            guard let shape else { return [select, rows, slideSize, slideAlignment] }
+            // Table Size: the grid and the rows scale to the new width or height; with the lock on, the other follows.
+            let f = shape.frame, locked = shape.aspectLocked
+            let tableSize = Chrome.group("Table Size", fluent, [
+                Chrome.rows([
+                    Chrome.spinner("Height", f.height, fluent, step: 7.2, minimum: 1, shown: pt(f.height)) { v in
+                        let k = v / max(1, f.height)
+                        c.scaleTable(kx: locked ? k : 1, ky: k, drawn: grid)
+                    },
+                    Chrome.vgap(2),
+                    Chrome.spinner("Width", f.width, fluent, step: 7.2, minimum: 1, shown: pt(f.width)) { v in
+                        let k = v / max(1, f.width)
+                        c.scaleTable(kx: k, ky: locked ? k : 1, drawn: grid)
+                    },
+                ]),
+                Chrome.rows([
+                    Chrome.textToggle("Lock Aspect Ratio", locked, fluent) { deck.setAspectLock(shape, !locked) },
+                ]),
+            ])
+            return [select, rows, tableSize, slideSize, slideAlignment]
         }
         return [select, rows, size, alignment, borders, look]
     }

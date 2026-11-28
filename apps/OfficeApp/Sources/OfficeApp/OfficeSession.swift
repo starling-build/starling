@@ -374,6 +374,8 @@ final class OfficeSession {
     var onSlideSize: ((Size?) -> Void)?
     /// Slides View > Zoom: open the Zoom dialog.
     var onZoomDialog: (() -> Void)?
+    /// Slides Table Layout > Cell Margins > Custom Margins: the four margins of the chosen cells.
+    var onCellMarginsDialog: (() -> Void)?
     /// Slides Picture Format > Alt Text: open the dialog for the selected picture.
     var onAltText: (() -> Void)?
     var onTextOptions: (() -> Void)?

@@ -2861,6 +2861,43 @@ public final class RichDocumentController: ChangeNotifier {
         edit { perform(.setTableColumns(table, old: old, new: widths)) }
     }
 
+    /// Slides' Column Width box: each target column (the chosen cells', else the caret cell's) becomes `points` wide.
+    /// `drawn` is the grid as drawn, for a table that states none. One undo step.
+    public func setColumnWidth(_ points: Double, drawn: [Double]) {
+        guard let b = targetCellBlock else { return }
+        var grid = document.tableColumns[b.table] ?? drawn
+        guard b.columns.upperBound < grid.count else { return }
+        for k in b.columns { grid[k] = max(1, points) }
+        setTableColumnWidths(b.table, grid)
+    }
+
+    /// Slides' Table Size: the grid `kx` times as wide and every row `ky` times as tall as laid out (rows still grow to
+    /// their text), one undo step. `drawn` is the grid as drawn, for a table that states none.
+    public func scaleTable(kx: Double, ky: Double, drawn: [Double]) {
+        guard let t = currentCell?.table, kx > 0, ky > 0 else { return }
+        let rows = laidOutRowHeights(t)
+        edit {
+            if kx != 1, let grid = document.tableColumns[t] ?? (drawn.isEmpty ? nil : drawn) {
+                setTableColumnWidths(t, grid.map { max(1, $0 * kx) })
+            }
+            if ky != 1, !rows.isEmpty {
+                setTableStyle(of: t) { s in
+                    for (r, h) in rows { s.rowHeights[r] = max(1, h * ky); s.rowsExactHeight.remove(r) }
+                }
+            }
+        }
+    }
+
+    /// Each row's laid-out height (rows only a merged cell starts are left out), from the editor's probe.
+    public func laidOutRowHeights(_ table: String) -> [Int: Double] {
+        var heights: [Int: Double] = [:]
+        for (i, p) in document.paragraphs.enumerated() {
+            guard let c = p.cell, c.table == table, c.rowSpan == 1, heights[c.row] == nil, let h = rowHeightProbe?(i) else { continue }
+            heights[c.row] = h
+        }
+        return heights
+    }
+
     /// Set by the editor: the laid-out height of the row a cell paragraph is in.
     public var rowHeightProbe: ((Int) -> Double?)?
     /// Where the floating picture at paragraph `index` (or its inline picture `id`) is drawn: its top and its paragraph's

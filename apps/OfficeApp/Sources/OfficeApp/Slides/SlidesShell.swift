@@ -110,6 +110,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _altText = false
     /// View > Zoom (or the status bar's percent) opened the Zoom dialog.
     private var _zoomDialog = false
+    private var _cellMargins = false
     /// The Insert Hyperlink dialog is up (text being edited, or the selected shapes).
     private var _linkOpen = false
     private var _textOptions = false
@@ -415,6 +416,11 @@ final class SlidesShellState: State<StatefulWidget> {
             self.setState { self._slideSizeInitial = size ?? self.deck.slideSize; self._slideSize = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        // (The caret stays in its cell: the margins go to the cells chosen there.)
+        session.onCellMarginsDialog = { [weak self] in
+            guard let self, self.session.controller.currentCell != nil else { return }
+            self.setState { self._cellMargins = true }
+        }
         session.onZoomDialog = { [weak self] in
             guard let self else { return }
             self._endEditing()
@@ -789,6 +795,17 @@ final class SlidesShellState: State<StatefulWidget> {
     /// Tables on the current slide take the height their rows need.
     private func _fitTables() {
         for shape in deck.currentSlide.shapes where shape.kind == .table {
+            // The width follows the grid only after an edit changed it: a file's frame is kept as read.
+            if let id = shape.tableId {
+                let grid = shape.text?.document.tableColumns[id]
+                if let seen = _gridSeen[shape.id], seen != grid {
+                    // Undo back to no grid gives back the width the table had before its first one.
+                    if let grid { deck.fitWidth(shape, grid.reduce(0, +) + shape.insets.left + shape.insets.right) }
+                    else if let w = _widthBeforeGrid[shape.id] { deck.fitWidth(shape, w) }
+                }
+                if grid == nil { _widthBeforeGrid[shape.id] = shape.frame.width }
+                _gridSeen[shape.id] = .some(grid)
+            }
             guard let layout = _cache.layout(shape, pxPerPt: 1) else { continue }
             deck.fitHeight(shape, (layout.totalHeight + shape.insets.top + shape.insets.bottom).rounded(.up))
         }
@@ -798,6 +815,10 @@ final class SlidesShellState: State<StatefulWidget> {
     /// it is measured again only once one of them changes, so a deck opens
     /// at the scales the file says.
     private var _fitSeen: [Int: (revision: Int, frame: Rect)] = [:]
+    /// Each table's grid when last seen (an inner nil: it stated none), so only an edit to the grid moves its frame.
+    private var _gridSeen: [Int: [Double]?] = [:]
+    /// Each grid-less table's frame width, for an undo that takes its first grid away.
+    private var _widthBeforeGrid: [Int: Double] = [:]
 
     /// PowerPoint's autofit: the largest of its scale steps at which an
     /// autofit shape's text fits its box.
@@ -1632,6 +1653,7 @@ final class SlidesShellState: State<StatefulWidget> {
             if _slideSize { setState { _slideSize = false }; return true }
             if _altText { setState { _altText = false }; return true }
             if _zoomDialog { setState { _zoomDialog = false }; return true }
+            if _cellMargins { setState { _cellMargins = false }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _textOptions { setState { _textOptions = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -1873,6 +1895,19 @@ final class SlidesShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: HyperlinkDialog(
                     hooks: _linkHooks,
                     onClose: { [weak self] in self?.setState { self?._linkOpen = false } })),
+            ])
+        }
+        if _cellMargins {
+            let c = session.controller
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CellMarginsDialog(
+                    margins: c.currentCell?.padding ?? EdgeInsets(left: 7.2, top: 3.6, right: 7.2, bottom: 3.6),
+                    onApply: { [weak self] m in
+                        c.setCellMargins(top: m.top, left: m.left, bottom: m.bottom, right: m.right)
+                        self?.setState { self?._cellMargins = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._cellMargins = false } })),
             ])
         }
         if _zoomDialog {
