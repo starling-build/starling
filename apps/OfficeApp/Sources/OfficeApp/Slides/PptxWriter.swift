@@ -1148,6 +1148,12 @@ private struct SlideXML {
         }
         if f.stops.count >= 2 {
             let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\">\($0.color.alpha < 255 ? "<a:alpha val=\"\($0.color.alpha * 100000 / 255)\"/>" : "")</a:srgbClr></a:gs>" }.joined()
+            if let path = f.path {
+                // A radial (or rectangular) blend out from the fill-to point: `a:path`, as Format Background makes it.
+                func v(_ x: Double) -> Int { Int((x * 100000).rounded()) }
+                let to = f.fillTo
+                return "<a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:path path=\"\(path.rawValue)\"><a:fillToRect l=\"\(v(to.left))\" t=\"\(v(to.top))\" r=\"\(v(1 - to.right))\" b=\"\(v(1 - to.bottom))\"/></a:path></a:gradFill>"
+            }
             return "<a:gradFill rotWithShape=\"1\"><a:gsLst>\(stops)</a:gsLst><a:lin ang=\"\(Int((f.angle * 60000).rounded()))\" scaled=\"0\"/></a:gradFill>"
         }
         return Self._fill(f.color ?? Color(0xFFFFFFFF))

@@ -641,8 +641,9 @@ final class SlidePainter: CustomPainter {
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
         let area = Rect.fromLTWH(0, 0, size.width, size.height)
         let backdrop = slide.background ?? slide.inheritedBackground ?? theme.backgroundFill
-        // The master's and layout's own shapes, part of the backdrop.
-        for shape in slide.decorations {
+        // The master's and layout's own shapes, part of the backdrop, unless the slide hides them
+        // (Hide background graphics, `showMasterSp="0"`).
+        for shape in slide.decorations where !slide.hideMasterShapes {
             Self.paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: true, slide: area, backdrop: backdrop,
                             placeholders: placeholders)
         }

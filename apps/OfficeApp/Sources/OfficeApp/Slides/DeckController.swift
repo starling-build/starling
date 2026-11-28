@@ -2560,6 +2560,40 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Hide background graphics: the layout's and master's own shapes stay off the current slide (or every
+    /// slide), written as `showMasterSp="0"`. One undoable step.
+    func setHideBackgroundGraphics(_ hide: Bool, all: Bool = false) {
+        let targets = all ? slides : [currentSlide]
+        guard targets.contains(where: { $0.hideMasterShapes != hide }) else { return }
+        _checkpoint()
+        for slide in targets { slide.hideMasterShapes = hide }
+        _changed()
+    }
+
+    /// Format Background's Apply to All: the current slide's background and its Hide background graphics
+    /// setting, on every slide, as one undoable step.
+    func applyBackgroundToAll() {
+        let fill = currentSlide.background
+        let hide = currentSlide.hideMasterShapes
+        _checkpoint()
+        masterBackground = fill
+        for slide in slides { slide.background = nil; slide.backgroundXML = nil; slide.inheritedBackground = fill }
+        for slide in slides { slide.hideMasterShapes = hide }
+        _changed()
+    }
+
+    /// Reset Background: the current slide drops its own background and shows its layout's (or the
+    /// master's) again, with the background graphics back on. One undoable step.
+    func resetBackground() {
+        let slide = currentSlide
+        guard slide.background != nil || slide.backgroundXML != nil || slide.hideMasterShapes else { return }
+        _checkpoint()
+        slide.background = nil
+        slide.backgroundXML = nil
+        slide.hideMasterShapes = false
+        _changed()
+    }
+
     func setOutline(_ color: Color?, scheme: String? = nil) {
         guard !selection.isEmpty else { return }
         _checkpoint()
