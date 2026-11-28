@@ -69,6 +69,27 @@ public final class Win32ClipboardProvider: ClipboardProvider {
         if let rtf = data.rtf { put("Rich Text Format", Array(rtf.utf8)) }
         if let html = data.html { put("HTML Format", Self.cfHTML(html)) }
         if let png = data.png { put("PNG", [UInt8](png)) }
+        // An app's private types go under their MIME name, registered as a clipboard format, so they reach
+        // another window of the app (Slides' shapes cross as shapes). Windows may round a block up, so each
+        // carries its length first.
+        for mime in data.custom.keys.sorted() {
+            guard let bytes = data.custom[mime] else { continue }
+            put(mime, Self.framed(bytes))
+        }
+    }
+
+    /// `bytes` after their count, four bytes little-endian.
+    static func framed(_ bytes: Data) -> [UInt8] {
+        let n = UInt32(truncatingIfNeeded: bytes.count)
+        return [UInt8(n & 0xFF), UInt8(n >> 8 & 0xFF), UInt8(n >> 16 & 0xFF), UInt8(n >> 24)] + [UInt8](bytes)
+    }
+
+    /// `framed`'s bytes back, or nil when the block does not hold what its count says.
+    static func unframed(_ block: [UInt8]) -> Data? {
+        guard block.count >= 4 else { return nil }
+        let n = Int(block[0]) | Int(block[1]) << 8 | Int(block[2]) << 16 | Int(block[3]) << 24
+        guard n <= block.count - 4 else { return nil }
+        return Data(block[4 ..< 4 + n])
     }
 
     /// What is on the clipboard, in every flavour we read: Excel's and
@@ -80,8 +101,21 @@ public final class Win32ClipboardProvider: ClipboardProvider {
         let html = Self._bytes("HTML Format").map { Self.htmlFromCF($0) }
         let rtf = Self._bytes("Rich Text Format").map { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
         let png = Self._bytes("PNG").map { Data($0) }
-        let data = ClipboardData(text: text, rtf: rtf, html: html, png: png)
+        var custom: [String: Data] = [:]
+        for mime in Clipboard.readFormats { custom[mime] = Self._bytes(mime).flatMap(Self.unframed) }
+        let data = ClipboardData(text: text, rtf: rtf, html: html, png: png, custom: custom)
         completion(data.isEmpty ? nil : data)
+    }
+
+    /// One flavour's bytes: the standard ones by their Windows names, a private type framed as `setData` put it.
+    public func getFormat(_ mime: String, _ completion: @escaping (Data?) -> Void) {
+        switch mime {
+        case Clipboard.kTextPlain: getText { completion($0.map { Data($0.utf8) }) }
+        case ClipboardData.mimeHtml: completion(Self._bytes("HTML Format").map { Data(Self.htmlFromCF($0).utf8) })
+        case ClipboardData.mimeRtf: completion(Self._bytes("Rich Text Format").map { Data($0.prefix { $0 != 0 }) })
+        case ClipboardData.mimePng: completion(Self._bytes("PNG").map { Data($0) })
+        default: completion(Self._bytes(mime).flatMap(Self.unframed))
+        }
     }
 
     private static func _bytes(_ format: String) -> [UInt8]? {
