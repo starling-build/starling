@@ -379,6 +379,26 @@ final class SlideCanvasState: State<StatefulWidget> {
                                        revision: deck.revision, cache: _w.cache),
                 child: SizedBox(expand: ())))))
         }
+        // Several shapes selected: each shows its own sizing handles, as PowerPoint's do, so a selection drawn over shapes
+        // with an outline of the accent's colour still reads as selected. They are marks only: a press on one moves the
+        // selection, as a press on the shape does.
+        if deck.selection.count > 1 {
+            let s = _touchSeen ? 14.0 : 9.0
+            for (n, shape) in deck.selection.enumerated() {
+                let isLine = shape.preset?.isLine == true || shape.isElbow
+                let units: [(Double, Double)] = isLine ? [(0, 0), (1, 1)] : Self.handleUnits
+                for (i, u) in units.enumerated() {
+                    let p = shape.isElbow ? (i == 0 ? shape.lineStart : shape.lineEndPoint) : Self._framePoint(shape, u.0, u.1)
+                    children.append(Positioned(key: ValueKey("multi-handle-\(n)-\(i)"),
+                                               left: ox + p.dx * px - s / 2, top: oy + p.dy * px - s / 2, width: s, height: s,
+                                               child: IgnorePointer(child: DecoratedBox(
+                                                   decoration: BoxDecoration(color: Color(0xFFFFFFFF),
+                                                                             border: Border.all(color: accent, width: 1.5),
+                                                                             borderRadius: BorderRadius.all(Radius(circular: 1))),
+                                                   child: SizedBox(expand: ())))))
+                }
+            }
+        }
         // Handles on a single selection.
         if deck.selection.count == 1, let shape = deck.selection.first {
             let s = _touchSeen ? 14.0 : 9.0
