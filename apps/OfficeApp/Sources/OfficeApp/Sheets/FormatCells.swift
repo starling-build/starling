@@ -25,6 +25,8 @@ struct CellFormatEdit: Equatable {
     var italic: CellFieldEdit<Bool> = .keep
     var underline: CellFieldEdit<Bool> = .keep
     var strike: CellFieldEdit<Bool> = .keep
+    /// Superscript (1), subscript (-1) or neither (0): the font's `vertAlign`.
+    var script: CellFieldEdit<Int> = .keep
     var color: CellFieldEdit<UInt32?> = .keep
     var fill: CellFieldEdit<UInt32?> = .keep
     var hAlign: CellFieldEdit<CellStyle.HAlign> = .keep
@@ -54,6 +56,7 @@ struct CellFormatEdit: Equatable {
         var fontName: String?
         var fontSize: Double?
         var bold: Bool, italic: Bool, underline: Bool, strike: Bool
+        var script: Int
         var color: UInt32?, fill: UInt32?
         var hAlign: CellStyle.HAlign, vAlign: CellStyle.VAlign
         var wrap: Bool
@@ -64,7 +67,7 @@ struct CellFormatEdit: Equatable {
         var lineKind: String, lineColor: UInt32?
         init(_ s: CellStyle) {
             numberFormat = s.numberFormat; fontName = s.fontName; fontSize = s.fontSize
-            bold = s.bold; italic = s.italic; underline = s.underline; strike = s.strike
+            bold = s.bold; italic = s.italic; underline = s.underline; strike = s.strike; script = s.script
             color = s.color; fill = s.fill; hAlign = s.hAlign; vAlign = s.vAlign; wrap = s.wrap
             justify = s.justify; indent = s.indent; rotation = s.rotation
             locked = s.locked; formulaHidden = s.formulaHidden
@@ -86,6 +89,7 @@ struct CellFormatEdit: Equatable {
         e.fontSize = .diff(new.fontSize, from: old.fontSize)
         e.bold = .diff(new.bold, from: old.bold); e.italic = .diff(new.italic, from: old.italic)
         e.underline = .diff(new.underline, from: old.underline); e.strike = .diff(new.strike, from: old.strike)
+        e.script = .diff(new.script, from: old.script)
         e.color = .diff(new.color, from: old.color); e.fill = .diff(new.fill, from: old.fill)
         e.hAlign = .diff(new.hAlign, from: old.hAlign); e.vAlign = .diff(new.vAlign, from: old.vAlign)
         e.wrap = .diff(new.wrap, from: old.wrap)
@@ -102,7 +106,7 @@ struct CellFormatEdit: Equatable {
     func apply(to s: inout CellStyle) {
         numberFormat.apply(&s.numberFormat)
         fontName.apply(&s.fontName); fontSize.apply(&s.fontSize)
-        bold.apply(&s.bold); italic.apply(&s.italic); underline.apply(&s.underline); strike.apply(&s.strike)
+        bold.apply(&s.bold); italic.apply(&s.italic); underline.apply(&s.underline); strike.apply(&s.strike); script.apply(&s.script)
         color.apply(&s.color); fill.apply(&s.fill)
         hAlign.apply(&s.hAlign); vAlign.apply(&s.vAlign); wrap.apply(&s.wrap)
         justify.apply(&s.justify); indent.apply(&s.indent); rotation.apply(&s.rotation)
