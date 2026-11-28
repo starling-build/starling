@@ -15,7 +15,7 @@ final class FindReplaceDialogTests: XCTestCase {
     private func dialog(scopes: [String] = [], entireCell: Bool = false, goTo: Bool = true) -> WidgetTester {
         log = []; closed = 0
         var hooks = FindHooks(
-            findNext: { [unowned self] p, scope, back in log.append("next \(back ? "back" : "fwd") scope \(scope) matchCase \(p.options.matchCase) whole \(p.options.wholeWord) cell \(p.options.entireCell)"); return "found" },
+            findNext: { [unowned self] p, scope, back in log.append("next \(back ? "back" : "fwd") scope \(scope.scope) matchCase \(p.options.matchCase) whole \(p.options.wholeWord) cell \(p.options.entireCell)"); return "found" },
             replace: { [unowned self] _, t, _ in log.append("replace \(t)"); return "replaced" },
             replaceAll: { [unowned self] _, t, _ in log.append("all \(t)"); return "Replaced 3" })
         hooks.scopes = scopes

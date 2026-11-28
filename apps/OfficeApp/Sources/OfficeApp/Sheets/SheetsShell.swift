@@ -1807,17 +1807,40 @@ final class SheetsShellState: State<StatefulWidget> {
             if found { _grid?.reveal(wb.active) }
             return found ? "" : "No matches"
         }
+        func look(_ w: FindWhere) -> FindLookIn { FindLookIn(rawValue: w.lookIn) ?? .formulas }
+        // Excel's Replace tab looks in formulas only.
+        let formulasOnly = "Replace looks in formulas: set Look in to Formulas"
         var hooks = FindHooks(
-            findNext: { [unowned self] p, scope, back in
-                let found = status(wb.findNext(p, scope: scope, backwards: back))
-                guard found.isEmpty, let at = wb.findPosition(p, scope: scope) else { return found }
+            findNext: { [unowned self] p, w, back in
+                let found = status(wb.findNext(p, scope: w.scope, lookIn: look(w), byColumns: w.byColumns, backwards: back))
+                guard found.isEmpty, let at = wb.findPosition(p, scope: w.scope, lookIn: look(w), byColumns: w.byColumns) else { return found }
                 return "\(at.index) of \(at.total)"
             },
-            replace: { [unowned self] p, template, scope in status(wb.replaceCurrent(p, with: template, scope: scope)) },
-            replaceAll: { [unowned self] p, template, scope in
-                let n = wb.replaceAll(p, with: template, scope: scope)
+            replace: { [unowned self] p, template, w in
+                guard look(w) == .formulas else { return formulasOnly }
+                return status(wb.replaceCurrent(p, with: template, scope: w.scope, byColumns: w.byColumns))
+            },
+            replaceAll: { [unowned self] p, template, w in
+                guard look(w) == .formulas else { return formulasOnly }
+                let n = wb.replaceAll(p, with: template, scope: w.scope)
                 return n == 0 ? "No matches" : "Replaced \(n)"
             })
+        hooks.orders = ["By Rows", "By Columns"]
+        hooks.lookIns = ["Formulas", "Values", "Notes"]
+        hooks.findAll = { [unowned self] p, w in
+            let lookIn = look(w)
+            return wb.findAll(p, scope: w.scope, lookIn: lookIn, byColumns: w.byColumns).map { hit in
+                let ws = wb.book.sheets[hit.sheet]
+                let c = ws.cells[hit.at]
+                let value = lookIn == .notes ? (wb.findText(hit.at, sheet: ws, lookIn: .notes) ?? "")
+                    : (wb.findText(hit.at, sheet: ws, lookIn: .values) ?? "")
+                let formula = c?.formula.map(Formula.text) ?? ""
+                return FindListHit(place: ws.name, cell: "$" + CellAddress.columnName(hit.at.col) + "$" + String(hit.at.row + 1), value: value, formula: formula, go: { [unowned self] in
+                    wb.goToHit(hit)
+                    _grid?.reveal(wb.active)
+                })
+            }
+        }
         hooks.wholeLabel = "Match entire cell contents"
         hooks.wholeIsEntireCell = true
         hooks.scopes = ["Sheet", "Workbook"]
