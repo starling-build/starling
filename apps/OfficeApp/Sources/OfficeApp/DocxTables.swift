@@ -625,6 +625,22 @@ extension DocxFormat {
         return copy
     }
 
+    /// A drop-down form field's ffData with `shown` as its chosen entry: w:result names it (left out when it is the
+    /// default, as Word writes it). Nil when `shown` is none of its entries.
+    static func _formDropDownData(_ xml: String, shown: String) -> String? {
+        guard let node = XNode.parse(Data(xml.utf8)), node.name == "w:ffData", let list = node.first("w:ddList") else { return nil }
+        let entries = list.all("w:listEntry").compactMap { $0["w:val"] }
+        guard let k = entries.firstIndex(of: shown) else { return nil }
+        let byDefault = Int(list.first("w:default")?["w:val"] ?? "0") ?? 0
+        let had = list.first("w:result")
+        if had == nil, k == byDefault { return PptxXML.serialize(node) }
+        if let had { had.attrs["w:val"] = "\(k)" } else {
+            let r = XNode(name: "w:result", attrs: ["w:val": "\(k)"])
+            list.children.insert(r, at: 0)     // (CT_FFDDList: result, default, listEntry*)
+        }
+        return PptxXML.serialize(node)
+    }
+
     /// A legacy check box's kept `w:ffData` with its state set as Word saves a clicked box: `w:checked` after `w:default`
     /// (CT_FFCheckBox: size or sizeAuto, default, checked). Nil when the XML is not a check box's.
     static func _formCheckBoxData(_ xml: String, checked: Bool) -> String? {
@@ -1920,7 +1936,21 @@ extension DocxFormat {
                 let rPrXML = rPr.isEmpty ? "" : "<w:rPr>\(rPr)</w:rPr>"
                 var runXML = ""
                 let isBox: (Character) -> Bool = { $0 == "\u{2610}" || $0 == "\u{2612}" }
-                if s.revision?.kind != .deleted, piece.contains(where: isBox),
+                if s.revision?.kind != .deleted, let ff = s.formField, ff.containsSubstring("<w:ddList") {
+                    // A drop-down form field's shown entry goes back as the field (its text is Word's to show,
+                    // from w:result): the first run of the stretch writes it, the rest write nothing.
+                    if runIndex == 0 || p.runs[runIndex - 1].style.formField != ff {
+                        var shown = ""
+                        for r in p.runs[runIndex...] {
+                            guard r.style.formField == ff else { break }
+                            let st = pos - run.length + shown.utf16.count
+                            shown += String(utf16[utf16.index(utf16.startIndex, offsetBy: st) ..< utf16.index(utf16.startIndex, offsetBy: st + r.length)]) ?? ""
+                        }
+                        let data = Self._formDropDownData(ff, shown: shown) ?? ff
+                        runXML += "<w:r>\(rPrXML)<w:fldChar w:fldCharType=\"begin\">\(data)</w:fldChar></w:r>"
+                        runXML += "<w:r>\(rPrXML)<w:instrText xml:space=\"preserve\"> FORMDROPDOWN </w:instrText></w:r><w:r>\(rPrXML)<w:fldChar w:fldCharType=\"end\"/></w:r>"
+                    }
+                } else if s.revision?.kind != .deleted, piece.contains(where: isBox),
                    !boxRanges.contains(where: { $0.lowerBound <= pos - run.length && pos - run.length < $0.upperBound }) {
                     // A checkbox glyph goes back as the form field it came
                     // from (form_footnotes' 29): the glyph's fallback font

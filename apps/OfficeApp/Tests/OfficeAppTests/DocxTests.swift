@@ -8302,6 +8302,131 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].formCheckBoxes.count, 1)
     }
 
+    /// W-RV-3: a legacy drop-down form field (FORMDROPDOWN) shows its chosen entry, saves back as the field with its
+    /// settings (not as flattened text), and a chosen entry is saved as Word saves it (w:result).
+    func testLegacyDropDownKeepsItsFieldAndTakesAChoice() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Fruit: </w:t></w:r>"
+            + "<w:r><w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"Fruit\"/><w:enabled/><w:calcOnExit w:val=\"0\"/>"
+            + "<w:statusText w:type=\"text\" w:val=\"Pick one\"/><w:ddList><w:result w:val=\"1\"/><w:listEntry w:val=\"Kiwi\"/>"
+            + "<w:listEntry w:val=\"Mango &amp; lime\"/><w:listEntry w:val=\"Papaya\"/></w:ddList></w:ffData></w:fldChar></w:r>"
+            + "<w:r><w:instrText xml:space=\"preserve\"> FORMDROPDOWN </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"
+            + "<w:r><w:t xml:space=\"preserve\"> today</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Fruit: Mango & lime today")
+        let d = try XCTUnwrap(c.document.paragraphs[0].dropDowns.first)
+        XCTAssertNil(d.control)
+        XCTAssertEqual(d.range, 7 ..< 19)
+        XCTAssertEqual(d.entries.map(\.text), ["Kiwi", "Mango & lime", "Papaya"])
+        func saved() throws -> String {
+            String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        }
+        // Untouched, it goes back as the field it was: settings, entries and choice, and no text of its own.
+        var out = try saved()
+        XCTAssertTrue(out.containsSubstring(" FORMDROPDOWN "), out)
+        XCTAssertTrue(out.containsSubstring("<w:statusText w:type=\"text\" w:val=\"Pick one\"/><w:ddList><w:result w:val=\"1\"/><w:listEntry w:val=\"Kiwi\"/>"), out)
+        XCTAssertFalse(out.containsSubstring(">Mango &amp; lime<"), out)
+        XCTAssertTrue(c.chooseDropDownEntry(in: 0, at: 7, 2))
+        XCTAssertFalse(c.chooseDropDownEntry(in: 0, at: 7, 2))       // (already shown)
+        XCTAssertFalse(c.chooseDropDownEntry(in: 0, at: 0, 1))       // (not a drop-down)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Fruit: Papaya today")
+        XCTAssertEqual(c.selection.focus, RichPosition(paragraph: 0, offset: 13))
+        out = try saved()
+        XCTAssertTrue(out.containsSubstring("<w:ddList><w:result w:val=\"2\"/>"), out)
+        XCTAssertEqual(out.components(separatedBy: " FORMDROPDOWN ").count, 2, out)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs[0].text, "Fruit: Papaya today")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "Fruit: Mango & lime today")
+    }
+
+    /// W-RV-3: a drop-down list content control showing its placeholder takes a chosen entry: the text is the entry's
+    /// display text in the text's style before it, the placeholder flag goes, and w:lastValue records the entry's value.
+    func testDropDownListControlTakesAChoice() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Colour: </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Colour\"/><w:id w:val=\"7\"/><w:showingPlcHdr/><w:dropDownList w:lastValue=\"\">"
+            + "<w:listItem w:displayText=\"Choose an item.\" w:value=\"\"/><w:listItem w:displayText=\"Red\" w:value=\"r\"/><w:listItem w:displayText=\"Blue\" w:value=\"b\"/></w:dropDownList></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:rPr><w:color w:val=\"808080\"/></w:rPr><w:t>Choose an item.</w:t></w:r></w:sdtContent></w:sdt>"
+            + "<w:r><w:t>.</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let c = RichDocumentController(document: try DocxFormat.read(try Zip.write(entries)).document)
+        let d = try XCTUnwrap(c.document.paragraphs[0].dropDowns.first)
+        XCTAssertEqual(d.entries.map(\.text), ["Choose an item.", "Red", "Blue"])
+        XCTAssertEqual(d.entries.map(\.value), ["", "r", "b"])
+        XCTAssertFalse(d.isComboBox)
+        XCTAssertTrue(c.chooseDropDownEntry(in: 0, at: d.range.lowerBound, 2))
+        XCTAssertEqual(c.document.paragraphs[0].text, "Colour: Blue.")
+        XCTAssertNil(c.document.paragraphs[0].style(at: 9).color, "the placeholder's grey is not the entry's")
+        let start = try XCTUnwrap(c.document.paragraphs[0].controlMarkers.first { $0.isStart })
+        XCTAssertFalse(start.properties?.containsSubstring("showingPlcHdr") ?? true)
+        XCTAssertTrue(start.properties?.containsSubstring("w:lastValue=\"b\"") ?? false)
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertTrue(out.containsSubstring("<w:dropDownList w:lastValue=\"b\">"), out)
+        XCTAssertFalse(out.containsSubstring("showingPlcHdr"), out)
+        XCTAssertTrue(out.containsSubstring(">Blue</w:t>"), out)
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document.paragraphs[0].text, "Colour: Blue.")
+    }
+
+    /// W-RV-3: in the app, a click on a drop-down (legacy field or list control) opens its list, and choosing an entry
+    /// shows it. DROPDOWN1_OUT=<dir>: start.docx, chosen.docx and the window points (1440x932) for the Word lab and Mac script.
+    func testDropDownsOpenTheirListOnAClick() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+        xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Legacy: </w:t></w:r>"
+            + "<w:r><w:fldChar w:fldCharType=\"begin\"><w:ffData><w:name w:val=\"Fruit\"/><w:enabled/><w:calcOnExit w:val=\"0\"/>"
+            + "<w:ddList><w:listEntry w:val=\"Kiwi\"/><w:listEntry w:val=\"Mango\"/><w:listEntry w:val=\"Papaya\"/></w:ddList></w:ffData></w:fldChar></w:r>"
+            + "<w:r><w:instrText xml:space=\"preserve\"> FORMDROPDOWN </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>"
+            + "<w:p><w:r><w:t xml:space=\"preserve\">Control: </w:t></w:r>"
+            + "<w:sdt><w:sdtPr><w:alias w:val=\"Colour\"/><w:id w:val=\"7\"/><w:dropDownList w:lastValue=\"r\">"
+            + "<w:listItem w:displayText=\"Red\" w:value=\"r\"/><w:listItem w:displayText=\"Blue\" w:value=\"b\"/><w:listItem w:displayText=\"Green\" w:value=\"g\"/></w:dropDownList></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:t>Red</w:t></w:r></w:sdtContent></w:sdt></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let start = try Zip.write(entries)
+        let path = NSTemporaryDirectory() + "dropdown1-\(getpid()).docx"
+        try start.write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: path), title: "t"), size: Size(1440, 932))
+        for _ in 0 ..< 20 { ui.pump() }
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let doc = shell.session.controller
+        XCTAssertEqual(doc.document.paragraphs.map(\.text), ["Legacy: Kiwi", "Control: Red"])
+        let editor = try XCTUnwrap(ui.elements().first { ($0.widget as? RichEditable)?.controller === doc })
+        let rbox = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        let st = try XCTUnwrap((editor as? StatefulElement)?.state as? RichEditableState)
+        let out = ProcessInfo.processInfo.environment["DROPDOWN1_OUT"]
+        for (i, pick, want) in [(0, "Papaya", "Legacy: Papaya"), (1, "Green", "Control: Green")] {
+            let d = try XCTUnwrap(doc.document.paragraphs[i].dropDowns.first)
+            let l = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: d.range.lowerBound)))
+            let r = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: d.range.upperBound)))
+            let p = rbox.localToGlobal(Offset((l.left + r.left) / 2, l.top + l.height / 2))
+            XCTAssertFalse(ui.has(text: pick))
+            ui.click(at: p, kind: .mouse); ui.pump(); ui.pump()
+            XCTAssertTrue(ui.has(text: pick), "drop-down \(i): the click opens its list")
+            if let out { try "dropdown \(i): \(Int(p.dx)) \(Int(p.dy))\n".write(toFile: out + "/points-\(i).txt", atomically: true, encoding: .utf8) }
+            let row = try XCTUnwrap(ui.elements().last { ($0.widget as? Text)?.data == pick })
+            let rr = try XCTUnwrap(row.findRenderObject() as? RenderBox)
+            let rp = rr.localToGlobal(Offset(rr.size.width / 2, rr.size.height / 2))
+            if let out { try "entry \(i): \(Int(rp.dx)) \(Int(rp.dy))\n".write(toFile: out + "/entry-\(i).txt", atomically: true, encoding: .utf8) }
+            ui.click(at: rp, kind: .mouse); ui.pump(); ui.pump()
+            XCTAssertEqual(doc.document.paragraphs[i].text, want)
+            XCTAssertFalse(ui.has(text: pick == "Papaya" ? "Kiwi" : "Blue"), "choosing closes the list")
+        }
+        if let out {
+            try start.write(to: URL(fileURLWithPath: out + "/start.docx"))
+            try DocxFormat.write(doc.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/chosen.docx"))
+        }
+    }
+
     /// W-RV-3 lab forms1: two legacy check boxes (one ticked by default) and a check box control, each clicked once.
     /// FORMS1_OUT=<dir>: leaves start.docx (as authored) and clicked.docx (our save) for Word.
     func testFormCheckBoxesClickedOnceEach() throws {

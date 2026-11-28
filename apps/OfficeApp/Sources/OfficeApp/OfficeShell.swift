@@ -1613,6 +1613,22 @@ final class OfficeShellState: State<StatefulWidget> {
 
     /// Word's right-click menu: what the caret is on, then the clipboard,
     /// then formatting, then the table or picture it sits in.
+    /// A drop-down's list under it (a legacy field's or a list / combo control's): choosing an entry shows it, one undo step.
+    private func _showDropDown(_ index: Int, _ d: RichDropDown, at point: Offset) {
+        let c = controller
+        let menu = ContextMenuBuilder()
+        for (k, e) in d.entries.enumerated() {
+            menu.item(e.text) {
+                // The list takes no focus: act only if the drop-down is still where it was.
+                guard index < c.document.paragraphs.count,
+                      c.document.paragraphs[index].dropDowns.contains(where: { $0.range.lowerBound == d.range.lowerBound }) else { return }
+                c.chooseDropDownEntry(in: index, at: d.range.lowerBound, k)
+            }
+        }
+        guard let context else { return }
+        menu.show(_contextMenu, in: context, at: point)
+    }
+
     private func _showContextMenu(at point: Offset) {
         let c = controller
         let menu = ContextMenuBuilder()
@@ -2876,6 +2892,7 @@ final class OfficeShellState: State<StatefulWidget> {
             onSelectionGestureEnd: { [weak self] in self?._applyPainter() },
             onHeaderFooterEdit: { [weak self] _ in self?.session.onHeaderFooter?() },
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
+            onDropDown: { [weak self] i, d, point in self?._showDropDown(i, d, at: point) },
             onTouchMenu: { [weak self] rect in self?._showTouchMenu(rect) },
             onPasteOptions: { [weak self] point in self?._showPasteOptions(at: point) },
             spellChecker: session.checkSpelling ? _spelling : nil,

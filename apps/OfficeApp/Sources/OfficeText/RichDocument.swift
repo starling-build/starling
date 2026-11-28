@@ -2488,6 +2488,112 @@ extension RichParagraph {
     }
 }
 
+/// A drop-down in a paragraph: a legacy FORMDROPDOWN field (its shown entry is a run carrying the field's `w:ffData`) or a
+/// drop-down list / combo box content control. `control` is the control's id, nil for a legacy field.
+public struct RichDropDown: Hashable, Sendable {
+    public var control: Int?
+    /// The text it shows (UTF-16 offsets in the paragraph).
+    public var range: Range<Int>
+    /// Its entries: the text shown and the value saved (the same for a legacy field).
+    public var entries: [(text: String, value: String)]
+    /// A combo box also takes typed text.
+    public var isComboBox: Bool
+    public static func == (a: Self, b: Self) -> Bool {
+        a.control == b.control && a.range == b.range && a.isComboBox == b.isComboBox
+            && a.entries.map(\.text) == b.entries.map(\.text) && a.entries.map(\.value) == b.entries.map(\.value)
+    }
+    public func hash(into h: inout Hasher) { h.combine(control); h.combine(range) }
+}
+
+extension RichParagraph {
+    /// The `attr` values of every `<tag ...>` in `xml`, unescaped, as (attr1, attr2) pairs.
+    fileprivate static func _tags(_ tag: String, _ attrs: [String], in xml: String) -> [[String?]] {
+        var out: [[String?]] = []
+        var at = xml.startIndex
+        while let t = xml.rangeOfSubstring("<" + tag + " ", in: at ..< xml.endIndex),
+              let close = xml[t.upperBound...].firstIndex(of: ">") {
+            out.append(attrs.map { a in
+                guard let r = xml.rangeOfSubstring(" " + a + "=\"", in: t.lowerBound ..< close),
+                      let q = xml[r.upperBound...].firstIndex(of: "\"") else { return nil }
+                return RichDocumentController._xmlUnescaped(String(xml[r.upperBound ..< q]))
+            })
+            at = close
+        }
+        return out
+    }
+    /// The drop-downs of this paragraph, in text order.
+    public var dropDowns: [RichDropDown] {
+        var out: [RichDropDown] = []
+        var at = 0
+        var prev: String? = nil
+        for r in runs {
+            if let ff = r.style.formField, ff.containsSubstring("<w:ddList"), r.style.revision?.kind != .deleted {
+                if ff == prev, let last = out.indices.last, out[last].control == nil, out[last].range.upperBound == at {
+                    out[last].range = out[last].range.lowerBound ..< at + r.length
+                } else {
+                    let entries = Self._tags("w:listEntry", ["w:val"], in: ff).compactMap { $0[0] }.map { (text: $0, value: $0) }
+                    out.append(RichDropDown(control: nil, range: at ..< at + r.length, entries: entries, isComboBox: false))
+                }
+                prev = ff
+            } else { prev = nil }
+            at += r.length
+        }
+        for m in controlMarkers where m.isStart {
+            guard let props = m.properties,
+                  let list = props.rangeOfSubstring("<w:dropDownList") ?? props.rangeOfSubstring("<w:comboBox"),
+                  let end = controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { continue }
+            let combo = props[list.lowerBound...].hasPrefix("<w:comboBox")
+            let entries = Self._tags("w:listItem", ["w:displayText", "w:value"], in: String(props[list.lowerBound...])).compactMap { v -> (text: String, value: String)? in
+                guard let text = v[0] ?? v[1] else { return nil }
+                return (text, v[1] ?? text)
+            }
+            out.append(RichDropDown(control: m.id, range: m.offset ..< max(m.offset, end.offset), entries: entries, isComboBox: combo))
+        }
+        return out.sorted { $0.range.lowerBound < $1.range.lowerBound }
+    }
+    /// This paragraph with the drop-down starting at `start` showing entry `index`; nil when there is no such drop-down
+    /// or entry, or it already shows it. A content control leaves its placeholder and records the entry's value as
+    /// `w:lastValue` when it has one.
+    public func choosingDropDownEntry(at start: Int, _ index: Int) -> RichParagraph? {
+        guard let d = dropDowns.first(where: { $0.range.lowerBound == start }), d.entries.indices.contains(index) else { return nil }
+        let entry = d.entries[index]
+        let units = Array(text.utf16)
+        let lo = min(d.range.lowerBound, units.count), hi = min(d.range.upperBound, units.count)
+        var p = self
+        if let id = d.control {
+            guard let si = p.controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
+                  let ei = p.controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }),
+                  var props = p.controlMarkers[si].properties else { return nil }
+            let placeholder = props.containsSubstring("<w:showingPlcHdr")
+            if !placeholder, String(decoding: units[lo ..< hi], as: UTF16.self) == entry.text { return nil }
+            // The placeholder's grey prompt style is not the entry's: take the text's before the control.
+            let style = placeholder ? (lo > 0 ? p.style(at: lo) : CharStyle()) : p.style(at: hi > lo ? lo + 1 : lo)
+            let n = entry.text.utf16.count
+            if n > 0 { p.insert(entry.text, at: hi, runs: [Run(length: n, style: style)]) }
+            p.controlMarkers[si].offset = lo
+            p.controlMarkers[ei].offset = hi + n
+            if hi > lo { _ = p.delete(lo ..< hi) }
+            for tag in ["<w:showingPlcHdr/>", "<w:showingPlcHdr w:val=\"1\"/>", "<w:showingPlcHdr w:val=\"true\"/>"] {
+                if let r = props.rangeOfSubstring(tag) { props.removeSubrange(r) }
+            }
+            if let list = props.rangeOfSubstring("<w:dropDownList ") ?? props.rangeOfSubstring("<w:comboBox "),
+               let close = props[list.upperBound...].firstIndex(of: ">"),
+               let a = props.rangeOfSubstring(" w:lastValue=\"", in: list.lowerBound ..< close),
+               let q = props[a.upperBound...].firstIndex(of: "\"") {
+                props.replaceSubrange(a.upperBound ..< q, with: RichDocumentController._xmlEscaped(entry.value))
+            }
+            p.controlMarkers[si].properties = props
+            return p
+        }
+        guard String(decoding: units[lo ..< hi], as: UTF16.self) != entry.text, hi > lo else { return nil }
+        let style = p.style(at: lo + 1)
+        let n = entry.text.utf16.count
+        p.insert(entry.text, at: hi, runs: [Run(length: n, style: style)])
+        _ = p.delete(lo ..< hi)
+        return p
+    }
+}
+
 /// One paragraph: its text, the runs that cover it exactly, and its style.
 ///
 /// Invariant (`isValid`): the run lengths sum to `text.utf16.count`, no run
