@@ -2,11 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The shared Find and Replace dialog's side in Sheets: a pattern (plain, wildcards,
-// regex; match case; whole cell), a scope (this sheet or the whole workbook),
+// regex; match case; whole cell), a scope (this sheet or the whole workbook), Excel's
+// Look in (formulas, values, notes) and search order (rows, columns), Find All,
 // replace all as one undo step, and Go To a cell.
 
 import Foundation
 import OfficeText
+
+/// Excel's "Look in": the formula bar's text, the shown value, or the cell's note.
+enum FindLookIn: Int, Sendable { case formulas = 0, values, notes }
+
+/// One cell Find All listed.
+struct SheetFindHit: Equatable, Sendable {
+    var sheet: Int
+    var at: CellAddress
+}
 
 extension WorkbookController {
     /// Where to look: 0 = the active sheet, 1 = the workbook.
@@ -14,19 +24,45 @@ extension WorkbookController {
         scope == 1 ? Array(book.sheets.indices) : [activeSheet]
     }
 
-    /// The next cell after the active one (row by row, then the following sheets in the workbook scope) that matches; selects it.
+    /// The text Find tests in cell `a` for `lookIn`: nil when there is nothing to look at.
+    func findText(_ a: CellAddress, sheet ws: Worksheet, lookIn: FindLookIn) -> String? {
+        switch lookIn {
+        case .formulas:
+            return ws.cells[a].map { _searchText($0, a, sheet: ws) }
+        case .values:
+            guard let c = ws.cells[a] else { return nil }
+            return NumberFormat.display(c.value, book.style(c.style).numberFormat, width: 255).text
+        case .notes:
+            return ws.notes.first { $0.at == a }?.text
+        }
+    }
+
+    /// The matching cells of one sheet, in search order: row by row, or column by column.
+    func findHits(_ p: TextPattern, sheet si: Int, lookIn: FindLookIn = .formulas, byColumns: Bool = false) -> [CellAddress] {
+        let ws = book.sheets[si]
+        let candidates = lookIn == .notes ? ws.notes.compactMap(\.at) : Array(ws.cells.keys)
+        let hits = candidates.filter { a in findText(a, sheet: ws, lookIn: lookIn).map { !p.matches(in: $0).isEmpty } ?? false }
+        return byColumns ? hits.sorted { ($0.col, $0.row) < ($1.col, $1.row) } : hits.sorted()
+    }
+
+    /// Find All: every matching cell in the scope, sheet by sheet, in search order.
+    func findAll(_ p: TextPattern, scope: Int, lookIn: FindLookIn = .formulas, byColumns: Bool = false) -> [SheetFindHit] {
+        _scopeSheets(scope).flatMap { si in findHits(p, sheet: si, lookIn: lookIn, byColumns: byColumns).map { SheetFindHit(sheet: si, at: $0) } }
+    }
+
+    /// The next cell after the active one (in search order, then the following sheets in the workbook scope) that matches; selects it.
     @discardableResult
-    func findNext(_ p: TextPattern, scope: Int, backwards: Bool = false) -> Bool {
+    func findNext(_ p: TextPattern, scope: Int, lookIn: FindLookIn = .formulas, byColumns: Bool = false, backwards: Bool = false) -> Bool {
         let sheets = _scopeSheets(scope)
         let n = sheets.count
         let start = sheets.firstIndex(of: activeSheet) ?? 0
+        let before: (CellAddress, CellAddress) -> Bool = byColumns ? { ($0.col, $0.row) < ($1.col, $1.row) } : { $0 < $1 }
         for step in 0 ... n {
             let si = sheets[((start + (backwards ? -step : step)) % n + n) % n]
-            let ws = book.sheets[si]
-            var hits = ws.cells.filter { !p.matches(in: _searchText($0.value, $0.key, sheet: ws)).isEmpty }.map(\.key).sorted()
+            var hits = findHits(p, sheet: si, lookIn: lookIn, byColumns: byColumns)
             if backwards { hits.reverse() }
             let here = active
-            let next: CellAddress? = step == 0 ? hits.first { backwards ? $0 < here : $0 > here } : hits.first
+            let next: CellAddress? = step == 0 ? hits.first { backwards ? before($0, here) : before(here, $0) } : hits.first
             if let a = next {
                 if si != activeSheet { activeSheet = si }
                 select(a)
@@ -37,16 +73,16 @@ extension WorkbookController {
     }
 
     /// Which match the active cell is among the cells that match, and how many there are ("3 of 12").
-    func findPosition(_ p: TextPattern, scope: Int) -> (index: Int, total: Int)? {
-        var total = 0, index: Int?
-        for si in _scopeSheets(scope) {
-            let ws = book.sheets[si]
-            for a in ws.cells.filter({ !p.matches(in: _searchText($0.value, $0.key, sheet: ws)).isEmpty }).map(\.key).sorted() {
-                total += 1
-                if index == nil, si == activeSheet, a == active { index = total }
-            }
-        }
-        return index.map { ($0, total) }
+    func findPosition(_ p: TextPattern, scope: Int, lookIn: FindLookIn = .formulas, byColumns: Bool = false) -> (index: Int, total: Int)? {
+        let all = findAll(p, scope: scope, lookIn: lookIn, byColumns: byColumns)
+        return all.firstIndex(of: SheetFindHit(sheet: activeSheet, at: active)).map { ($0 + 1, all.count) }
+    }
+
+    /// Go to one Find All hit.
+    func goToHit(_ h: SheetFindHit) {
+        guard book.sheets.indices.contains(h.sheet) else { return }
+        if h.sheet != activeSheet { activeSheet = h.sheet }
+        select(h.at)
     }
 
     /// The cell's text with every match replaced; nil when nothing matched.
@@ -64,11 +100,11 @@ extension WorkbookController {
 
     /// Replace in the active cell if it matches, then move to the next match.
     @discardableResult
-    func replaceCurrent(_ p: TextPattern, with template: String, scope: Int) -> Bool {
+    func replaceCurrent(_ p: TextPattern, with template: String, scope: Int, byColumns: Bool = false) -> Bool {
         if let c = sheet.cells[active], let new = _replaced(c.formula.map(Formula.text) ?? c.input, p, template) {
             setInput(new, at: active)
         }
-        return findNext(p, scope: scope)
+        return findNext(p, scope: scope, byColumns: byColumns)
     }
 
     /// Every match in the scope, as one undo step. Returns the count of cells changed.
