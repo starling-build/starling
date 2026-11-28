@@ -1,0 +1,31 @@
+# Writer drop-downs (W-RV-3): a click on a drop-down opens its list; choosing an entry shows it, one undo step.
+# Run with OFFICE_FILE=lab/dropdown1/start.docx (amd-5's checkout; "Legacy:" a FORMDROPDOWN showing Kiwi, entries
+# Kiwi / Mango / Papaya; "Control:" a drop-down list control showing Red, entries Red / Blue / Green), window 1440x932.
+# Delete any start.docx~ first.
+# Harness points at 1440x932, from DocxTests.testDropDownsOpenTheirListOnAClick (DROPDOWN1_OUT writes them):
+# Legacy field 467,351, its list's Papaya 510,432; Control 471,381, its list's Green 514,462.
+wait 1500
+shot ${OUT}/dd-00-start.png
+# The legacy field's list opens under it: Kiwi, Mango, Papaya.
+click 467 351
+wait 300
+shot ${OUT}/dd-01-legacy-list.png
+# Papaya replaces Kiwi.
+click 510 432
+wait 300
+shot ${OUT}/dd-02-legacy-papaya.png
+# The control's list opens under it: Red, Blue, Green.
+click 471 381
+wait 300
+shot ${OUT}/dd-03-control-list.png
+# Green replaces Red.
+click 514 462
+wait 300
+shot ${OUT}/dd-04-control-green.png
+# Each choice is one undo step: Cmd+Z twice puts Kiwi and Red back.
+chord cmd z
+wait 200
+chord cmd z
+wait 300
+shot ${OUT}/dd-05-undone.png
+quit

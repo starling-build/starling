@@ -1844,6 +1844,20 @@ public final class RichDocumentController: ChangeNotifier {
         return true
     }
 
+    /// Show entry `entry` in the drop-down (legacy field or list / combo control) starting at `start` of paragraph
+    /// `index` (one undo step); the caret goes after it. Returns whether it changed.
+    @discardableResult
+    public func chooseDropDownEntry(in index: Int, at start: Int, _ entry: Int) -> Bool {
+        guard index >= 0, index < document.paragraphs.count,
+              let after = document.paragraphs[index].choosingDropDownEntry(at: start, entry),
+              let d = after.dropDowns.first(where: { $0.range.lowerBound == start }) else { return false }
+        edit {
+            perform(.restoreParagraphs(index, count: 1, [after]))
+            _setCaret(RichPosition(paragraph: index, offset: d.range.upperBound))
+        }
+        return true
+    }
+
     public enum CaseChange { case sentence, lower, upper, capitalizeWords, toggle }
 
     /// Word's Change Case over the selection, or the word at the caret.

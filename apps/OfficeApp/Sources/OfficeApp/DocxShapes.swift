@@ -1409,6 +1409,7 @@ extension DocxFormat {
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
         var pendingCheckboxData: String? = nil   // and its w:ffData as the file had it (kept for the save)
         var pendingDropdown: String? = nil // a FORMDROPDOWN field's chosen entry, from its begin
+        var pendingDropdownData: String? = nil   // and its w:ffData (kept for the save)
         func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
             // (A run nested in a run, which the schema does not allow: Word prints the inner run's text. lab gridlift2 / f42177d2's title holds
             // <w:r><w:rPr/><w:r><w:t>共感性</w:t></w:r></w:r>; ours dropped the text, so its title line was 55pt short and never wrapped.)
@@ -1766,6 +1767,7 @@ extension DocxFormat {
                         let entries = list.all("w:listEntry").compactMap { $0["w:val"] }
                         let chosen = Int(list.first("w:result")?["w:val"] ?? list.first("w:default")?["w:val"] ?? "0") ?? 0
                         pendingDropdown = chosen >= 0 && chosen < entries.count ? entries[chosen] : nil
+                        pendingDropdownData = PptxXML.serialize(child.first("w:ffData")!)
                     }
                     if child["w:fldCharType"] == "begin", let data = child.first("w:ffData"), let box = data.first("w:checkBox") {
                         let on = box.first("w:checked").map { !_isOff($0) } ?? (box.first("w:default")?["w:val"] == "1")
@@ -1797,8 +1799,9 @@ extension DocxFormat {
                         pendingCheckbox = nil; pendingCheckboxData = nil
                     }
                     if let entry = pendingDropdown, child.text.uppercased().containsSubstring("FORMDROPDOWN") {
-                        addText(entry, cs)
-                        pendingDropdown = nil
+                        var shown = cs; shown.formField = pendingDropdownData
+                        addText(entry, shown)
+                        pendingDropdown = nil; pendingDropdownData = nil
                     }
                 case "w:commentReference":
                     notes.commentReferences += 1
