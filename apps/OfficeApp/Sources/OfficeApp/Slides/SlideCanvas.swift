@@ -95,6 +95,8 @@ final class SlideCanvasState: State<StatefulWidget> {
         case marquee(start: Offset, now: Offset)
         /// A shape chosen from the gallery, being drawn by dragging out its box.
         case draw(preset: ShapePreset, start: Offset, now: Offset)
+        /// A drawing guide being dragged; `at` is where it is now (slide points).
+        case guide(index: Int, at: Double)
     }
     private var _drag: Drag? = nil
     /// A finger has touched the canvas: the handles get a fingertip's reach (they are drawn the same).
@@ -388,7 +390,40 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _selectionChrome(_ slide: Slide, ox: Double, oy: Double, px: Double,
                                   fluent: FluentThemeData) -> Widget {
         let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
-        var children: [Widget] = [
+        var children: [Widget] = []
+        // View > Show: gridlines, drawing guides and the rulers, under the selection's own chrome.
+        let grid = deck.grid
+        var guides = grid.showGuides ? grid.guides : []
+        if case .guide(let i, let at)? = _drag, guides.indices.contains(i) { guides[i].at = at }
+        if deck.showGridlines || !guides.isEmpty || deck.showRuler {
+            children.append(Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: CustomPaint(
+                painter: SlideGridPainter(spacing: deck.showGridlines ? grid.spacing : 0, guides: guides,
+                                          ruler: deck.showRuler, slideSize: deck.slideSize, ox: ox, oy: oy, px: px,
+                                          dark: fluent.brightness == .dark),
+                child: SizedBox(expand: ())))))
+        }
+        // A guide is grabbed anywhere along its line.
+        for (i, g) in guides.enumerated() {
+            let reach = 7.0
+            let onDown: (PointerDownEvent) -> Void = { [weak self] e in
+                guard let self else { return }
+                self._drag = .guide(index: i, at: g.at)
+                self.setState {}
+            }
+            let handle = Listener(onPointerDown: onDown,
+                                  onPointerMove: { [weak self] e in self?._pointerMove(e) },
+                                  onPointerUp: { [weak self] e in self?._pointerUp(e) },
+                                  behavior: .opaque,
+                                  child: MouseRegion(cursor: g.vertical ? SystemMouseCursors.resizeLeftRight
+                                                                        : SystemMouseCursors.resizeUpDown,
+                                                     child: SizedBox(expand: ())))
+            children.append(g.vertical
+                ? Positioned(key: ValueKey("guide-\(i)"), left: ox + g.at * px - reach, top: oy,
+                             width: reach * 2, height: deck.slideSize.height * px, child: handle)
+                : Positioned(key: ValueKey("guide-\(i)"), left: ox, top: oy + g.at * px - reach,
+                             width: deck.slideSize.width * px, height: reach * 2, child: handle))
+        }
+        children += [
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: CustomPaint(
                 painter: _ChromePainter(selection: deck.selection, active: _w.active, guides: _guides,
                                         marquee: _marqueeRect, slideSize: deck.slideSize,
@@ -912,6 +947,12 @@ final class SlideCanvasState: State<StatefulWidget> {
         case .draw(let preset, let start, _):
             _drag = .draw(preset: preset, start: start, now: p)
             setState {}
+        case .guide(let i, _):
+            guard deck.grid.guides.indices.contains(i) else { return }
+            let v = deck.grid.guides[i].vertical ? p.dx : p.dy
+            // A guide moves in steps of the grid unless Alt is held, as PowerPoint's does.
+            _drag = .guide(index: i, at: _w.modifiers().contains(.alt) ? v : deck.grid.snapped(v))
+            setState {}
         }
     }
 
@@ -960,6 +1001,13 @@ final class SlideCanvasState: State<StatefulWidget> {
             let m = _w.modifiers()
             deck.placeInsert(preset, from: a, to: b, keepProportions: m.contains(.shift))
             setState {}
+        case .guide(let i, let at):
+            var g = deck.grid
+            guard g.guides.indices.contains(i) else { break }
+            let extent = g.guides[i].vertical ? deck.slideSize.width : deck.slideSize.height
+            // Dragged off the slide: the guide is deleted.
+            if at < 0 || at > extent { g.guides.remove(at: i) } else { g.guides[i].at = at }
+            if g != deck.grid { deck.setGrid(g) }
         case .marquee(let a, let b):
             let box = Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
             if box.width > 2 || box.height > 2 {
@@ -1078,14 +1126,28 @@ final class SlideCanvasState: State<StatefulWidget> {
     /// Lines a dragged edge or centre can settle on: the slide's edges and
     /// centre, and every other shape's.
     private func _targets(excluding: [SlideShape]) -> (xs: [Double], ys: [Double]) {
-        var xs = [0, deck.slideSize.width / 2, deck.slideSize.width]
-        var ys = [0, deck.slideSize.height / 2, deck.slideSize.height]
-        for s in deck.currentSlide.shapes where !excluding.contains(where: { $0 === s }) {
+        var xs: [Double] = [], ys: [Double] = []
+        // With smart guides and snapping to objects both off, only the grid and the drawing guides catch a shape.
+        let objects = deck.smartGuides || deck.grid.snapToObjects
+        if objects {
+            xs = [0, deck.slideSize.width / 2, deck.slideSize.width]
+            ys = [0, deck.slideSize.height / 2, deck.slideSize.height]
+        }
+        for s in deck.currentSlide.shapes where objects && !excluding.contains(where: { $0 === s }) {
             let f = s.frame
             xs += [f.left, f.center.dx, f.right]
             ys += [f.top, f.center.dy, f.bottom]
         }
+        // Shown drawing guides catch edges and centres too.
+        if deck.grid.showGuides {
+            for g in deck.grid.guides { if g.vertical { xs.append(g.at) } else { ys.append(g.at) } }
+        }
         return (xs, ys)
+    }
+
+    /// How far `edge` moves to sit on the grid (0 when snap to grid is off).
+    private func _gridShift(_ edge: Double) -> Double {
+        deck.grid.snapToGrid ? deck.grid.snapped(edge) - edge : 0
     }
 
     private var _snapDistance: Double { 6 / max(_px, 0.001) }
@@ -1099,12 +1161,17 @@ final class SlideCanvasState: State<StatefulWidget> {
         if let (target, edge) = _nearest([box.left, box.center.dx, box.right], xs) {
             outX += target - edge
             guides.append(SlideGuide(vertical: true, at: target))
+        } else {
+            // No line caught it: the top-left corner settles on the grid, as in PowerPoint.
+            outX += _gridShift(box.left)
         }
         if let (target, edge) = _nearest([box.top, box.center.dy, box.bottom], ys) {
             outY += target - edge
             guides.append(SlideGuide(vertical: false, at: target))
+        } else {
+            outY += _gridShift(box.top)
         }
-        _guides = guides
+        _guides = deck.smartGuides ? guides : []
         return Offset(outX, outY)
     }
 
@@ -1117,13 +1184,21 @@ final class SlideCanvasState: State<StatefulWidget> {
             out = hx == 1 ? Rect.fromLTRB(out.left, out.top, out.right + target - edge, out.bottom)
                           : Rect.fromLTRB(out.left + target - edge, out.top, out.right, out.bottom)
             guides.append(SlideGuide(vertical: true, at: target))
+        } else if hx == 1 {
+            out = Rect.fromLTRB(out.left, out.top, out.right + _gridShift(out.right), out.bottom)
+        } else if hx == 0 {
+            out = Rect.fromLTRB(out.left + _gridShift(out.left), out.top, out.right, out.bottom)
         }
         if hy != 0.5, let (target, edge) = _nearest([hy == 1 ? r.bottom : r.top], ys) {
             out = hy == 1 ? Rect.fromLTRB(out.left, out.top, out.right, out.bottom + target - edge)
                           : Rect.fromLTRB(out.left, out.top + target - edge, out.right, out.bottom)
             guides.append(SlideGuide(vertical: false, at: target))
+        } else if hy == 1 {
+            out = Rect.fromLTRB(out.left, out.top, out.right, out.bottom + _gridShift(out.bottom))
+        } else if hy == 0 {
+            out = Rect.fromLTRB(out.left, out.top + _gridShift(out.top), out.right, out.bottom)
         }
-        _guides = guides
+        _guides = deck.smartGuides ? guides : []
         return out.width >= 4 && out.height >= 4 ? out : r
     }
 
@@ -1296,6 +1371,122 @@ private final class _ChromePainter: CustomPainter {
         run(r.topRight, r.bottomRight)
         run(r.bottomRight, r.bottomLeft)
         run(r.bottomLeft, r.topLeft)
+    }
+
+    override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool { true }
+}
+
+/// View > Show on the canvas: gridlines every `spacing` points (0: none), dashed drawing guides, and the rulers along
+/// the top and left edges, in inches counted out from the slide's centre as PowerPoint's are.
+final class SlideGridPainter: CustomPainter {
+    let spacing: Double
+    let guides: [DrawingGuide]
+    let ruler: Bool
+    let slideSize: Size
+    let ox: Double, oy: Double, px: Double
+    let dark: Bool
+
+    init(spacing: Double, guides: [DrawingGuide], ruler: Bool, slideSize: Size, ox: Double, oy: Double, px: Double,
+         dark: Bool) {
+        self.spacing = spacing; self.guides = guides; self.ruler = ruler; self.slideSize = slideSize
+        self.ox = ox; self.oy = oy; self.px = px; self.dark = dark
+        super.init()
+    }
+
+    override func paint(_ canvas: any Canvas, _ size: Size) {
+        let w = slideSize.width * px, h = slideSize.height * px
+        if spacing > 0 {
+            // A line every grid step from the centre out, thinned so lines are never closer than 6 px on screen.
+            var step = spacing
+            while step * px < 6 { step *= 2 }
+            let dot = Paint()
+            dot.style = .fill
+            dot.color = Color(0x80808080)
+            let cx = slideSize.width / 2, cy = slideSize.height / 2
+            func lines(_ centre: Double, _ extent: Double) -> [Double] {
+                var out: [Double] = []
+                var k = (-(centre / step)).rounded(.up)
+                while centre + k * step <= extent { out.append(centre + k * step); k += 1 }
+                return out
+            }
+            // PowerPoint's gridlines are dotted: a dot every 2 px along each line.
+            for x in lines(cx, slideSize.width) {
+                var y = 0.0
+                while y < h { canvas.drawRect(Rect.fromLTWH(ox + x * px, oy + y, 1, 1), dot); y += 3 }
+            }
+            for yv in lines(cy, slideSize.height) {
+                var x = 0.0
+                while x < w { canvas.drawRect(Rect.fromLTWH(ox + x, oy + yv * px, 1, 1), dot); x += 3 }
+            }
+        }
+        if !guides.isEmpty {
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1
+            line.color = dark ? Color(0xFFBDBDBD) : Color(0xFF6E6E6E)
+            for g in guides {
+                // Dashed, 4 on and 3 off.
+                let length = g.vertical ? h : w
+                var t = 0.0
+                while t < length {
+                    let e = min(length, t + 4)
+                    if g.vertical {
+                        canvas.drawLine(Offset(ox + g.at * px, oy + t), Offset(ox + g.at * px, oy + e), line)
+                    } else {
+                        canvas.drawLine(Offset(ox + t, oy + g.at * px), Offset(ox + e, oy + g.at * px), line)
+                    }
+                    t += 7
+                }
+            }
+        }
+        if ruler { _rulers(canvas, size) }
+    }
+
+    private func _rulers(_ canvas: any Canvas, _ size: Size) {
+        let band = 18.0
+        let bg = Paint(); bg.style = .fill; bg.color = dark ? Color(0xFF2B2B2B) : Color(0xFFF3F3F3)
+        let face = Paint(); face.style = .fill; face.color = dark ? Color(0xFF3C3C3C) : Color(0xFFFFFFFF)
+        let tick = Paint(); tick.style = .stroke; tick.strokeWidth = 1; tick.color = dark ? Color(0xFFAAAAAA) : Color(0xFF707070)
+        canvas.drawRect(Rect.fromLTWH(0, 0, size.width, band), bg)
+        canvas.drawRect(Rect.fromLTWH(0, 0, band, size.height), bg)
+        // The slide's extent shows white on each ruler.
+        let w = slideSize.width * px, h = slideSize.height * px
+        canvas.drawRect(Rect.fromLTWH(max(band, ox), 2, max(0, min(ox + w, size.width) - max(band, ox)), band - 4), face)
+        canvas.drawRect(Rect.fromLTWH(2, max(band, oy), band - 4, max(0, min(oy + h, size.height) - max(band, oy))), face)
+        let inch = 72 * px
+        guard inch > 8 else { return }
+        let cx = ox + w / 2, cy = oy + h / 2
+        let color = dark ? Color(0xFFCCCCCC) : Color(0xFF444444)
+        // Eighths of an inch: an inch tick is long and numbered, a half medium, the rest short.
+        func marks(_ centre: Double, _ from: Double, _ to: Double, _ draw: (Double, Int) -> Void) {
+            var k = ((from - centre) / (inch / 8)).rounded(.up)
+            while centre + k * inch / 8 <= to { draw(centre + k * inch / 8, Int(k)); k += 1 }
+        }
+        marks(cx, band, size.width) { x, k in
+            let len = k % 8 == 0 ? 0.0 : k % 4 == 0 ? 6 : 3
+            if k % 8 == 0 {
+                if k != 0 { _label(canvas, "\(abs(k / 8))", Offset(x, band / 2), color) }
+            } else {
+                canvas.drawLine(Offset(x, band / 2 - len / 2), Offset(x, band / 2 + len / 2), tick)
+            }
+        }
+        marks(cy, band, size.height) { y, k in
+            let len = k % 8 == 0 ? 0.0 : k % 4 == 0 ? 6 : 3
+            if k % 8 == 0 {
+                if k != 0 { _label(canvas, "\(abs(k / 8))", Offset(band / 2, y), color) }
+            } else {
+                canvas.drawLine(Offset(band / 2 - len / 2, y), Offset(band / 2 + len / 2, y), tick)
+            }
+        }
+        canvas.drawRect(Rect.fromLTWH(0, 0, band, band), bg)
+    }
+
+    private func _label(_ canvas: any Canvas, _ text: String, _ centre: Offset, _ color: Color) {
+        let tp = TextPainter(text: TextSpan(text: text, style: Flutter.TextStyle(color: color, fontSize: 9,
+                                                                               fontFamily: OfficeFonts.sans)),
+                             textDirection: .ltr)
+        tp.layout(minWidth: 0, maxWidth: 40)
+        tp.paint(canvas, Offset(centre.dx - tp.width / 2, centre.dy - tp.height / 2))
     }
 
     override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool { true }

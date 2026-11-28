@@ -892,6 +892,20 @@ extension Ribbon {
                     session.onMasterView?(true)
                 }),
             ]),
+            Chrome.group("Show", fluent, [
+                Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
+                    Padding(key: ValueKey("view.ruler"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.textToggle("Ruler", session.deck?.showRuler ?? false, fluent) { [session] in
+                        if let d = session.deck { d.setShowRuler(!d.showRuler) }
+                    }),
+                    Padding(key: ValueKey("view.gridlines"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.textToggle("Gridlines", session.deck?.showGridlines ?? false, fluent) { [session] in
+                        if let d = session.deck { d.setShowGridlines(!d.showGridlines) }
+                    }),
+                    Padding(key: ValueKey("view.guides"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.textToggle("Guides", session.deck?.grid.showGuides ?? false, fluent) { [session] in
+                        if let d = session.deck { d.setShowGuides(!d.grid.showGuides) }
+                    }),
+                ]),
+                Padding(key: ValueKey("view.gridSettings"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.grid, "Grid Settings", fluent) { [session] in session.onGridDialog?() }),
+            ]),
             Chrome.group("Zoom", fluent, [
                 Padding(key: ValueKey("view.zoom"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.zoomIn, "Zoom", fluent) { [session] in session.onZoomDialog?() }),
                 Padding(key: ValueKey("view.zoomIn"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.big(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [session] in session.deck?.stepViewZoom(1) }),

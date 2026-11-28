@@ -88,7 +88,8 @@ enum PptxWriter {
         b.add("ppt/notesMasters/notesMaster1.xml", t.notesMaster(), type: CT.notesMaster)
         b.rels("ppt/notesMasters/notesMaster1.xml", [Rel(id: "rId1", type: RT.theme, target: "../theme/theme2.xml")])
         b.add("ppt/presProps.xml", PptxTemplates.presProps, type: CT.presProps)
-        b.add("ppt/viewProps.xml", PptxTemplates.viewProps, type: CT.viewProps)
+        b.add("ppt/viewProps.xml", state.grid == SlideGridSettings() ? PptxTemplates.viewProps : state.grid.apply(to: PptxTemplates.viewProps),
+              type: CT.viewProps)
         b.add("ppt/tableStyles.xml", PptxTemplates.tableStyles, type: CT.tableStyles)
         b.add("docProps/core.xml", PptxTemplates.core(), type: CT.core)
         b.add("docProps/app.xml", PptxTemplates.app(slides: state.slides.count), type: CT.app)
@@ -148,6 +149,10 @@ enum PptxWriter {
         if let pp = presRelsAll.first(where: { $0.kind == "presProps" })?.target,
            let d = b.parts[pp], let x = String(data: d, encoding: .utf8) {
             if state.show != state.sourceShow { b.parts[pp] = Data(_applyShowPr(x, state.show).utf8) }
+        }
+        if state.grid != state.sourceGrid, let vp = presRelsAll.first(where: { $0.kind == "viewProps" })?.target,
+           let d = b.parts[vp], let x = String(data: d, encoding: .utf8) {
+            b.parts[vp] = Data(state.grid.apply(to: x).utf8)
         }
         if let scaling = state.slideScaling, let old = _slideSize(presXML), old != state.slideSize {
             _scaleMasters(from: old, to: state.slideSize, scaling, in: &b)

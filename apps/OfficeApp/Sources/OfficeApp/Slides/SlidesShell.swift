@@ -110,6 +110,7 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _altText = false
     /// View > Zoom (or the status bar's percent) opened the Zoom dialog.
     private var _zoomDialog = false
+    private var _gridDialog = false
     private var _cellMargins = false
     /// The Insert Hyperlink dialog is up (text being edited, or the selected shapes).
     private var _linkOpen = false
@@ -421,6 +422,11 @@ final class SlidesShellState: State<StatefulWidget> {
         session.onCellMarginsDialog = { [weak self] in
             guard let self, self.session.controller.currentCell != nil else { return }
             self.setState { self._cellMargins = true }
+        }
+        session.onGridDialog = { [weak self] in
+            guard let self else { return }
+            self._endEditing()
+            self.setState { self._gridDialog = true }
         }
         session.onZoomDialog = { [weak self] in
             guard let self else { return }
@@ -1713,6 +1719,7 @@ final class SlidesShellState: State<StatefulWidget> {
             if _sectionDialog != nil { setState { _sectionDialog = nil }; return true }
             if _altText { setState { _altText = false }; return true }
             if _zoomDialog { setState { _zoomDialog = false }; return true }
+            if _gridDialog { setState { _gridDialog = false }; return true }
             if _cellMargins { setState { _cellMargins = false }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _textOptions { setState { _textOptions = false }; return true }
@@ -1997,6 +2004,21 @@ final class SlidesShellState: State<StatefulWidget> {
                         self?.setState { self?._cellMargins = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._cellMargins = false } })),
+            ])
+        }
+        if _gridDialog {
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: GridGuidesDialog(
+                    grid: deck.grid, showGrid: deck.showGridlines, smartGuides: deck.smartGuides, slideSize: deck.slideSize,
+                    onApply: { [weak self] g, showGrid, smart in
+                        guard let self else { return }
+                        self.deck.setGrid(g)
+                        self.deck.setShowGridlines(showGrid)
+                        self.deck.setSmartGuides(smart)
+                        self.setState { self._gridDialog = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._gridDialog = false } })),
             ])
         }
         if _zoomDialog {
