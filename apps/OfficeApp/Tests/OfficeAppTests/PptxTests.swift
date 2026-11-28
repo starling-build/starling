@@ -611,6 +611,8 @@ final class GroupAndConnectorTests: XCTestCase {
             + "<p:cxnSp><p:nvCxnSpPr><p:cNvPr id=\"7\" name=\"Elbow\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm rot=\"5400000\" flipH=\"1\" flipV=\"1\">"
             + "<a:off x=\"4645214\" y=\"2085856\"/><a:ext cx=\"1337621\" cy=\"2283041\"/></a:xfrm><a:prstGeom prst=\"bentConnector3\">"
             + "<a:avLst/></a:prstGeom><a:ln><a:tailEnd type=\"triangle\"/></a:ln></p:spPr>" + style + "</p:cxnSp></p:grpSp>"
+        // The sample's own drawn lines carry the default line style too.
+        let own = slide.components(separatedBy: "<a:lnRef idx=\"1\">").count - 1
         slide = slide.replacingOccurrences(of: "</p:spTree>", with: line + group + "</p:spTree>")
         package.parts["ppt/slides/slide6.xml"] = Data(slide.utf8)
         var (state, theme, pkg) = try reread(package)
@@ -623,7 +625,7 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertEqual(read.count, 2)
         let saved = try PptxWriter.write(state, theme: theme, package: pkg)
         let out = String(data: PptxPackage(try Zip.read(saved)).parts["ppt/slides/slide6.xml"]!, encoding: .utf8)!
-        XCTAssertEqual(out.components(separatedBy: "<a:lnRef idx=\"1\">").count - 1, 2, "both keep their p:style")
+        XCTAssertEqual(out.components(separatedBy: "<a:lnRef idx=\"1\">").count - 1, own + 2, "both keep their p:style")
         let (again, _, _) = try Pptx.read(saved)
         for (id, f) in read {
             let back = try XCTUnwrap(again.slides[5].shapes.first { $0.fileId == id })
