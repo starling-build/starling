@@ -96,6 +96,7 @@ extension WorkbookController {
         let dst = CellRange(top: at.row, left: at.col, bottom: at.row + rows - 1, right: at.col + cols - 1)
         guard dst.bottom < CellAddress.maxRows, dst.right < CellAddress.maxCols else { return }
         if refusesEdit(dst.cells) { return }
+        if ![.comments, .validation, .columnWidths].contains(how.what), refusesPartOfAMerge(dst) { return }
         let ws = sheet
         let source: Worksheet? = clip.sheet < book.sheets.count ? book.sheets[clip.sheet] : nil
         structural {

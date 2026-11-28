@@ -485,6 +485,7 @@ extension WorkbookController {
         let dst = CellRange(top: origin.row, left: origin.col,
                             bottom: origin.row + clip.range.rows - 1, right: origin.col + clip.range.cols - 1)
         guard dst.bottom < CellAddress.maxRows, dst.right < CellAddress.maxCols else { return }
+        if refusesPartOfAMerge(dst) { return }
         if clip.cut {
             structural { _move(clip, to: origin) }
         } else {
@@ -513,6 +514,16 @@ extension WorkbookController {
         }
         select(range: dst, active: origin)
     }
+
+    /// A paste over part of a merged cell is refused, with Excel's message, and changes nothing (Excel's lab,
+    /// 2026-11-28: D1:E3 over the merge E2:F2).
+    func refusesPartOfAMerge(_ dst: CellRange) -> Bool {
+        guard sheet.merges.contains(where: { $0.intersects(dst) && !(dst.contains($0.topLeft) && dst.contains($0.bottomRight)) })
+        else { return false }
+        onCommand?(.status(Self.partOfAMergeMessage))
+        return true
+    }
+    static let partOfAMergeMessage = "We can't do that to a merged cell."
 
     /// The copied block's merged cells, moved to the paste, in place of any merge the paste overlaps.
     func _pasteMerges(_ clip: Clip, source: Worksheet, dst: CellRange) {

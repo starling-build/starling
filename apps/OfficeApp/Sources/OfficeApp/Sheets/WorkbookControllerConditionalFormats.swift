@@ -172,13 +172,18 @@ extension WorkbookController {
             let left = old.flatMap { r in ranges.reduce([r]) { ps, c in ps.flatMap { Self._subtract($0, c) } } }
             if left == old { continue }
             if left.isEmpty { plan.append((i, nil)); continue }
-            if left.first?.topLeft != old.first?.topLeft,
-               node.kids("cfRule").contains(where: { $0.kids("formula").contains { Self._hasCellRef($0.text) } }) {
-                return (.relativeFormula, nil)
-            }
             guard let a = e.text.findRange(of: " sqref=\""), let b = e.text.findRange(of: "\"", in: a.upperBound ..< e.text.endIndex) else { continue }
             var t = e.text
             t.replaceSubrange(a.upperBound ..< b.lowerBound, with: left.map { $0.isSingle ? $0.topLeft.a1 : $0.a1 }.joined(separator: " "))
+            // The rule's formulas are written for its first cell: where that moves, they move with it, so every
+            // cell left tests what it tested (Excel's lab, 2026-11-28: D1:D9 =D1<10 less D1:E3 is D4:D9 =D4<10).
+            if let from = old.first?.topLeft, let to = left.first?.topLeft, from != to {
+                let dr = to.row - from.row, dc = to.col - from.col
+                t = KeptRefs.element(t, range: { $0 }, ref: { r in
+                    if case .ref(let s) = Formula.shifted(.ref(r), rows: dr, cols: dc) { return s }
+                    return nil
+                }) ?? t
+            }
             plan.append((i, t))
         }
         var extPlan: (Int, String)?
@@ -193,10 +198,6 @@ extension WorkbookController {
                 if let t = t { sheet.keptElements[i].text = t } else { sheet.keptElements.remove(at: i) }
             }
         })
-    }
-
-    private static func _hasCellRef(_ f: String) -> Bool {
-        f.contains { $0.isLetter } && f.contains { $0.isNumber }
     }
 
     private static func _hex6(_ c: UInt32) -> String {
