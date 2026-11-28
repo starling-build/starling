@@ -581,16 +581,16 @@ final class UIShellHarnessTests: XCTestCase {
         c.undo(); ui.pump(); ui.pump()
         XCTAssertEqual(t.frame.width, w0, accuracy: 0.01)
         // Width with the lock off leaves the rows; with it on the rows scale too.
-        c.scaleTable(kx: 1.5, ky: 1, drawn: DeckController.drawnGrid(t))
+        c.scaleTable(kx: 1.5, rowsHeight: nil, drawn: DeckController.drawnGrid(t))
         ui.pump(); ui.pump()
         XCTAssertEqual(t.frame.width, w0 * 1.5, accuracy: 0.01)
         XCTAssertEqual(t.frame.height, h0, accuracy: 0.5)
         XCTAssertTrue(ui.tap(text: "Lock Aspect Ratio")); ui.pump()
         XCTAssertTrue(t.aspectLocked)
-        c.scaleTable(kx: 2, ky: 2, drawn: DeckController.drawnGrid(t))
+        c.scaleTable(kx: 2, rowsHeight: h0 * 2, drawn: DeckController.drawnGrid(t))
         ui.pump(); ui.pump()
         XCTAssertEqual(t.frame.width, w0 * 3, accuracy: 0.01)
-        XCTAssertGreaterThan(t.frame.height, h0 * 1.8)
+        XCTAssertEqual(t.frame.height, h0 * 2, accuracy: 0.01)
         let (state, _, _) = try Pptx.read(Pptx.write(deck))
         let back = try XCTUnwrap(state.slides[0].shapes.first { $0.name == t.name })
         XCTAssertTrue(back.aspectLocked)
@@ -620,6 +620,44 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertFalse(ui.has(text: "Internal margin"))
         XCTAssertEqual(t.text?.document.paragraphs.first?.cell?.padding, EdgeInsets(left: 18, top: 3.6, right: 7.2, bottom: 0))
         XCTAssertNil(t.text?.document.paragraphs.first { $0.cell?.column == 1 }?.cell?.padding)
+    }
+
+    /// S-TB-1i (the Mac's three #3349 bugs): Width with the lock on scales the height by the same ratio; Custom Margins
+    /// leaves the frame as tall as its rows (it had grown 30 pt, a stray empty paragraph under the table); each edit is
+    /// one undo that puts the frame and the rows back together.
+    func testSlidesTableSizeMarginsAndUndo() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        shell.session.onInsertTable?(2, 2)
+        ui.pump(); ui.pump()
+        let t = try XCTUnwrap(deck.currentSlide.shapes.first { $0.kind == .table })
+        let c = shell.session.controller
+        ui.type("Hi"); ui.pump()
+        let f0 = t.frame, n0 = c.document.paragraphs.count
+        XCTAssertTrue(ui.tap(text: "Table Layout")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Lock Aspect Ratio")); ui.pump()
+        let k = (f0.width + 14.4) / f0.width
+        c.scaleTable(kx: k, rowsHeight: f0.height * k, drawn: DeckController.drawnGrid(t)); ui.pump(); ui.pump()
+        XCTAssertEqual(t.frame.width, f0.width * k, accuracy: 0.01)
+        XCTAssertEqual(t.frame.height, f0.height * k, accuracy: 0.01)
+        let f1 = t.frame
+        XCTAssertTrue(ui.tap(text: "Cell Margins")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Custom Margins…")); ui.pump()
+        XCTAssertTrue(ui.tap(id: "cellmargins.left"))
+        for _ in 0..<6 { ui.press(.backspace) }
+        ui.type("0.4"); ui.pump()
+        XCTAssertTrue(ui.tap(text: "OK")); ui.pump(); ui.pump()
+        XCTAssertEqual(c.document.paragraphs.first?.cell?.padding?.left, 28.8)
+        XCTAssertEqual(c.document.paragraphs.count, n0)
+        XCTAssertEqual(t.frame, f1)
+        // One Cmd+Z each: the margin, then the resize (frame and rows), then the typing.
+        shell.session.onUndo?(); ui.pump(); ui.pump()
+        XCTAssertNil(c.document.paragraphs.first?.cell?.padding)
+        XCTAssertEqual(t.frame, f1)
+        shell.session.onUndo?(); ui.pump(); ui.pump()
+        XCTAssertEqual(t.frame, f0)
+        XCTAssertNil(c.document.tableStyles[t.tableId ?? ""]?.rowHeights[0])
     }
 
     func testCellMarginsDialogParsesInches() {

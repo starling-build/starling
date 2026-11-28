@@ -2909,18 +2909,21 @@ public final class RichDocumentController: ChangeNotifier {
         setTableColumnWidths(b.table, grid)
     }
 
-    /// Slides' Table Size: the grid `kx` times as wide and every row `ky` times as tall as laid out (rows still grow to
-    /// their text), one undo step. `drawn` is the grid as drawn, for a table that states none.
-    public func scaleTable(kx: Double, ky: Double, drawn: [Double]) {
-        guard let t = currentCell?.table, kx > 0, ky > 0 else { return }
+    /// Slides' Table Size: the grid `kx` times as wide, and the rows (when `rowsHeight` is given) sharing `rowsHeight`
+    /// points as they share the table's height now (rows still grow to their text), one undo step. `drawn` is the grid as
+    /// drawn, for a table that states none. The share, not each row's height times a factor: a frame is its stated rows
+    /// added up, so it lands on the height asked for (Lock Aspect Ratio's 324 x 60 to 338.4 wide is 62.7 tall).
+    public func scaleTable(kx: Double, rowsHeight: Double?, drawn: [Double]) {
+        guard let t = currentCell?.table, kx > 0 else { return }
         let rows = laidOutRowHeights(t)
+        let sum = rows.values.reduce(0, +)
         edit {
             if kx != 1, let grid = document.tableColumns[t] ?? (drawn.isEmpty ? nil : drawn) {
                 setTableColumnWidths(t, grid.map { max(1, $0 * kx) })
             }
-            if ky != 1, !rows.isEmpty {
+            if let rowsHeight, rowsHeight > 0, sum > 0 {
                 setTableStyle(of: t) { s in
-                    for (r, h) in rows { s.rowHeights[r] = max(1, h * ky); s.rowsExactHeight.remove(r) }
+                    for (r, h) in rows { s.rowHeights[r] = max(1, rowsHeight * h / sum); s.rowsExactHeight.remove(r) }
                 }
             }
         }
@@ -2936,7 +2939,7 @@ public final class RichDocumentController: ChangeNotifier {
         return heights
     }
 
-    /// Set by the editor: the laid-out height of the row a cell paragraph is in.
+    /// Set by the editor: the laid-out height, in points, of the row a cell paragraph is in.
     public var rowHeightProbe: ((Int) -> Double?)?
     /// Where the floating picture at paragraph `index` (or its inline picture `id`) is drawn: its top and its paragraph's
     /// top, in points from the top of its page. Set by the editor that lays it out.
@@ -3033,8 +3036,10 @@ public final class RichDocumentController: ChangeNotifier {
         guard paras != old else { return }
         let sel = selection
         edit {
-            perform(.removeParagraphs(at: range.lowerBound, old))
+            // The new rows go in before the old come out: a table that is the whole text never leaves it empty, which
+            // would add a stray empty paragraph under the table (Slides' Custom Margins grew its frame 30 pt).
             perform(.insertParagraphs(at: range.lowerBound, paras))
+            perform(.removeParagraphs(at: range.lowerBound + paras.count, old))
             selection = sel
         }
     }
@@ -3069,8 +3074,10 @@ public final class RichDocumentController: ChangeNotifier {
         guard paras != old else { return }
         let sel = selection
         edit {
-            perform(.removeParagraphs(at: range.lowerBound, old))
+            // The new rows go in before the old come out: a table that is the whole text never leaves it empty, which
+            // would add a stray empty paragraph under the table (Slides' Custom Margins grew its frame 30 pt).
             perform(.insertParagraphs(at: range.lowerBound, paras))
+            perform(.removeParagraphs(at: range.lowerBound + paras.count, old))
             selection = sel
         }
     }

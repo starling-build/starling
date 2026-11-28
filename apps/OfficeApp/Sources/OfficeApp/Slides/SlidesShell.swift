@@ -807,7 +807,8 @@ final class SlidesShellState: State<StatefulWidget> {
                 _gridSeen[shape.id] = .some(grid)
             }
             guard let layout = _cache.layout(shape, pxPerPt: 1) else { continue }
-            deck.fitHeight(shape, (layout.totalHeight + shape.insets.top + shape.insets.bottom).rounded(.up))
+            // (Up to a hundredth of a point: Table Size's 62.7 pt stays 62.7, as PowerPoint shows it.)
+            deck.fitHeight(shape, ((layout.totalHeight + shape.insets.top + shape.insets.bottom) * 100 - 1e-6).rounded(.up) / 100)
         }
     }
 
