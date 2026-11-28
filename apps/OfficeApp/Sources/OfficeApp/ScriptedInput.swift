@@ -107,6 +107,23 @@ enum ScriptedInput {
             _modifiers(mods, down: false)
         case "type":
             let text = line.dropFirst("type ".count)
+            // A text field attached to the text-input plugin takes its text from the plugin, not from key events (a real
+            // Mac sends the characters through the input method), so play the plugin: the editing state with the text in.
+            if TextInputChannel.activeClient >= 0, var st = TextInputChannel.lastEditingState {
+                let u16 = Array(((st["text"] as? String) ?? "").utf16)
+                let a = min(u16.count, max(0, st["selectionBase"] as? Int ?? u16.count))
+                let b = min(u16.count, max(0, st["selectionExtent"] as? Int ?? u16.count))
+                let lo = min(a, b), hi = max(a, b)
+                let ins = Array(String(text).utf16)
+                st["text"] = String(decoding: Array(u16[..<lo]) + ins + Array(u16[hi...]), as: UTF16.self)
+                st["selectionBase"] = lo + ins.count; st["selectionExtent"] = lo + ins.count
+                let body: [String: Any] = ["method": "TextInputClient.updateEditingState",
+                                           "args": [TextInputChannel.activeClient, st]]
+                if let data = try? JSONSerialization.data(withJSONObject: body) {
+                    MainActor.assumeIsolated { channelBuffers.push(TextInputChannel.name, data) { _ in } }
+                }
+                break
+            }
             for ch in text {
                 let lower = ch.lowercased().unicodeScalars.first!.value
                 _key(Int64(lower), character: String(ch))
