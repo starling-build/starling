@@ -94,4 +94,34 @@ final class ClipboardFormatsTests: XCTestCase {
         XCTAssertFalse(d.isEmpty)
         XCTAssertTrue(ClipboardData(text: nil).isEmpty)
     }
+
+    /// The browser page answers a clipboard read with three little-endian lengths (text, HTML, PNG) and then the
+    /// bytes. A paste from another app keeps its HTML and picture; an empty or cut-short answer is no data at all.
+    func testTheBrowsersPackedAnswerUnpacks() throws {
+        func packed(_ text: String, _ html: String, _ png: [UInt8], cut: Int = 0) -> [UInt8] {
+            let parts = [Array(text.utf8), Array(html.utf8), png]
+            var out: [UInt8] = []
+            for p in parts { out += (0 ..< 4).map { UInt8((p.count >> (8 * $0)) & 0xFF) } }
+            return Array((out + parts.joined()).dropLast(cut))
+        }
+        func unpack(_ bytes: [UInt8]) -> ClipboardData? { bytes.withUnsafeBufferPointer { ClipboardData(webPacked: $0) } }
+
+        let all = try XCTUnwrap(unpack(packed("plain Qzb1", "<p>plain <b>Qzb1</b></p>", [0x89, 0x50, 0x4e, 0x47])))
+        XCTAssertEqual(all.text, "plain Qzb1")
+        XCTAssertEqual(all.html, "<p>plain <b>Qzb1</b></p>")
+        XCTAssertEqual(all.png, Data([0x89, 0x50, 0x4e, 0x47]))
+
+        let textOnly = try XCTUnwrap(unpack(packed("héllo", "", [])))
+        XCTAssertEqual(textOnly.text, "héllo")
+        XCTAssertNil(textOnly.html)
+        XCTAssertNil(textOnly.png)
+
+        let picture = try XCTUnwrap(unpack(packed("", "", [1, 2, 3])))
+        XCTAssertNil(picture.text)
+        XCTAssertEqual(picture.png, Data([1, 2, 3]))
+
+        XCTAssertNil(unpack(packed("", "", [])), "nothing on the clipboard, or no permission")
+        XCTAssertNil(unpack(packed("abc", "<b>x</b>", [], cut: 1)), "cut short")
+        XCTAssertNil(unpack([1, 0, 0]), "no header")
+    }
 }

@@ -64,6 +64,20 @@ public struct ClipboardData: Sendable {
         default: return custom[mime]
         }
     }
+
+    /// What the browser page reads off the system clipboard (FlutterWeb's
+    /// starling_clipboard_data): three little-endian UInt32 lengths — text,
+    /// HTML, PNG — then those bytes. nil when all are empty or it is cut short.
+    public init?(webPacked bytes: UnsafeBufferPointer<UInt8>) {
+        guard bytes.count >= 12 else { return nil }
+        func length(_ at: Int) -> Int { (0 ..< 4).reduce(0) { $0 | Int(bytes[at + $1]) << (8 * $1) } }
+        let t = length(0), h = length(4), p = length(8)
+        guard t + h + p > 0, 12 + t + h + p <= bytes.count else { return nil }
+        let text = String(decoding: UnsafeBufferPointer(rebasing: bytes[12 ..< 12 + t]), as: UTF8.self)
+        let html = String(decoding: UnsafeBufferPointer(rebasing: bytes[12 + t ..< 12 + t + h]), as: UTF8.self)
+        let png = Data(bytes[12 + t + h ..< 12 + t + h + p])
+        self.init(text: t > 0 ? text : nil, html: h > 0 ? html : nil, png: p > 0 ? png : nil)
+    }
 }
 
 /// The system clipboard.

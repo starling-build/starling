@@ -167,12 +167,14 @@ HOST(push_route) void starling_host_push_route(const void* utf8, uint32_t length
 // starling_text(utf8, length, milliseconds) and starling_key.
 HOST(soft_keyboard) void starling_host_soft_keyboard(uint32_t show);
 
-// The system clipboard (Clipboard.provider): text and, when there is one,
-// HTML written together; a read answers through our exported
-// starling_clipboard_text(id, utf8, length) — length 0 for nothing or
-// no permission.
+// The system clipboard (Clipboard.provider): text and, when there are,
+// HTML and a PNG picture written together; a read answers through our
+// exported starling_clipboard_data(id, bytes, length): three little-endian
+// uint32 lengths (text, HTML, PNG) and then those bytes — all 0 for
+// nothing or no permission.
 HOST(clipboard_write)
-void starling_host_clipboard_write(const void* utf8, uint32_t length, const void* html, uint32_t htmlLength);
+void starling_host_clipboard_write(const void* utf8, uint32_t length, const void* html, uint32_t htmlLength,
+                                   const void* png, uint32_t pngLength);
 HOST(clipboard_read) void starling_host_clipboard_read(uint32_t id);
 
 // The document's text for screen readers and crawlers: one line per
