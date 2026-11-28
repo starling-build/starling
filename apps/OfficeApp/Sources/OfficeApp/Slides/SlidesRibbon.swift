@@ -237,6 +237,7 @@ extension Ribbon {
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Group"), onPressed: deck.canGroup ? { deck.groupSelection() } : nil),
             MenuFlyoutItem(text: Text("Ungroup"), onPressed: deck.canUngroup ? { deck.ungroupSelection() } : nil),
+            MenuFlyoutItem(text: Text("Regroup"), onPressed: deck.canRegroup ? { deck.regroupSelection() } : nil),
             MenuFlyoutSeparator(),
             MenuFlyoutItem(text: Text("Rotate Right 90°"), onPressed: some ? { deck.rotateSelection(by: 90) } : nil),
             MenuFlyoutItem(text: Text("Rotate Left 90°"), onPressed: some ? { deck.rotateSelection(by: -90) } : nil),

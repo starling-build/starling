@@ -91,6 +91,8 @@ struct ShapeState: Equatable {
     @Boxed var sourceChart: Chart? = nil
     var field: SlideField? = nil
     var group: ShapeGroup? = nil
+    /// The group Ungroup took this shape out of, for Regroup. Not saved: PowerPoint forgets it on closing too.
+    var formerGroup: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
     var altText: String? = nil
     /// The alt text's title (`cNvPr title`): a short name for the object.
@@ -2925,7 +2927,7 @@ final class DeckController: ChangeNotifier {
         var g = ShapeGroup(fileId: nil, name: "Group \(number)", key: key)
         g.fillXML = carried?.fillXML
         g.fillColor = carried?.fillColor
-        for s in picked { s.group = g }
+        for s in picked { s.group = g; s.formerGroup = nil }
         rest.insert(contentsOf: picked, at: before)
         currentSlide.shapes = rest
         selection = picked
@@ -2938,7 +2940,36 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         let keys = Set(selection.compactMap { $0.group?.key })
         let members = currentSlide.shapes.filter { s in s.group.map { keys.contains($0.key) } ?? false }
-        for s in members { s.group = nil }
+        for s in members { s.formerGroup = s.group; s.group = nil }
+        selection = members
+        _changed()
+    }
+
+    /// The shapes Regroup would put back together: those on the slide that left the selected shape's group by
+    /// Ungroup and are in no group now. Nil when fewer than two are left (deleted, or grouped again elsewhere).
+    var regroupMembers: [SlideShape]? {
+        guard let key = selection.first(where: { $0.group == nil && $0.formerGroup != nil })?.formerGroup?.key else { return nil }
+        let members = currentSlide.shapes.filter { $0.group == nil && $0.formerGroup?.key == key }
+        return members.count >= 2 ? members : nil
+    }
+    var canRegroup: Bool { regroupMembers != nil }
+
+    /// Arrange > Regroup: the group the selected shape was ungrouped from comes back, with its name, its fill and
+    /// the members still on the slide, at their places in the stack (as Group would place them).
+    func regroupSelection() {
+        guard let members = regroupMembers, let old = members[0].formerGroup else { return }
+        _checkpoint()
+        let all = currentSlide.shapes
+        let top = all.lastIndex { s in members.contains { $0 === s } } ?? all.count - 1
+        let before = all[...top].filter { s in !members.contains { $0 === s } }.count
+        var rest = all.filter { s in !members.contains { $0 === s } }
+        var g = old
+        let taken = Set(all.compactMap { $0.group?.key })
+        if taken.contains(g.key) { g.key = (taken.max() ?? 0) + 1 }
+        if all.contains(where: { $0.group?.name == g.name }) { g.name = _freshName(g.name, taken: Set(all.compactMap { $0.group?.name })) }
+        for s in members { s.group = g; s.formerGroup = nil }
+        rest.insert(contentsOf: members, at: before)
+        currentSlide.shapes = rest
         selection = members
         _changed()
     }
@@ -3237,6 +3268,7 @@ final class DeckController: ChangeNotifier {
         // said in the file or what the user set: regenerating it would pin every resolved size, bold and
         // italic onto the run and stop it following its layout and master.
         st.readShape = s.readShape
+        st.formerGroup = s.formerGroup
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
         st.pictureBrightness = s.pictureBrightness
@@ -3395,6 +3427,7 @@ final class DeckController: ChangeNotifier {
         shape.field = st.field
         shape.fieldShown = nil
         shape.group = st.group
+        shape.formerGroup = st.formerGroup
         shape.keptLine = st.keptLine
         shape.keptPicture = st.keptPicture
         shape.altText = st.altText
@@ -3541,6 +3574,7 @@ final class DeckController: ChangeNotifier {
         st.fileId = nil
         st.sourceXML = nil
         if !keepGroup { st.group = nil }
+        st.formerGroup = nil
         st.keptLine = nil
         st.keptPicture = nil
         st.frame = st.frame.shift(Offset(offset, offset))

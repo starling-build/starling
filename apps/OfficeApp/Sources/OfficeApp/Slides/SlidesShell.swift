@@ -2524,6 +2524,7 @@ final class SlidesShellState: State<StatefulWidget> {
             m.separator()
             m.item("Group", enabled: deck.canGroup) { deck.groupSelection() }
             m.item("Ungroup", enabled: deck.canUngroup) { deck.ungroupSelection() }
+            m.item("Regroup", enabled: deck.canRegroup) { deck.regroupSelection() }
             m.separator()
             m.item("Format Shape…") { [weak self] in self?.setState { self?._formatShape = true } }
             _linkItems(m, link: deck.selectedShapeLink.link, remove: { deck.setShapeLink(nil, tip: nil) })

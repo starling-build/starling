@@ -906,6 +906,8 @@ final class SlideShape {
     var field: SlideField? = nil
     /// The group the shape was read from, if any.
     var group: ShapeGroup? = nil
+    /// The group Ungroup took the shape out of (Regroup).
+    var formerGroup: ShapeGroup? = nil
     /// A connector's geometry as read (with `sourceXML`).
     var keptLine: KeptLine? = nil
     /// A picture as read (with `sourceXML`).
