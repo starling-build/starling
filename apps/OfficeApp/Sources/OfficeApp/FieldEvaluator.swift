@@ -27,9 +27,17 @@ enum FieldEvaluator {
     }
 
     /// The text for `instruction`, or nil to leave `shown` as it is.
-    static func evaluate(_ instruction: String, shown: String, clock: FieldClock?, properties: [String: String]) -> String? {
-        let word = instruction.split(whereSeparator: { $0 == " " || $0 == "\t" }).first?.uppercased() ?? ""
+    /// `path`: the document's file (FILENAME shows its name, with `\p` the whole path); nil while it has none.
+    static func evaluate(_ instruction: String, shown: String, clock: FieldClock?, properties: [String: String],
+                         path: String? = nil) -> String? {
+        let words = instruction.split(whereSeparator: { $0 == " " || $0 == "\t" })
+        let word = words.first?.uppercased() ?? ""
         if word == "DATE" || word == "TIME" { return clock?.text(instr: instruction, cached: shown, english: true) }
+        if word == "FILENAME" {
+            guard let path, !path.isEmpty else { return nil }
+            if words.contains(where: { $0.lowercased() == "\\p" }) { return path }
+            return path.split(separator: "/").last.map(String.init) ?? path
+        }
         if let key = propertyOf[word], let value = properties[key] { return value.isEmpty ? nil : value }
         return nil
     }

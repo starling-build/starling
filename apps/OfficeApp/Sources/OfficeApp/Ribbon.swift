@@ -553,11 +553,9 @@ final class Ribbon: StatelessWidget {
             ])]),
             Chrome.group("Text", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in session.onDateTimeDialog?() },
-                Chrome.menu(Text("Field"), Icon(FluentSystemIcons.document, size: Chrome.iconSize,
-                                                color: fluent.resources.textFillColorPrimary), fluent,
-                            [("Author", { c.insertField(" AUTHOR ", result: "") }), ("Title", { c.insertField(" TITLE ", result: "") }),
-                             ("Subject", { c.insertField(" SUBJECT ", result: "") }), ("Date", { c.insertField(" DATE \\@ \"M/d/yyyy\" ", result: "") }),
-                             ("Time", { c.insertField(" TIME \\@ \"h:mm AM/PM\" ", result: "") }),
+                Chrome.menu(Text("Quick Parts"), Icon(FluentSystemIcons.document, size: Chrome.iconSize,
+                                                      color: fluent.resources.textFillColorPrimary), fluent,
+                            [("Field...", { [session] in session.onFieldDialog?() }),
                              ("Update Fields (F9)", { [session] in session.onUpdateFields?() })]),
             ])]),
             Chrome.group("Symbols", fluent, [

@@ -81,7 +81,7 @@ extension RichDocumentController {
             var style = first
             style.preservedField = nil; style.field = nil; style.linkField = nil; style.link = nil; style.linkTip = nil
             style.fieldResult = 0; style.linkFieldID = 0; style.fieldCodeID = id
-            let code = "{ " + (Self._instruction(first) ?? "") + " }"
+            let code = "{ " + (Self._instruction(first) ?? "").trimmingWhitespace(newlines: true) + " }"
             text += code
             runs.append(Run(length: code.utf16.count, style: style))
             cursor = g.end
@@ -210,11 +210,19 @@ extension RichDocumentController {
         }
     }
 
-    /// Update the fields in the selection, or the one at the caret. Returns how many results changed.
+    /// Update the fields in the selection, or the one at the caret. `other` answers the kinds the layout does not (DATE,
+    /// AUTHOR...): given the instruction and the shown text, the new text or nil. `everywhere`: with nothing selected,
+    /// every field in the body rather than the one at the caret (the ribbon's Update Fields). Returns how many
+    /// paragraphs changed.
     @discardableResult
-    public func updateFields(pageOf: (Int) -> String?, pageCount: Int) -> Int {
-        guard !readOnly else { return 0 }
-        let a = document.clamped(selection.start), b = document.clamped(selection.end)
+    public func updateFields(pageOf: (Int) -> String?, pageCount: Int, everywhere: Bool = false,
+                             other: (String, String) -> String? = { _, _ in nil }) -> Int {
+        guard !readOnly, !document.paragraphs.isEmpty else { return 0 }
+        var a = document.clamped(selection.start), b = document.clamped(selection.end)
+        if everywhere, !hasSelection {
+            a = RichPosition(paragraph: 0, offset: 0)
+            b = RichPosition(paragraph: document.paragraphs.count - 1, offset: Int.max)
+        }
         var changed: [(Int, RichParagraph)] = []
         for i in a.paragraph ... b.paragraph {
             let p = document.paragraphs[i]
@@ -233,9 +241,9 @@ extension RichDocumentController {
             for g in groups {
                 copyUntil(g.start)
                 let first = p.runs[g.runs.lowerBound].style
-                guard let instr = Self._instruction(first),
-                      let result = _fieldResult(instr, paragraph: i, pageOf: pageOf, pageCount: pageCount) else { continue }
                 let old = String(decoding: units[min(g.start, units.count) ..< min(g.end, units.count)], as: UTF16.self)
+                guard let instr = Self._instruction(first),
+                      let result = _fieldResult(instr, paragraph: i, pageOf: pageOf, pageCount: pageCount) ?? other(instr, old) else { continue }
                 while runIndex < g.runs.upperBound { cursor += p.runs[runIndex].length; runIndex += 1 }
                 if old == result {
                     text += old
@@ -258,5 +266,41 @@ extension RichDocumentController {
             moveTo(document.clamped(caret), extend: false)
         }
         return changed.count
+    }
+}
+
+/// Ctrl+Shift+F9 (Unlink Fields): the fields in the selection, or the one at the caret, become the plain text they show.
+extension RichDocumentController {
+    /// Returns how many fields were unlinked. One undo step.
+    @discardableResult
+    public func unlinkFields() -> Int {
+        guard !readOnly, !document.paragraphs.isEmpty else { return 0 }
+        let a = document.clamped(selection.start), b = document.clamped(selection.end)
+        var changed: [(Int, RichParagraph)] = []
+        var count = 0
+        for i in a.paragraph ... b.paragraph {
+            let p = document.paragraphs[i]
+            let lo = i == a.paragraph ? a.offset : 0, hi = i == b.paragraph ? b.offset : Int.max
+            let groups = _resultGroups(p).filter { $0.end >= lo && $0.start <= hi }
+            guard !groups.isEmpty else { continue }
+            var q = p
+            for g in groups {
+                for k in g.runs {
+                    var s = q.runs[k].style
+                    s.preservedField = nil; s.preservedFieldProperties = [:]; s.field = nil; s.fieldResult = 0
+                    if s.linkField != nil { s.linkField = nil; s.linkFieldID = 0; s.link = nil; s.linkTip = nil }
+                    q.runs[k].style = s
+                }
+            }
+            count += groups.count
+            changed.append((i, q))
+        }
+        guard !changed.isEmpty else { return 0 }
+        let caret = selection.focus
+        edit {
+            for (i, q) in changed { perform(.restoreParagraphs(i, count: 1, [q])) }
+            moveTo(document.clamped(caret), extend: false)
+        }
+        return count
     }
 }
