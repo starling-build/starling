@@ -612,6 +612,7 @@ open class GestureBinding: BindingBase, HitTestable, HitTestDispatcher, HitTestT
     ///
     /// **Dart Source:** `binding.dart:397-439`
     private func _handlePointerEventImmediately(_ event: PointerEvent) {
+        LastPointerKind.note(event)
         var hitTestResult: HitTestResult? = nil
         if event is PointerDownEvent
             || event is PointerSignalEvent

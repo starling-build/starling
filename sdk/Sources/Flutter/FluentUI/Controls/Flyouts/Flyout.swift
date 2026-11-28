@@ -677,10 +677,13 @@ public class FlyoutListTile: StatelessWidget {
                     decoration: bgDecoration,
                     child: Padding(
                         padding: EdgeInsets(left: 10, top: 4, right: 8, bottom: 4),
-                        child: Row(
-                            mainAxisSize: .min,
-                            children: rowChildren
-                        )
+                        child: ConstrainedBox(
+                            // A finger needs 44 pt of row (the padding is 8 of it).
+                            constraints: BoxConstraints(minHeight: max(0, (LastPointerKind.touchRowHeight ?? 0) - 8)),
+                            child: Row(
+                                mainAxisSize: .min,
+                                children: rowChildren
+                            ))
                     )
                 )
 
