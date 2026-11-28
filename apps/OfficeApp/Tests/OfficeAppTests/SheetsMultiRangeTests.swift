@@ -41,6 +41,19 @@ final class SheetsMultiRangeTests: XCTestCase {
         XCTAssertFalse(c.style(at: a("B2")).bold)
         c.undo()
         for k in ["A1", "C3", "C4"] { XCTAssertFalse(c.style(at: a(k)).bold, k) }
+        // Undo brings back the whole selection the edit was made on, as Excel's does.
+        XCTAssertEqual(c.selectedRanges, [r("A1"), r("C3:C4")])
+        XCTAssertEqual(c.active, a("C3"))
+    }
+
+    func testUndoOfDeleteRestoresTheMultiRangeSelection() {
+        let c = controller(["A1": "1", "C1": "3"])
+        c.select(range: r("A1"))
+        c.addRange(r("C1"))
+        c.clearContents()
+        c.select(a("E5"))
+        c.undo()
+        XCTAssertEqual(c.selectedRanges, [r("A1"), r("C1")])
     }
 
     func testDeleteClearsEveryRange() {
