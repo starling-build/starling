@@ -1787,6 +1787,7 @@ final class OfficeShellState: State<StatefulWidget> {
         let now = controller.currentLink ?? ""
         if let i = RichDocumentController.linkTargetIndex(of: now, in: targets) { h.place = "\(i)" } else { h.address = now }
         h.hasEmail = true
+        h.wordMailSubject = true
         h.displayText = controller.selectedText
         h.tip = controller.currentLinkTip ?? ""
         h.canRemove = controller.currentLink != nil
