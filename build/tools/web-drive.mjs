@@ -127,6 +127,11 @@ if (process.env.DISABLE_SCRIPTS === '1') await send('Emulation.setScriptExecutio
   if (process.env.PRELOAD) early += readFileSync(process.env.PRELOAD, 'utf8');
   if (early) { await send('Page.enable'); await send('Page.addScriptToEvaluateOnNewDocument', { source: early }); }
 }
+// CLIPBOARD=1 grants the page the clipboard without a prompt (a test's paste from another app).
+if (process.env.CLIPBOARD === '1') {
+  await send('Browser.grantPermissions', { origin: new URL(process.env.URL || 'http://127.0.0.1:8137/').origin,
+    permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
+}
 await send('Page.navigate', { url: process.env.URL || 'http://127.0.0.1:8137/' });
 await sleep(3000);
 const mouse = async (type, x, y, button = 'left') =>

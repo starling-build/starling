@@ -194,6 +194,19 @@ Ctrl+N, Ctrl+T or Ctrl+W outside an installed app's window. BrowserShortcutTests
 test/office-shortcuts-web.sh in Chromium (8/8: b, d, f, p, s and 0 prevented, 4 not,
 Save downloads the document).
 
+## 4c. The clipboard carries formatting (2026-11-28, amd-11)
+
+Before: a paste in the browser read plain text only (readText), so bold, tables or
+a picture copied from another app or page arrived as bare text; a copy wrote text
+and HTML but no picture. DONE: a copy writes one ClipboardItem with text/plain,
+text/html and image/png when the app has them; a paste reads all three
+(navigator.clipboard.read, readText as the fallback) and hands them to the app as
+one ClipboardData (three little-endian lengths, then the bytes:
+ClipboardData(webPacked:)). Only Chromium is tested. ClipboardFormatsTests (native: the packed answer unpacks, an empty or cut
+one is nothing); test/office-clipboard-web.sh in Chromium (3/3: HTML put on the
+clipboard pastes into Word bold in the saved .docx, Word's copy offers text/html
+and text/plain).
+
 ## 5. Screen readers in the browser (amd-perf, 2026-11-26)
 
 Today the browser build says nothing: the web bridge drops every semantics update and

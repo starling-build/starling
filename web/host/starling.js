@@ -733,19 +733,21 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
     if (a11y) a11y.tree(payload); else a11yEarly = payload;
   };
   host.announce = (pointer, length, priority) => { if (a11y) a11y.announce(textIn(pointer, length), priority); };
-  // The system clipboard. Writing needs a user gesture, which ⌘C is;
-  // reading asks the browser's permission (Chrome prompts once, Safari
-  // allows it from a gesture) and answers empty when refused.
-  host.clipboard_write = (pointer, length, htmlPointer, htmlLength) => {
+  // The system clipboard: text, HTML and a PNG picture. Writing needs a
+  // user gesture, which ⌘C is; reading asks the browser's permission
+  // (Chrome prompts once, Safari allows it from a gesture) and answers
+  // empty when refused.
+  host.clipboard_write = (pointer, length, htmlPointer, htmlLength, pngPointer, pngLength) => {
     const text = textIn(pointer, length);
     const html = htmlLength ? textIn(htmlPointer, htmlLength) : '';
+    const png = pngLength ? appBytes().slice(pngPointer, pngPointer + pngLength) : null;
     const fail = (error) => console.warn(`starling: clipboard write: ${error}`);
     try {
-      if (html && window.ClipboardItem && navigator.clipboard?.write) {
-        navigator.clipboard.write([new ClipboardItem({
-          'text/plain': new Blob([text], { type: 'text/plain' }),
-          'text/html': new Blob([html], { type: 'text/html' }),
-        })]).catch(() => navigator.clipboard.writeText(text).catch(fail));
+      if ((html || png) && window.ClipboardItem && navigator.clipboard?.write) {
+        const item = { 'text/plain': new Blob([text], { type: 'text/plain' }) };
+        if (html) item['text/html'] = new Blob([html], { type: 'text/html' });
+        if (png) item['image/png'] = new Blob([png], { type: 'image/png' });
+        navigator.clipboard.write([new ClipboardItem(item)]).catch(() => navigator.clipboard.writeText(text).catch(fail));
       } else {
         navigator.clipboard?.writeText(text).catch(fail);
       }
@@ -863,10 +865,38 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   host.copy_location = () => {
     navigator.clipboard?.writeText(location.href).catch((error) => console.warn(`starling: clipboard: ${error}`));
   };
+  // A read takes every flavour on offer (read(): text, HTML, a PNG), so a
+  // paste from another app keeps its formatting; where read() is missing
+  // or refused, the text alone (readText()). The answer is three uint32
+  // lengths and the bytes (starling_clipboard_data).
   host.clipboard_read = (id) => {
-    const answer = (text) => transfer(encoder.encode(text), (pointer, length) => swift.starling_clipboard_text(id, pointer, length));
-    const read = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'));
-    read.then(answer).catch(() => answer(''));
+    const answer = ({ text = '', html = '', png = null } = {}) => {
+      const t = encoder.encode(text), h = encoder.encode(html), p = png ?? new Uint8Array(0);
+      const bytes = new Uint8Array(12 + t.length + h.length + p.length);
+      const head = new DataView(bytes.buffer);
+      head.setUint32(0, t.length, true); head.setUint32(4, h.length, true); head.setUint32(8, p.length, true);
+      bytes.set(t, 12); bytes.set(h, 12 + t.length); bytes.set(p, 12 + t.length + h.length);
+      transfer(bytes, (pointer, length) => swift.starling_clipboard_data(id, pointer, length));
+    };
+    const read = async () => {
+      if (navigator.clipboard?.read) {
+        try {
+          const out = { text: '', html: '', png: null };
+          for (const item of await navigator.clipboard.read()) {
+            for (const type of item.types) {
+              const blob = await item.getType(type);
+              if (type === 'text/plain' && !out.text) out.text = await blob.text();
+              else if (type === 'text/html' && !out.html) out.html = await blob.text();
+              else if (type === 'image/png' && !out.png) out.png = new Uint8Array(await blob.arrayBuffer());
+            }
+          }
+          return out;
+        } catch (error) { /* refused or unsupported: the text alone */ }
+      }
+      if (!navigator.clipboard?.readText) throw new Error('no clipboard');
+      return { text: await navigator.clipboard.readText() };
+    };
+    read().then(answer).catch(() => answer());
   };
   host.push_route = (pointer, length, replace) => {
     const route = textIn(pointer, length);

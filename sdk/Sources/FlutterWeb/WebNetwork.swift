@@ -108,11 +108,12 @@ public final class WebSocketClient {
     }
 }
 
-/// The system clipboard through the page (navigator.clipboard): text and
-/// HTML out, text in. Installed as `Clipboard.provider` by WebHost.
+/// The system clipboard through the page (navigator.clipboard): text, HTML
+/// and a PNG picture, both ways (a paste from another app keeps its
+/// formatting). Installed as `Clipboard.provider` by WebHost.
 public final class WebClipboard: ClipboardProvider {
     nonisolated(unsafe) public static let shared = WebClipboard()
-    private var pending: [UInt32: (String?) -> Void] = [:]
+    private var pending: [UInt32: (ClipboardData?) -> Void] = [:]
     private var nextID: UInt32 = 1
 
     public func setText(_ text: String) { setData(ClipboardData(text: text)) }
@@ -120,26 +121,41 @@ public final class WebClipboard: ClipboardProvider {
     public func setData(_ data: ClipboardData) {
         var text = data.text ?? ""
         var html = data.html ?? ""
+        let png = [UInt8](data.png ?? Data())
         text.withUTF8 { t in
             html.withUTF8 { h in
-                starling_host_clipboard_write(t.baseAddress, UInt32(t.count), h.baseAddress, UInt32(h.count))
+                png.withUnsafeBufferPointer { p in
+                    starling_host_clipboard_write(t.baseAddress, UInt32(t.count), h.baseAddress, UInt32(h.count),
+                                                  p.baseAddress, UInt32(p.count))
+                }
             }
         }
     }
 
     public func getText(_ completion: @escaping (String?) -> Void) {
+        getData { completion($0?.text) }
+    }
+
+    public func getData(_ completion: @escaping (ClipboardData?) -> Void) {
         let id = nextID
         nextID &+= 1
         pending[id] = completion
         starling_host_clipboard_read(id)
     }
 
-    public func getData(_ completion: @escaping (ClipboardData?) -> Void) {
-        getText { text in completion(text.map { ClipboardData(text: $0) }) }
+    public func getFormat(_ mime: String, _ completion: @escaping (Data?) -> Void) {
+        getData { data in
+            switch mime {
+            case Clipboard.kTextPlain: completion(data?.text.map { Data($0.utf8) })
+            case ClipboardData.mimeHtml: completion(data?.html.map { Data($0.utf8) })
+            case ClipboardData.mimePng: completion(data?.png)
+            default: completion(nil)
+            }
+        }
     }
 
-    func deliver(_ id: UInt32, _ text: String?) {
-        pending.removeValue(forKey: id)?(text)
+    func deliver(_ id: UInt32, _ data: ClipboardData?) {
+        pending.removeValue(forKey: id)?(data)
     }
 
     /// The tab's own address (what the address bar shows now) onto the
@@ -147,14 +163,12 @@ public final class WebClipboard: ClipboardProvider {
     public static func copyLocation() { starling_host_copy_location() }
 }
 
-@_expose(wasm, "starling_clipboard_text")
-@_cdecl("starling_clipboard_text")
-func starlingClipboardText(_ id: UInt32, _ bytes: UnsafePointer<UInt8>?, _ count: Int32) {
-    var text: String? = nil
-    if let bytes, count > 0 {
-        text = String(decoding: UnsafeBufferPointer(start: bytes, count: Int(count)), as: UTF8.self)
-    }
-    WebClipboard.shared.deliver(id, text)
+@_expose(wasm, "starling_clipboard_data")
+@_cdecl("starling_clipboard_data")
+func starlingClipboardData(_ id: UInt32, _ bytes: UnsafePointer<UInt8>?, _ count: Int32) {
+    var data: ClipboardData? = nil
+    if let bytes, count > 0 { data = ClipboardData(webPacked: UnsafeBufferPointer(start: bytes, count: Int(count))) }
+    WebClipboard.shared.deliver(id, data)
 }
 
 /// What the page keeps beside the canvas for screen readers and crawlers.
