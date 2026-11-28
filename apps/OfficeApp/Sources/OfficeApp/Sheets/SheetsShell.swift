@@ -1832,8 +1832,7 @@ final class SheetsShellState: State<StatefulWidget> {
             return wb.findAll(p, scope: w.scope, lookIn: lookIn, byColumns: w.byColumns).map { hit in
                 let ws = wb.book.sheets[hit.sheet]
                 let c = ws.cells[hit.at]
-                let value = lookIn == .notes ? (wb.findText(hit.at, sheet: ws, lookIn: .notes) ?? "")
-                    : (wb.findText(hit.at, sheet: ws, lookIn: .values) ?? "")
+                let value = wb.findListValue(hit, lookIn: lookIn)
                 let formula = c?.formula.map(Formula.text) ?? ""
                 return FindListHit(place: ws.name, cell: "$" + CellAddress.columnName(hit.at.col) + "$" + String(hit.at.row + 1), value: value, formula: formula, go: { [unowned self] in
                     wb.goToHit(hit)

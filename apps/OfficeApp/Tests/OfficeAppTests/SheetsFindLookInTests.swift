@@ -34,6 +34,15 @@ final class SheetsFindLookInTests: XCTestCase {
         XCTAssertEqual(c.findAll(try plain("apples"), scope: 0, lookIn: .formulas).map(\.at.a1), [])
     }
 
+    func testFindAllShowsTheWholeNoteOnOneLine() throws {
+        let c = book()
+        let hits = c.findAll(try plain("apples"), scope: 0, lookIn: .notes)
+        let shown = c.findListValue(hits[0], lookIn: .notes)
+        XCTAssertFalse(shown.contains { $0.isNewline })
+        XCTAssertTrue(shown.hasSuffix("six apples"), shown)
+        XCTAssertEqual(c.findListValue(SheetFindHit(sheet: 0, at: CellAddress("A1")!), lookIn: .formulas), "6")
+    }
+
     func testSearchByColumnsChangesTheOrder() throws {
         let c = book()
         XCTAssertEqual(c.findAll(try plain("6"), scope: 0, lookIn: .values, byColumns: true).map(\.at.a1), ["A1", "A2", "C1"])
