@@ -789,10 +789,14 @@ extension Ribbon {
                     if deck.cropping != nil { deck.endCrop() } else { deck.beginCrop() }
                 },
                 Chrome.rows([
-                Chrome.menuButton(FluentSystemIcons.pageFit, "Crop to Aspect", "Crop the picture to a shape", fluent,
+                Chrome.menuButton(FluentSystemIcons.pageFit, "Crop to Aspect", "Crop to an aspect ratio, or fill or fit the frame", fluent,
                                   items: crops.map { name, ratio in
                                       MenuFlyoutItem(text: Text(name), onPressed: { deck.cropPictures(aspect: ratio) })
-                                  }),
+                                  } + [
+                                      MenuFlyoutSeparator(),
+                                      MenuFlyoutItem(text: Text("Fill"), onPressed: { deck.cropPictures(fit: false) }),
+                                      MenuFlyoutItem(text: Text("Fit"), onPressed: { deck.cropPictures(fit: true) }),
+                                  ]),
                 Chrome.menuButton(FluentSystemIcons.shapes, "Crop to Shape", "Cut the picture to the outline of a shape", fluent,
                                   items: [ShapeGridMenuItem(ink: fluent.resources.textFillColorPrimary,
                                                             hover: fluent.resources.subtleFillColorSecondary,
