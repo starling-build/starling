@@ -31,6 +31,32 @@ final class SlideDrawnPresetContourTests: XCTestCase {
         XCTAssertEqual(spy.strokes.count, 1)
         XCTAssertEqual(spy.strokes.first?.width ?? 0, 400, accuracy: 0.5, "the outline spans the frame as it is now")
     }
+
+    /// A preset shape from a file, resized, takes its outline evaluated at the new size with its own adjust
+    /// values: the rounded rectangle's corners keep their radius rather than stretching with the old path.
+    func testAFileShapeResizedKeepsItsCornersAndAdjusts() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.roundRect); a.adjusts = ["adj": 30000]
+        let b = deck.addShape(ShapePreset(rawValue: "rightArrow")); b.adjusts = ["adj1": 40000, "adj2": 70000]
+        let (state, theme, pkg) = try Pptx.read(Pptx.write(deck))
+        let opened = DeckController()
+        opened.load(state, theme: theme, package: pkg)
+        for name in ["roundRect", "rightArrow"] {
+            let s = try XCTUnwrap(opened.currentSlide.shapes.first { $0.preset?.rawValue == name }, name)
+            XCTAssertNotNil(s.customPath, "\(name): a file shape keeps its evaluated path")
+            let adjusts = s.adjusts
+            XCTAssertFalse(adjusts.isEmpty, "\(name): the file's adjust values are kept")
+            opened.selectShapes([s])
+            opened.setSize(width: s.frame.width * 3, height: s.frame.height / 2)
+            let fresh = PresetGeometry.geometry(name, width: s.frame.width * Pptx.emu, height: s.frame.height * Pptx.emu,
+                                                adjustments: adjusts)
+            XCTAssertEqual(s.customPath, fresh, "\(name): evaluated again at the new size")
+            opened.undo()
+            let back = PresetGeometry.geometry(name, width: s.frame.width * Pptx.emu, height: s.frame.height * Pptx.emu,
+                                               adjustments: adjusts)
+            XCTAssertEqual(s.customPath, back, "\(name): undo brings the old outline back")
+        }
+    }
 }
 
 /// Records the bounds of every stroked path.

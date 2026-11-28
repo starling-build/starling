@@ -162,6 +162,11 @@ extension SlideShape {
         let e = Pptx.emu
         guard let g = PresetGeometry.geometry(name, width: frame.width * e, height: frame.height * e, adjustments: adjusts) else { return }
         customPath = g
+        fitTextRect(g)
+    }
+
+    /// The text kept within the preset's text rectangle as evaluated in `g` (the margins the text frame sets itself stay as they were).
+    func fitTextRect(_ g: FreeformGeometry) {
         guard shapeInsets != .zero, let box = g.textRect else { return }
         var share = EdgeInsets(left: box.left * frame.width, top: box.top * frame.height,
                                right: (1 - box.right) * frame.width, bottom: (1 - box.bottom) * frame.height)

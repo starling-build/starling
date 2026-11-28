@@ -666,7 +666,9 @@ final class SlideShape {
     var name: String
     var kind: ShapeKind
     /// Position and size on the slide, in points.
-    var frame: Rect
+    var frame: Rect {
+        didSet { if frame.width != oldValue.width || frame.height != oldValue.height { _reshapePreset() } }
+    }
     /// Clockwise, in degrees, about the frame's centre.
     var rotation = 0.0
     var fill: Color? = nil
@@ -846,6 +848,20 @@ final class SlideShape {
     /// preset, or a custom path evaluated for this shape's size.
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
+
+    /// A resized preset's outline, evaluated again at the new size with the
+    /// same adjust values, as PowerPoint does: scaling the old path would
+    /// stretch a rounded rectangle's corners and an arrow's head, and the text
+    /// keeps to the preset's text rectangle at the new size. (A
+    /// placeholder's preset from its layout keeps its path: its adjust
+    /// values are the layout's, not kept on the shape.)
+    private func _reshapePreset() {
+        guard customPath != nil, let p = preset, !p.isLine, !p.isElbow,
+              let g = PresetGeometry.geometry(p.rawValue, width: max(1, frame.width) * Pptx.emu,
+                                              height: max(1, frame.height) * Pptx.emu, adjustments: adjusts) else { return }
+        customPath = g
+        fitTextRect(g)
+    }
     /// An elbow or curved connector's adjust values (`adj1`...), in hundred-thousandths of its box, over the preset's own.
     /// Where each shape this connector is glued to stood when the file was read: while none has moved, the file's own route stands.
     var connAnchor: [Int: Rect] = [:]
