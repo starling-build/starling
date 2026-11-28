@@ -84,14 +84,14 @@ final class WorkbookController: ChangeNotifier {
     /// range's edges and its inside with separate style changes).
     func asOneStep(_ edits: () -> Void) {
         let before = _bookState()
-        let sel = selection, act = active
+        let sel = selection, act = active, others0 = otherRanges
         let mark = _undo.count
         let count0 = self.edits
         edits()
         guard _undo.count > mark else { return }
         _undo.removeSubrange(mark...)
         self.edits = count0
-        _push(.structure(before: before, after: _bookState(), selection: sel, active: act))
+        _push(.structure(before: before, after: _bookState(), selection: sel, active: act, others: others0))
         engine.recalculate()
         _notify()
     }
@@ -100,7 +100,7 @@ final class WorkbookController: ChangeNotifier {
     private func _groupEdit(_ edit: () -> Void) -> Bool {
         guard isGrouped, _sheetOverride == nil else { return false }
         let before = _bookState()
-        let sel = selection, act = active
+        let sel = selection, act = active, others0 = otherRanges
         let mark = _undo.count
         let edits0 = edits
         for si in groupedSheets.sorted() where si < book.sheets.count {
@@ -110,7 +110,7 @@ final class WorkbookController: ChangeNotifier {
         _sheetOverride = nil
         if _undo.count > mark { _undo.removeSubrange(mark...) }
         edits = edits0
-        _push(.structure(before: before, after: _bookState(), selection: sel, active: act))
+        _push(.structure(before: before, after: _bookState(), selection: sel, active: act, others: others0))
         engine.recalculate()
         _notify()
         return true
@@ -1131,8 +1131,8 @@ final class WorkbookController: ChangeNotifier {
     /// after, whole.
     private enum Step {
         case cells(sheet: Int, before: [CellAddress: Cell?], after: [CellAddress: Cell?],
-                   selection: CellRange, active: CellAddress)
-        case structure(before: _BookState, after: _BookState, selection: CellRange, active: CellAddress)
+                   selection: CellRange, active: CellAddress, others: [CellRange] = [])
+        case structure(before: _BookState, after: _BookState, selection: CellRange, active: CellAddress, others: [CellRange] = [])
         var isStructure: Bool { if case .structure = self { return true } else { return false } }
     }
 
@@ -1161,7 +1161,7 @@ final class WorkbookController: ChangeNotifier {
         let ws = book.sheets[si]
         var after: [CellAddress: Cell?] = [:]
         for a in before.keys { after[a] = .some(ws.cells[a]) }
-        _push(.cells(sheet: si, before: before, after: after, selection: selection, active: active))
+        _push(.cells(sheet: si, before: before, after: after, selection: selection, active: active, others: otherRanges))
         if recalc {
             // Values only: recompute what reads them. A formula typed, changed
             // or removed: the dependencies themselves changed, so everything.
@@ -1174,9 +1174,9 @@ final class WorkbookController: ChangeNotifier {
     /// Widen the last cell step's "before" to `before`, for an edit made
     /// of a change and then setInputs that should undo as one.
     func _foldLastStep(before: [CellAddress: Cell?]) {
-        guard case .cells(let si, var b, let after, let sel, let act)? = _undo.last else { return }
+        guard case .cells(let si, var b, let after, let sel, let act, let oth)? = _undo.last else { return }
         for (a, c) in before { b[a] = c }
-        _undo[_undo.count - 1] = .cells(sheet: si, before: b, after: after, selection: sel, active: act)
+        _undo[_undo.count - 1] = .cells(sheet: si, before: b, after: after, selection: sel, active: act, others: oth)
     }
 
     private func _bookState() -> _BookState {
@@ -1196,9 +1196,9 @@ final class WorkbookController: ChangeNotifier {
     /// Run an edit that moves things, as one undo step over whole sheets.
     func structural(_ change: () -> Void) {
         let before = _bookState()
-        let sel = selection, act = active
+        let sel = selection, act = active, others0 = otherRanges
         change()
-        _push(.structure(before: before, after: _bookState(), selection: sel, active: act))
+        _push(.structure(before: before, after: _bookState(), selection: sel, active: act, others: others0))
         engine.recalculate()
         _notify()
     }
@@ -1207,13 +1207,13 @@ final class WorkbookController: ChangeNotifier {
         guard let s = _undo.popLast() else { ScreenReader.announce("Nothing to undo"); return }
         ScreenReader.announce(s.isStructure ? "Undo row or column change" : "Undo cell edit")
         switch s {
-        case .cells(let si, let before, _, let sel, let act):
+        case .cells(let si, let before, _, let sel, let act, let oth):
             _apply(si, before)
             if activeSheet != si { activeSheet = si }
-            selection = sel; active = act; otherRanges = []
-        case .structure(let before, _, let sel, let act):
+            selection = sel; active = act; otherRanges = oth   // the whole selection the edit was made on
+        case .structure(let before, _, let sel, let act, let oth):
             _restore(before)
-            selection = sel; active = act; otherRanges = []
+            selection = sel; active = act; otherRanges = oth
         }
         _redo.append(s)
         edits -= 1
@@ -1227,10 +1227,10 @@ final class WorkbookController: ChangeNotifier {
         guard let s = _redo.popLast() else { ScreenReader.announce("Nothing to redo"); return }
         ScreenReader.announce(s.isStructure ? "Redo row or column change" : "Redo cell edit")
         switch s {
-        case .cells(let si, _, let after, _, _):
+        case .cells(let si, _, let after, _, _, _):
             _apply(si, after)
             if activeSheet != si { activeSheet = si }
-        case .structure(_, let after, _, _):
+        case .structure(_, let after, _, _, _):
             _restore(after)
         }
         otherRanges = []
