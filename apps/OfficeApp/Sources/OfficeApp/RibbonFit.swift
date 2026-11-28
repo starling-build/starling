@@ -228,12 +228,14 @@ final class RibbonFit: StatefulWidget {
 
 private final class _RibbonFitState: State<StatefulWidget> {
     private var _signature = ""
-    private var _widths: [[Double]] = []
+    private var _widths: [[Double]] = []     // every group at every level, from the measuring pass only
+    private var _live: [String: Double] = [:] // the width each shown group last had on screen ("index/level")
     private var _seen = Set<String>()
     private var _levels: [Int] = []
     private var _available: Double?
     private var _measuredAll = false   // every group has been measured at every level
-    private var _ready = false           // and the row has been built to fit: the measuring stack is gone
+    private var _ready = false           // and the row has been built to fit: the first measuring stack is gone
+    private var _remeasure = false       // a shown group changed width: measure every level again, behind the row
 
     private var _groups: [Widget] { (widget as! RibbonFit).groups }
 
@@ -245,22 +247,37 @@ private final class _RibbonFitState: State<StatefulWidget> {
         guard signature != _signature else { return }
         _signature = signature
         _widths = _groups.map { _ in [Double](repeating: 0, count: RibbonFit.levelCount) }
+        _live = [:]
         _seen = []
         _levels = _groups.map { _ in 0 }
         _ready = false
         _measuredAll = false
+        _remeasure = false
     }
 
+    /// A width from the measuring pass: once every group has one at every level, fit the row.
     private func _measured(_ index: Int, _ level: Int, _ width: Double) {
         guard mounted, index < _widths.count else { return }
         _widths[index][level] = width
         _seen.insert("\(index)/\(level)")
-        if !_measuredAll {
-            let expected = _groups.indices.reduce(0) { $0 + (_isGroup(_groups[$1]) ? RibbonFit.levelCount : 1) }
-            if _seen.count >= expected { _measuredAll = true; _refit() }
-        } else if level == _levels[index] {
-            _refit()
-        }
+        let expected = _groups.indices.reduce(0) { $0 + (_isGroup(_groups[$1]) ? RibbonFit.levelCount : 1) }
+        guard _seen.count >= expected else { return }
+        _measuredAll = true
+        if _remeasure { setState { self._remeasure = false } }
+        _refit()
+    }
+
+    /// A width of the row on screen. The fold never reads it: the same width must fold the same way whatever came
+    /// before, and a group on screen can measure a little apart from the same group in the measuring pass (Mac's UI
+    /// font), so mixing the two made the fold depend on which levels had been shown. A shown group whose width
+    /// changes (a label or control that changed with its state) has new content at every level: measure them all again.
+    private func _shown(_ index: Int, _ level: Int, _ width: Double) {
+        guard mounted, _ready else { return }
+        let key = "\(index)/\(level)"
+        let was = _live[key]
+        _live[key] = width
+        guard let was, abs(was - width) > 0.5, !_remeasure else { return }
+        setState { self._seen = []; self._remeasure = true }
     }
 
     private func _refit() {
@@ -286,18 +303,25 @@ private final class _RibbonFitState: State<StatefulWidget> {
                     default: body = group.asButton()
                     }
                 } else if measuring && level > 0 { continue }
-                children.append(SizeReporter(onSize: { [weak self] s in self?._measured(i, level, s.width) }, child: body))
+                children.append(SizeReporter(onSize: { [weak self] s in
+                    if measuring { self?._measured(i, level, s.width) } else { self?._shown(i, level, s.width) }
+                }, child: body))
             }
             return Row(crossAxisAlignment: .stretch, children: children)
         }
-        let content: Widget
-        if _ready {
-            content = SingleChildScrollView(scrollDirection: .horizontal, child: row({ [self] in _levels[$0] }, measuring: false))
-        } else {
-            // One frame, unseen: every group at every level, to learn their widths.
-            content = Opacity(opacity: 0, child: Stack(children: (0 ..< RibbonFit.levelCount).map { level in
+        // Every group at every level, unseen, to learn their widths.
+        func measuring() -> Widget {
+            Opacity(opacity: 0, child: Stack(children: (0 ..< RibbonFit.levelCount).map { level in
                 SingleChildScrollView(scrollDirection: .horizontal, child: row({ _ in level }, measuring: true))
             }))
+        }
+        let content: Widget
+        if _ready {
+            let shown = SingleChildScrollView(scrollDirection: .horizontal, child: row({ [self] in _levels[$0] }, measuring: false))
+            // Measuring again: the row stays as it is, the pass goes on unseen behind it and out of the pointer's way.
+            content = _remeasure ? Stack(children: [shown, IgnorePointer(child: ExcludeSemantics(child: measuring()))]) : shown
+        } else {
+            content = measuring()
         }
         return SizeReporter(onSize: { [weak self] s in
             guard let self, self._available != s.width else { return }

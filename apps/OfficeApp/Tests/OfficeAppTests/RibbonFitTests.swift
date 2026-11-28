@@ -183,6 +183,34 @@ final class RibbonFitTests: XCTestCase {
     func testSheetsHomeIsReachable() { check("Sheets", tab: "Home", make: { self.sheets($0) }, widths: Self.widths + Self.stress) }
     func testSlidesHomeIsReachable() { check("Slides", tab: "Home", make: { self.slides($0) }, widths: Self.widths + Self.stress) }
 
+    /// A group on screen that grows (a label that changed with its state) is measured again at every level, so the
+    /// row folds as a fresh one with that content would: here the grown group goes to its button, not to icons it
+    /// measured before it grew (which would leave the row wider than the window).
+    func testAGroupThatChangesWidthFoldsAsAFreshRowWould() {
+        let fluent = OfficeAppearance.theme(.light)
+        func row(_ wideA: Bool) -> Widget {
+            RibbonFit(groups: [
+                RibbonGroup(label: "A", fluent: fluent, content: [SizedBox(width: wideA ? 700 : 500, height: 40, child: nil)]),
+                RibbonGroup(label: "B", fluent: fluent, content: [SizedBox(width: 300, height: 40, child: nil)]),
+            ])
+        }
+        let wide = ValueNotifier(false)
+        func host(_ child: @escaping () -> Widget) -> WidgetTester {
+            WidgetTester(FluentApp(theme: fluent, home: Align(alignment: Alignment.topLeft, child: SizedBox(width: 640, height: 100, child: child())), title: "Test"),
+                         size: Size(800, 200))
+        }
+        let ui = host { AnimatedBuilder(animation: wide, builder: { _, _ in row(wide.value) }) }
+        settle(ui)
+        XCTAssertEqual(ui.tips().filter { $0.hasSuffix(" group") }, ["B group"], "500 + 300 is over 640: B gives way")
+        wide.value = true
+        settle(ui)
+        let fresh = host { row(true) }
+        settle(fresh)
+        let folded = Set(ui.tips().filter { $0.hasSuffix(" group") })
+        XCTAssertEqual(folded, Set(fresh.tips().filter { $0.hasSuffix(" group") }))
+        XCTAssertEqual(folded, ["A group"], "A, grown, gives way to its button; then B fits again")
+    }
+
     func testAGroupThatGaveWayIsAKeyStopAndAnAccessibleButton() {
         let ui = writer(640)
         XCTAssertTrue(ui.tap(text: "Home"))
