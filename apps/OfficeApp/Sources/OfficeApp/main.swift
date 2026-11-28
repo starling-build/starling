@@ -1326,6 +1326,12 @@ OfficeHost.browserFiles = .init(
     download: { name, data in WebFiles.download(data, as: name) })
 #endif
 
+// A link followed in a document opens in the system's browser or mail program (Linux and Windows hosts set none; the Mac
+// and web hosts set their own).
+#if os(Linux) || os(Windows)
+if hostOpenURL == nil { hostOpenURL = { UpdateCheck.openWithSystem($0) } }
+#endif
+
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
                width: OfficeWindowSize.of(ProcessInfo.processInfo.environment).width,
                height: OfficeWindowSize.of(ProcessInfo.processInfo.environment).height) {
