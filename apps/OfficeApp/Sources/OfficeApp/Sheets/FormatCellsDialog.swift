@@ -207,7 +207,6 @@ final class FormatCellsDialogState: State<StatefulWidget> {
             Row(children: [
                 _rowCheck("fc-bold", "Bold", values.bold) { $0.bold = $1 },
                 _rowCheck("fc-italic", "Italic", values.italic) { $0.italic = $1 },
-                _rowCheck("fc-underline", "Underline", values.underline) { $0.underline = $1 },
             ]),
             Row(children: [
                 // Excel's Effects: Strikethrough, Superscript, Subscript. The two scripts are exclusive,
@@ -215,6 +214,18 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                 _rowCheck("fc-strike", "Strikethrough", values.strike) { $0.strike = $1 },
                 _rowCheck("fc-superscript", "Superscript", values.script == 1) { $0.script = $1 ? 1 : 0 },
                 _rowCheck("fc-subscript", "Subscript", values.script == -1) { $0.script = $1 ? -1 : 0 },
+            ]),
+            SizedBox(height: FormatCellsDialog.groupGap),
+            // Excel's Underline list: None, Single, Double and the two accounting kinds.
+            Row(children: [
+                SizedBox(width: 72, child: Text("Underline")),
+                SizedBox(width: 200, height: nil, child: ComboBox<String>(
+                    key: ValueKey("fc-underline"), value: values.underline ?? "none",
+                    items: [("none", "None"), ("single", "Single"), ("double", "Double"),
+                            ("singleAccounting", "Single Accounting"), ("doubleAccounting", "Double Accounting")]
+                        .map { ComboBoxItem<String>(value: $0.0, child: Text($0.1)) },
+                    onChanged: { [weak self] v in if let v { self?._set { $0.underline = v == "none" ? nil : v } } },
+                    semanticLabel: "Underline")),
             ]),
             SizedBox(height: FormatCellsDialog.groupGap),
             Text("Text colour", style: fluent.typography.bodyStrong),

@@ -750,6 +750,14 @@ final class WorkbookController: ChangeNotifier {
         return on
     }
 
+    /// Home > Underline's list (Underline, Double Underline): the kind on, or off when the active cell already
+    /// has it, as Excel's split button does. `kind` is the font's `u` value ("single", "double").
+    @discardableResult func toggleUnderline(_ kind: String) -> Bool {
+        let on = style(at: active).underlineKind != kind
+        setStyle { $0.underlineKind = on ? kind : nil }
+        return on
+    }
+
     /// Left, centre, right: on, or back to General when the active cell
     /// already has it.
     func toggleAlign(_ a: CellStyle.HAlign) {

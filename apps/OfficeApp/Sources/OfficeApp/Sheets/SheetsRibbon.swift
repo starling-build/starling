@@ -119,6 +119,13 @@ extension Ribbon {
                 Chrome.toggle(FluentSystemIcons.textBold, "Bold (⌘B)".keys, st.bold, fluent) { wb.toggleStyle(\.bold) },
                 Chrome.toggle(FluentSystemIcons.textItalic, "Italic (⌘I)".keys, st.italic, fluent) { wb.toggleStyle(\.italic) },
                 Chrome.toggle(FluentSystemIcons.textUnderline, "Underline (⌘U)".keys, st.underline, fluent) { wb.toggleStyle(\.underline) },
+                // Excel's Underline split: its list holds Underline and Double Underline, the cell's own checked.
+                Chrome.splitChevron("Underline Options", fluent, items: [
+                    ToggleMenuFlyoutItem(text: Text("Underline"), isChecked: st.underlineKind == "single",
+                                         onChanged: { _ in wb.toggleUnderline("single") }),
+                    ToggleMenuFlyoutItem(text: Text("Double Underline"), isChecked: st.underlineKind == "double",
+                                         onChanged: { _ in wb.toggleUnderline("double") }),
+                ]),
                 Chrome.toggle(FluentSystemIcons.textStrikethrough, "Strikethrough", st.strike, fluent) { wb.toggleStyle(\.strike) },
                 Chrome.gap(4),
                 Chrome.menu(nil, Icon(FluentSystemIcons.grid, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary), fluent,

@@ -681,7 +681,7 @@ enum Xlsx {
         43: "_(* #,##0.00_);_(* (#,##0.00);_(* \"-\"??_);_(@_)",
     ]
 
-    private struct _Font { var bold = false, italic = false, underline = false, accounting = 0, strike = false, script = 0
+    private struct _Font { var bold = false, italic = false, underline = false, double = false, accounting = 0, strike = false, script = 0
         var size: Double? = nil, name: String? = nil, color: UInt32? = nil }
 
     /// A font's face. One of the theme's (`scheme` minor or major) is the
@@ -738,6 +738,7 @@ enum Xlsx {
             font.italic = f.child("i").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.underline = f.child("u").map { $0["val"] != "none" } ?? false
             font.accounting = ["singleAccounting": 1, "doubleAccounting": 2][f.child("u")?["val"] ?? ""] ?? 0
+            font.double = f.child("u")?["val"] == "double"
             font.strike = f.child("strike").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.script = ["superscript": 1, "subscript": -1][f.child("vertAlign")?["val"] ?? ""] ?? 0
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
@@ -788,7 +789,7 @@ enum Xlsx {
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
-                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.accounting = f.accounting; s.strike = f.strike; s.script = f.script
+                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.doubleUnderline = f.double; s.accounting = f.accounting; s.strike = f.strike; s.script = f.script
                 // The default font is the theme's: left nil, so a new face follows it.
                 if f.name != base.name { s.fontName = f.name }
                 if f.size != base.size { s.fontSize = f.size }
@@ -1882,7 +1883,8 @@ enum Xlsx {
             if st.italic { font += "<i/>" }
             if st.strike { font += "<strike/>" }
             if st.underline {
-                if let b = base, b.style.underline, b.style.accounting == st.accounting, let u = baseFont["u"] { font += u } else { font += "<u/>" }
+                if let b = base, b.style.underlineKind == st.underlineKind, let u = baseFont["u"] { font += u }
+                else if let k = st.underlineKind, k != "single" { font += "<u val=\"\(k)\"/>" } else { font += "<u/>" }
             }
             if st.script != 0 {
                 if let b = base, b.style.script == st.script, let v = baseFont["vertAlign"] { font += v }

@@ -3577,6 +3577,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         style.gdi = gdi
+        style.doubleUnderline = st.underline && (st.doubleUnderline || st.accounting == 2)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
         if printing { style.myanmar = true; style.kannada = true }
         if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
@@ -3617,7 +3618,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // The glyphs sit at base less the half-leading (first - base) the painter adds: 59775's Calibri 12 link rule was 0.44 pt low from the baseline.
         for line in lines where line.width > 0 {
             if s.underline {
-                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + 2 * base - first + line.baseline - first - m[0] * s.size, line.width, m[1] * s.size), paint)
+                let y = o.dy + 2 * base - first + line.baseline - first - m[0] * s.size, t = m[1] * s.size
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, y, line.width, t), paint)
+                if s.doubleUnderline { canvas.drawRect(Rect.fromLTWH(o.dx + line.left, y + 2 * t, line.width, t), paint) }
             }
             if s.strike {
                 canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + 2 * base - first + line.baseline - first - m[2] * s.size, line.width, m[3] * s.size), paint)
@@ -4609,6 +4612,8 @@ struct GridTextStyle: Hashable {
     var bold = false
     var italic = false
     var underline = false
+    /// Two underlines (Double, or Double Accounting), the second a gap of one line's thickness below the first.
+    var doubleUnderline = false
     var strike = false
     /// The face's rule table (position, thickness, strike position, thickness, em) where the cell draws its own
     /// underline and strike (`_drawRules`), the named face's as Slides does; nil leaves them to the engine.
@@ -4656,6 +4661,7 @@ struct GridTextStyle: Hashable {
                                  fontWeight: bold ? .bold : .normal, fontStyle: italic ? .italic : .normal,
                                  fontFeatures: [FontFeature("kern", 0), FontFeature("liga", 0), FontFeature("clig", 0)],
                                  decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
+                                 decorationStyle: rule == nil && underline && doubleUnderline ? .double : nil,
                                  fontFamily: family, fontFamilyFallback: RichTextTheme.glyphFallback)
     }
 }
