@@ -2003,6 +2003,28 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Picture Format > Crop > Fill (`fit` false) and Fit (`fit` true): the whole picture scaled, its shape kept, to cover the
+    /// frame (the overhang cut away) or to sit inside it (the rest of the frame empty, a negative crop). The frame stays.
+    func cropPictures(fit: Bool) {
+        let pics = selection.filter { $0.picture != nil }
+        guard !pics.isEmpty else { return }
+        _checkpoint()
+        for s in pics {
+            guard let img = s.picture else { continue }
+            let nw = img.naturalWidth ?? s.frame.width, nh = img.naturalHeight ?? s.frame.height
+            let natural = nw / max(nh, 0.001), frame = s.frame.width / max(s.frame.height, 0.001)
+            // Wider than the frame: Fill cuts the sides, Fit leaves room above and below; narrower, the other way round.
+            if (natural > frame) != fit {
+                let cut = (1 - frame / natural) / 2
+                s.crop = EdgeInsets(left: cut, top: 0, right: cut, bottom: 0)
+            } else {
+                let cut = (1 - natural / frame) / 2
+                s.crop = EdgeInsets(left: 0, top: cut, right: 0, bottom: cut)
+            }
+        }
+        _changed()
+    }
+
     func cropPictures(aspect: Double) {
         let pics = selection.filter { $0.picture != nil }
         guard !pics.isEmpty, aspect > 0 else { return }

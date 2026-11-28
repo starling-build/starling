@@ -308,4 +308,24 @@ final class PictureTests: XCTestCase {
         deck.resetPictures()
         XCTAssertNil(pic.crop)
     }
+
+    func testCropFillAndFitKeepTheFrame() throws {
+        let deck = SlidesSample.make()
+        deck.select(deck.slides.firstIndex { $0.titleText == "A picture" }!)
+        let pic = deck.currentSlide.shapes.first { $0.picture != nil }!
+        pic.frame = Rect.fromLTWH(100, 100, 200, 200)
+        deck.selectShapes([pic])
+        deck.cropPictures(fit: false)
+        XCTAssertEqual(pic.frame, Rect.fromLTWH(100, 100, 200, 200), "the frame stays")
+        XCTAssertEqual(pic.crop!.left, 0.125, accuracy: 1e-9, "Fill: a 4:3 picture in a square loses an eighth each side")
+        XCTAssertEqual(pic.crop!.top, 0, accuracy: 1e-9)
+        deck.cropPictures(fit: true)
+        XCTAssertEqual(pic.crop!.left, 0, accuracy: 1e-9)
+        XCTAssertEqual(pic.crop!.top, -1.0 / 6, accuracy: 1e-9, "Fit: the whole picture inside, a sixth empty above and below")
+        let (state, _, _) = try Pptx.read(Pptx.write(deck))
+        let read = state.slides[deck.current].shapes.first { if case .picture = $0.kind { return true }; return false }!
+        XCTAssertEqual(read.crop!.bottom, -1.0 / 6, accuracy: 1e-4, "a negative a:srcRect")
+        deck.undo()
+        XCTAssertEqual(pic.crop!.left, 0.125, accuracy: 1e-9, "one undo step each")
+    }
 }
