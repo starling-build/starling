@@ -148,6 +148,8 @@ final class OfficeShellState: State<StatefulWidget> {
     /// The window is narrower than a side pane and a page fit side by side (a Split View pane on an iPad): panes become a
     /// bottom sheet.
     private var _narrow = false
+    /// The selected chart's data pane (Chart Design > Edit Data) is open.
+    private var _chartData = false
     private static let narrowBelow = 600.0
     private var _autosaveGeneration = 0
     private let _contextMenu = FlyoutController()
@@ -381,6 +383,15 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _wireSession() {
         // W-PG-3: the window shows the page colour and page borders, as Word's does.
         session.theme.drawsPageDesign = true
+        if session.kind == .document {
+            // Chart Design > Edit Data opens the chart's data beside the page; a chart part set by an edit, an undo or a
+            // redo is read again, so the chart draws what its part now says.
+            session.onChartData = { [weak self] show in self?.setState { self?._chartData = show } }
+            session.controller.onKeptPartChange = { [weak self] path, data in
+                guard let self else { return }
+                WordChartEdit.partChanged(path, data, in: self.session.controller.document)
+            }
+        }
         session.onZoom = { [weak self] z in
             guard let self else { return }
             self.setState { self.session.zoom = max(0.5, min(3.0, (z * 10).rounded() / 10)) }
@@ -2053,6 +2064,19 @@ final class OfficeShellState: State<StatefulWidget> {
                                         onModify: { [weak self] id in self?.session.onModifyStyle?(id) },
                                         onClose: { [session] in session.onToggleStyles?() }))
         }
+        // The chart's data, while a chart is selected.
+        var chartPane: Widget? = nil
+        if _chartData, let (image, _) = session.wordChart {
+            let c = session.controller
+            chartPane = ChartDataPane(key: ValueKey("word chart data \(image.id)"),
+                                      chart: { WriterCharts.chart(image.id) },
+                                      set: { chart, cell in
+                                          WordChartEdit.set(chart, of: image, in: c, label: "Edit Data",
+                                                            coalesce: cell.map { "chart \(image.id) \($0)" })
+                                      },
+                                      onClose: { [weak self] in self?.setState { self?._chartData = false } })
+            sidePanes.append(chartPane!)
+        }
         if _narrow, let pane = sidePanes.last {
             // A side pane beside the page would leave a narrow window (Split View) no page: the newest is a sheet along
             // the bottom instead, full width, with the page above it. (A pane fills the width it is given.)
@@ -2065,7 +2089,10 @@ final class OfficeShellState: State<StatefulWidget> {
         } else {
             if session.showNavigation, let nav = sidePanes.first { area.append(nav) }
             area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
-            if session.showStyles, let styles = sidePanes.last {
+            if let chartPane {
+                area.append(chartPane)
+                column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
+            } else if session.showStyles, let styles = sidePanes.last {
                 // On a touch device the Styles pane floats over the page's right edge (the Navigation pane stays docked on the left).
                 if PaneArrangement.isTouchDevice {
                     column.append(Expanded(child: PaneArrangement.arrange(

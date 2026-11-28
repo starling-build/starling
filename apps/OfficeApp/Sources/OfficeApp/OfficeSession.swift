@@ -140,6 +140,13 @@ final class OfficeSession {
         return image.outline != nil || image.textBox != nil ? .shapeFormat : .pictureFormat
     }
     var imageTab: RibbonTab { imageTab(at: summary.imageIndex, inline: summary.inlineImageID) }
+    /// The chart the selection holds in a Word document, where it can be edited (Chart Design).
+    var wordChart: (image: ImageAttachment, chart: Chart)? {
+        guard kind == .document,
+              let image = WordChartEdit.image(controller.document, index: summary.imageIndex, inline: summary.inlineImageID),
+              let chart = WordChartEdit.chart(image, in: controller.document) else { return nil }
+        return (image, chart)
+    }
     var zoom = 1.0
     var pageSetup = PageSetup.letter
     /// The paper page of the section the caret is in (the last section's is `pageSetup`).

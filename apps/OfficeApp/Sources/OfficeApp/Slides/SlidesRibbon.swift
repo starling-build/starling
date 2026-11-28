@@ -664,7 +664,7 @@ extension Ribbon {
         ]
     }
 
-    private func _chartTypeItems(_ fluent: FluentThemeData, current: ChartType?,
+    func _chartTypeItems(_ fluent: FluentThemeData, current: ChartType?,
                                  _ pick: @escaping (ChartType) -> Void) -> [MenuFlyoutItemBase] {
         ChartType.allCases.map { type in
             MenuFlyoutItem(text: Text(type.name),
@@ -677,8 +677,16 @@ extension Ribbon {
     /// The selected chart's tab: its kind, its data, the parts it shows.
     private func _chartDesign(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         guard let shape = deck.selectedChart, let chart = shape.chart else { return [] }
+        return chartDesignGroups(chart, fluent, set: { deck.setChart(shape, $0) },
+                                 altText: { [session] in session.onAltText?() }, delete: { deck.deleteSelection() })
+    }
+
+    /// The Chart Design tab of `chart` (Slides' and Word's): its kind, its data, the parts it shows. `set` makes a
+    /// changed chart the selected one's; Edit Data opens the host's data pane (`onChartData`).
+    func chartDesignGroups(_ chart: Chart, _ fluent: FluentThemeData, set apply: @escaping (Chart) -> Void,
+                           altText: @escaping () -> Void, delete: @escaping () -> Void) -> [Widget] {
         func set(_ edit: @escaping (inout Chart) -> Void) -> () -> Void {
-            { var c = chart; edit(&c); deck.setChart(shape, c) }
+            { var c = chart; edit(&c); apply(c) }
         }
         let axes = chart.type.hasAxes
         let stackable = [.column, .bar, .line, .area].contains(chart.type)
@@ -691,9 +699,7 @@ extension Ribbon {
                         Chrome.vgap(4),
                         Text("Change Chart Type", style: fluent.typography.caption),
                     ])), tip: "Change the kind of chart", width: nil, height: Chrome.rowHeight * 2 + 6,
-                    menu: _chartTypeItems(fluent, current: chart.type) { type in
-                        deck.setChart(shape, chart.converted(to: type))
-                    }),
+                    menu: _chartTypeItems(fluent, current: chart.type) { type in apply(chart.converted(to: type)) }),
             ]),
             Chrome.group("Data", fluent, [
                 Chrome.big(FluentSystemIcons.tableEdit, "Edit Data", fluent) { [session] in session.onChartData?(true) },
@@ -732,10 +738,10 @@ extension Ribbon {
                 ]),
             ]),
             Chrome.group("Accessibility", fluent, [
-                Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
+                Chrome.big(FluentSystemIcons.info, "Alt Text", fluent, action: altText),
             ]),
             Chrome.group("Arrange", fluent, [Chrome.rows([
-                Chrome.small(FluentSystemIcons.delete, "Delete Chart", fluent) { deck.deleteSelection() },
+                Chrome.small(FluentSystemIcons.delete, "Delete Chart", fluent, action: delete),
             ])]),
         ]
     }

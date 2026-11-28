@@ -59,4 +59,25 @@ final class ScreenMarksTests: XCTestCase {
         XCTAssertNotNil(centre(marks("slides", SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in })), "text", "Home"))
         XCTAssertNotNil(centre(marks("sheets", SheetsShell(initialPath: nil, onSwitch: { _, _ in })), "text", "Home"))
     }
+
+    /// A lab's marks with a file open: SCREEN_MARKS_FILE=doc writes "file-1440x932.txt" into SCREEN_MARKS_DIR.
+    func testFileMarks() throws {
+        guard let path = ProcessInfo.processInfo.environment["SCREEN_MARKS_FILE"] else { throw XCTSkip("no SCREEN_MARKS_FILE") }
+        _ = marks("file", OfficeShell(initialPath: path, startBlank: false))
+    }
+
+    /// SCREEN_MARKS_CHART=doc (a file that opens with its chart selected): the marks on Chart Design, then with the
+    /// chart's data open, for a Mac script.
+    func testChartMarks() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let path = env["SCREEN_MARKS_CHART"], let dir = env["SCREEN_MARKS_DIR"] else { throw XCTSkip("no SCREEN_MARKS_CHART") }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: path), title: "Test"),
+                              size: Self.size)
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Chart Design")); ui.pump()
+        var out = ScreenMarks.lines(root: ui.elements().first, view: Self.size).joined(separator: "\n") + "\n--- edit data\n"
+        XCTAssertTrue(ui.tap(text: "Edit Data")); ui.pump()
+        out += ScreenMarks.lines(root: ui.elements().first, view: Self.size).joined(separator: "\n") + "\n"
+        FileManager.default.createFile(atPath: dir + "/chart-1440x932.txt", contents: Data(out.utf8))
+    }
 }
