@@ -387,11 +387,11 @@ enum Chrome {
                         onChanged: @escaping (Double) -> Void) -> Widget {
         row([
             SizedBox(width: 84, height: nil, child: Text(label, style: fluent.typography.caption)),
-            icon(FluentSystemIcons.chevronDown, "Less", fluent, keepsPopupOpen: true) { onChanged(max(minimum, value - step)) },
+            icon(FluentSystemIcons.chevronDown, "Decrease", fluent, keepsPopupOpen: true) { onChanged(max(minimum, value - step)) },
             // `shown` is the value as the caller writes it, where a whole
             // number of `unit` is not how it reads (0.75 s).
             SizedBox(width: 48, height: nil, child: Text(shown ?? "\(Int(value.rounded())) \(unit)", style: fluent.typography.caption)),
-            icon(FluentSystemIcons.chevronUp, "More", fluent, keepsPopupOpen: true) { onChanged(value + step) },
+            icon(FluentSystemIcons.chevronUp, "Increase", fluent, keepsPopupOpen: true) { onChanged(value + step) },
         ])
     }
 
