@@ -33,6 +33,7 @@ final class WorkbookController: ChangeNotifier {
             }
             let saved = _selections[ObjectIdentifier(sheet)]
             selection = saved?.0 ?? CellRange(CellAddress(row: 0, col: 0))
+            otherRanges = []
             active = saved?.1 ?? CellAddress(row: 0, col: 0)
             anchor = active
             _extentEnd = selection.bottomRight
@@ -43,6 +44,12 @@ final class WorkbookController: ChangeNotifier {
     /// The cell that typing goes into, and the selected range around it.
     private(set) var active = CellAddress(row: 0, col: 0)
     private(set) var selection = CellRange(CellAddress(row: 0, col: 0))
+    /// The earlier ranges of a multi-range selection (Ctrl+click or Cmd+click and drag adds one, as
+    /// Excel's), oldest first; `selection` is the newest, holding the active cell. Empty for one range.
+    private(set) var otherRanges: [CellRange] = []
+    /// Every selected range, the active one last.
+    var selectedRanges: [CellRange] { otherRanges + [selection] }
+    var isMultiRange: Bool { !otherRanges.isEmpty }
     /// Where a shift-extension started.
     private(set) var anchor = CellAddress(row: 0, col: 0)
 
@@ -128,6 +135,7 @@ final class WorkbookController: ChangeNotifier {
         if b.sheets[activeSheet].hidden, let first = b.sheets.indices.first(where: { !b.sheets[$0].hidden }) { activeSheet = first }
         active = sheet.savedActive ?? CellAddress(row: 0, col: 0)
         selection = CellRange(active)
+        otherRanges = []
         anchor = active
         _extentEnd = active
         _undo.removeAll(); _redo.removeAll()
@@ -162,6 +170,7 @@ final class WorkbookController: ChangeNotifier {
         } else {
             // A merged area selects as one cell, its top-left active.
             let m = sheet.merges.first { $0.contains(a) }
+            otherRanges = []
             active = m?.topLeft ?? a
             anchor = active
             selection = m ?? CellRange(a)
@@ -280,15 +289,55 @@ final class WorkbookController: ChangeNotifier {
 
     /// Select a whole range with `active` inside it (a click on a header,
     /// a name box entry).
-    func select(range: CellRange, active a: CellAddress? = nil) {
+    func select(range: CellRange, active a: CellAddress? = nil, keepingOthers: Bool = false) {
         _tabStart = nil
         selectedDrawing = nil
+        if !keepingOthers { otherRanges = [] }
         selection = range
         active = a ?? range.topLeft
         anchor = active
         _extentEnd = range.bottomRight
         _notify(selectionOnly: true)
     }
+
+    /// Ctrl+click (Cmd+click on a Mac): keep what is selected and start a new range at `range`
+    /// (one cell, or a whole row or column from a header), the active cell moving into it.
+    func addRange(_ range: CellRange, active a: CellAddress? = nil) {
+        _tabStart = nil
+        selectedDrawing = nil
+        otherRanges.append(selection)
+        let m = range.isSingle ? sheet.merges.first { $0.contains(range.topLeft) } : nil
+        selection = m ?? range
+        active = a ?? selection.topLeft
+        anchor = active
+        _extentEnd = range.bottomRight
+        _notify(selectionOnly: true)
+    }
+
+    /// Select several ranges at once (Go To Special): the active cell in the last.
+    func select(ranges: [CellRange], active a: CellAddress? = nil) {
+        guard let last = ranges.last else { return }
+        select(range: last, active: a)
+        otherRanges = Array(ranges.dropLast())
+        _notify(selectionOnly: true)
+    }
+
+    /// Run `edit` once per selected range (each in turn as `selection`), as ONE undo step, for the
+    /// commands Excel applies to every range of a multi-range selection (formats, borders, Delete).
+    /// False with a single range: the caller runs on `selection` as before.
+    func _eachRange(_ edit: () -> Void) -> Bool {
+        guard !otherRanges.isEmpty, !_inEachRange else { return false }
+        let others = otherRanges, cur = selection, act = active
+        _inEachRange = true
+        asOneStep {
+            for r in others + [cur] { selection = r; edit() }
+        }
+        _inEachRange = false
+        selection = cur; otherRanges = others; active = act
+        _notify()
+        return true
+    }
+    private var _inEachRange = false
 
     /// The far corner of a shift-selection, which arrow keys move.
     private(set) var _extentEnd = CellAddress(row: 0, col: 0)
@@ -603,6 +652,7 @@ final class WorkbookController: ChangeNotifier {
 
     /// Delete: clear the selection's contents, keeping formats.
     func clearContents(_ r: CellRange? = nil) {
+        if r == nil, _eachRange({ clearContents(selection) }) { return }
         let r = r ?? selection
         let items = sheet.cells.keys.filter { r.contains($0) }.map { ($0, "") }
         guard !items.isEmpty else { return }
@@ -613,6 +663,7 @@ final class WorkbookController: ChangeNotifier {
     func setStyle(_ change: (inout CellStyle) -> Void, range: CellRange? = nil) {
         if refuses("formatCells") { return }
         if _groupEdit({ setStyle(change, range: range) }) { return }
+        if range == nil, _eachRange({ setStyle(change, range: selection) }) { return }
         let r = range ?? selection
         let ws = sheet
         // Whole rows or columns: the format goes on the row or column, as
@@ -1159,10 +1210,10 @@ final class WorkbookController: ChangeNotifier {
         case .cells(let si, let before, _, let sel, let act):
             _apply(si, before)
             if activeSheet != si { activeSheet = si }
-            selection = sel; active = act
+            selection = sel; active = act; otherRanges = []
         case .structure(let before, _, let sel, let act):
             _restore(before)
-            selection = sel; active = act
+            selection = sel; active = act; otherRanges = []
         }
         _redo.append(s)
         edits -= 1
@@ -1182,6 +1233,7 @@ final class WorkbookController: ChangeNotifier {
         case .structure(_, let after, _, _):
             _restore(after)
         }
+        otherRanges = []
         _undo.append(s)
         edits += 1
         engine.recalculate()

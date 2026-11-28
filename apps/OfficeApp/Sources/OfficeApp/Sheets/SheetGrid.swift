@@ -168,6 +168,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private let _chords = KeyChordTracker()
     /// Control (or Command) is down now: Ctrl+drag on a sheet tab copies.
     var controlHeld: Bool { _chords.control || _chords.primary }
+    /// Ctrl+click (Cmd+click on a Mac) adds a range to the selection, as Excel's.
+    private var _addsRange: Bool { _chords.primary && !_chords.shift }
     /// The platform's text-input plugin, for composed input (Chinese…),
     /// dead keys and press-and-hold accents: attached while the grid has
     /// focus. Its edits open the cell as typing does; with it attached the
@@ -1890,6 +1892,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// The selection as tab-separated values, as every spreadsheet reads it.
     func copySelection(cut: Bool = false) {
         let c = controller
+        // Excel's words; it copies several ranges only when they line up, which is not done here yet.
+        if c.isMultiRange { _w.onStatus("This action won't work on multiple selections."); return }
         let r = c.selection
         let used = c.sheet.usedExtent
         let bottom = min(r.bottom, max(r.top, used.row)), right = min(r.right, max(r.left, used.col))
@@ -2068,8 +2072,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Shift extends from the selection's anchor column, as Excel's does.
             let extend = c.extendsSelection(shift: _chords.shift)
             let anchorCol = extend ? c.anchor.col : col
-            c.select(range: CellRange(top: 0, left: min(anchorCol, col), bottom: CellAddress.maxRows - 1, right: max(anchorCol, col)),
-                     active: extend ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col))
+            let colRange = CellRange(top: 0, left: min(anchorCol, col), bottom: CellAddress.maxRows - 1, right: max(anchorCol, col))
+            let colActive = extend ? c.active : CellAddress(row: scrollY > 0 ? rows.index(at: scrollY) : 0, col: col)
+            if _addsRange && !extend { c.addRange(colRange, active: colActive) } else { c.select(range: colRange, active: colActive) }
             _drag = .columns(anchor: anchorCol)
             if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
@@ -2086,8 +2091,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             commitEdit()
             let extendRows = c.extendsSelection(shift: _chords.shift)
             let anchorRow = extendRows ? c.anchor.row : row
-            c.select(range: CellRange(top: min(anchorRow, row), left: 0, bottom: max(anchorRow, row), right: CellAddress.maxCols - 1),
-                     active: extendRows ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0))
+            let rowRange = CellRange(top: min(anchorRow, row), left: 0, bottom: max(anchorRow, row), right: CellAddress.maxCols - 1)
+            let rowActive = extendRows ? c.active : CellAddress(row: row, col: scrollX > 0 ? cols.index(at: scrollX) : 0)
+            if _addsRange && !extendRows { c.addRange(rowRange, active: rowActive) } else { c.select(range: rowRange, active: rowActive) }
             _drag = .rows(anchor: anchorRow)
             if e.kind == .touch { _armHeaderHold(e.position, p, selection: c.selection) }
             return
@@ -2151,8 +2157,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             _w.onFilterMenu(origin, a.col)
             return
         }
-        // The fill handle: the small square at the selection's corner.
-        if edit == nil {
+        // The fill handle: the small square at the selection's corner (none on several ranges).
+        if edit == nil, !c.isMultiRange {
             let sel = rect(c.selection)
             // A finger takes a bigger target than a mouse.
             let reach = e.kind == .touch ? 22.0 : 5.0
@@ -2246,6 +2252,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             return
         }
         _lastClick = (a, now)
+        if _addsRange { c.addRange(CellRange(a)); return }
         c.select(a, extend: c.extendsSelection(shift: _chords.shift))
     }
 
@@ -2411,11 +2418,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         case .columns(let anchor):
             let col = self.col(atLocal: p.dx)
             c.select(range: CellRange(top: 0, left: min(anchor, col), bottom: CellAddress.maxRows - 1, right: max(anchor, col)),
-                     active: c.active)
+                     active: c.active, keepingOthers: true)
         case .rows(let anchor):
             let row = self.row(atLocal: p.dy)
             c.select(range: CellRange(top: min(anchor, row), left: 0, bottom: max(anchor, row), right: CellAddress.maxCols - 1),
-                     active: c.active)
+                     active: c.active, keepingOthers: true)
         case .drawing(let index, let handle, let f, _, let start):
             let dx = (p.dx - start.dx) / scale, dy = (p.dy - start.dy) / scale
             var x = f.x, y = f.y, r = f.x + f.width, b = f.y + f.height
@@ -2839,7 +2846,23 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Selection.
         let sel = c.selection
         let editing = edit?.cell
-        do {
+        if c.isMultiRange {
+            // Several ranges (Ctrl+click): each tinted, no frame or fill handle round any; the
+            // active cell keeps its own background and a thin frame, as Excel draws them.
+            p.color = accent.withAlpha(36)
+            for r in c.selectedRanges { canvas.drawRect(rect(r), p) }
+            let act = merges.first { $0.contains(c.active) }.map { rect($0) } ?? rect(c.active)
+            p.color = book.style(ws.cells[c.active]?.style ?? 0).fill.map { Color(Int64(0xFF00_0000) | Int64($0)) } ?? paper
+            canvas.drawRect(act.deflate(1), p)
+            if let cell = ws.cells[c.active], !cell.value.isEmpty, c.active != editing {
+                _paintCell(canvas, c.active, cell, in: act, spill: false, ws: ws, book: book, ink: ink)
+            }
+            let frame = Paint()
+            frame.style = .stroke
+            frame.strokeWidth = 1
+            frame.color = accent
+            canvas.drawRect(Rect.fromLTRB(act.left.rounded() + 0.5, act.top.rounded() + 0.5, act.right.rounded() - 0.5, act.bottom.rounded() - 0.5), frame)
+        } else {
             let r = rect(sel)
             // A merged area is one cell: no tint for it alone.
             if !sel.isSingle && !ws.merges.contains(sel) {

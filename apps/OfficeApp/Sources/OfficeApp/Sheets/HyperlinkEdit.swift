@@ -45,6 +45,7 @@ extension WorkbookController {
 
     /// Clear All: contents, formats, comments and links of `r`, in one undo step.
     func clearAll(_ r: CellRange? = nil) {
+        if r == nil, _eachRange({ clearAll(selection) }) { return }
         let r = r ?? selection, ws = sheet
         let kept = ws.keptElements.first { $0.name == "hyperlinks" }?.text ?? ""
         let entries = Self._linkEntries(kept)
