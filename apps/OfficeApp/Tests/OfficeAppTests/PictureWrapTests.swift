@@ -265,6 +265,83 @@ final class PictureWrapTests: XCTestCase {
         XCTAssertLessThan(images.last?.offset ?? .max, canvas.fills.firstIndex(of: 1) ?? -1, "both under the text: \(canvas.fills)")
     }
 
+    /// A shape anchored in a vertical-text cell takes its place in the page's stack as any other float does: the red one in
+    /// the turned cell, higher relativeHeight, over the blue one anchored in the paragraph after the table (it was drawn with
+    /// its cell, under every float kept for after the text).
+    func testFloatInAVerticalCellPaintsInStackOrder() throws {
+        let base = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "one")]), pageSetup: .letter)
+        var entries = try Zip.read(base)
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        func shape(_ z: Int, _ rgb: String, _ n: Int) -> String {
+            "<w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"\(z)\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"0\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"page\"><wp:posOffset>\(1_828_800 + n * 100_000)</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"page\"><wp:posOffset>\(1_828_800 + n * 100_000)</wp:posOffset></wp:positionV><wp:extent cx=\"914400\" cy=\"914400\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"\(n)\" name=\"Rectangle \(n)\"/>"
+            + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:cNvSpPr/>"
+            + "<wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"914400\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>"
+            + "<a:solidFill><a:srgbClr val=\"\(rgb)\"/></a:solidFill><a:ln><a:noFill/></a:ln></wps:spPr><wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+        }
+        let body = try XCTUnwrap(xml.rangeOfSubstring("<w:body>")), sect = try XCTUnwrap(xml.rangeOfSubstring("<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:tbl><w:tblPr><w:tblW w:w=\"2000\" w:type=\"dxa\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/></w:tblGrid>"
+            + "<w:tr><w:trPr><w:trHeight w:val=\"2000\" w:hRule=\"exact\"/></w:trPr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/><w:textDirection w:val=\"btLr\"/></w:tcPr>"
+            + "<w:p><w:r><w:t>cell</w:t></w:r>" + shape(9, "FF0000", 7) + "</w:p></w:tc></w:tr></w:tbl>"
+            + "<w:p><w:r><w:t>two</w:t></w:r>" + shape(3, "0000FF", 8) + "</w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let parsed = try DocxFormat.read(try Zip.write(entries))
+        let doc = parsed.document, setup = parsed.pageSetup ?? .letter
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = setup
+        layout.width = setup.columnWidth * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        let canvas = FillOrderCanvas()
+        layout.paint(canvas, visible: Rect.fromLTWH(-10_000, -10_000, 100_000, 100_000), document: doc, selection: nil, caret: nil)
+        let shapes = canvas.fills.filter { $0 == 0xFFFF0000 || $0 == 0xFF0000FF }
+        XCTAssertEqual(shapes, [0xFF0000FF, 0xFFFF0000], "blue, then red over it: \(canvas.fills)")
+    }
+
+    /// Header and footer front shapes share one stack ordered by relativeHeight, as in Word (lab wob3z2 hfw1/hfw2):
+    /// the header's shape with the higher relativeHeight is drawn over the footer's, though the footer is painted after it.
+    func testHeaderFloatOverFooterFloatByStackHeight() throws {
+        var doc0 = RichDocument(paragraphs: [RichParagraph(text: "one")])
+        doc0.header = "h"
+        doc0.footer = "f"
+        var entries = try Zip.read(try DocxFormat.write(doc0, pageSetup: .letter))
+        func shape(_ z: Int, _ rgb: String, _ n: Int) -> String {
+            "<w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" simplePos=\"0\" relativeHeight=\"\(z)\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"page\"><wp:posOffset>\(1_828_800 + n * 100_000)</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"page\"><wp:posOffset>\(3_657_600 + n * 100_000)</wp:posOffset></wp:positionV><wp:extent cx=\"914400\" cy=\"914400\"/>"
+            + "<wp:wrapNone/><wp:docPr id=\"\(n)\" name=\"Rectangle \(n)\"/>"
+            + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\">"
+            + "<wps:wsp xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\"><wps:cNvSpPr/>"
+            + "<wps:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"914400\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>"
+            + "<a:solidFill><a:srgbClr val=\"\(rgb)\"/></a:solidFill><a:ln><a:noFill/></a:ln></wps:spPr><wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+        }
+        for (prefix, run) in [("word/header", shape(251_660_288, "FF0000", 7)), ("word/footer", shape(251_659_264, "0000FF", 8))] {
+            let i = try XCTUnwrap(entries.firstIndex { $0.name.hasPrefix(prefix) }, "no \(prefix) part in \(entries.map(\.name))")
+            var xml = String(decoding: entries[i].data, as: UTF8.self)
+            let end = try XCTUnwrap(xml.rangeOfSubstring("</w:p>"))
+            xml.replaceSubrange(end.lowerBound ..< end.lowerBound, with: run)
+            entries[i] = ZipEntry(name: entries[i].name, data: Data(xml.utf8))
+        }
+        let parsed = try DocxFormat.read(try Zip.write(entries))
+        let doc = parsed.document, setup = parsed.pageSetup ?? .letter
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let layout = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        layout.pageSetup = setup
+        layout.width = setup.columnWidth * theme.pixelsPerPoint
+        layout.ensureLaidOut(doc)
+        let canvas = FillOrderCanvas()
+        layout.paint(canvas, visible: Rect.fromLTWH(-10_000, -10_000, 100_000, 100_000), document: doc, selection: nil, caret: nil)
+        let shapes = canvas.fills.filter { $0 == 0xFFFF0000 || $0 == 0xFF0000FF }
+        XCTAssertEqual(shapes, [0xFF0000FF, 0xFFFF0000], "footer blue, then header red over it: \(canvas.fills)")
+    }
+
     /// A click lands on a floating picture where it is drawn, also when it is drawn well away from its anchor paragraph:
     /// the hit test mapped the picture through the paragraph under its middle, so the first picture (drawn lower down,
     /// over other text) kept only a sliver to click and the second one took clicks above where it was drawn (wob3.docx).

@@ -2581,6 +2581,12 @@ extension RichLayout {
         let rect = pageRect(p)
         let n = pageCount
         var drawn: Set<KeptHeaderFooter.Kind> = []
+        var kept: [(z: Int64, seq: Int, paint: () -> Void)] = []
+        defer {
+            // (Lab wob3z2 hfw1/hfw2: a header picture and a footer picture overlapping, the higher relativeHeight on top
+            // whichever story holds it.)
+            for k in kept.sorted(by: { ($0.z, $0.seq) < ($1.z, $1.seq) }) { canvas.save(); k.paint(); canvas.restore() }
+        }
         for kind in [KeptHeaderFooter.Kind.header, .footer] {
             guard let hf = _headerFooter(kind, page: p, document) else {
                 // (A first or even page that names none shows none. Nor
@@ -2626,14 +2632,25 @@ extension RichLayout {
             hf.layout.regionMarginBottom = _px(setup.marginBottom)
             hf.layout.regionPageHeight = _px(setup.height)
             canvas.save()
-            if setup.vertical {
-                // (The page canvas is turned a quarter for the section: stand the running text back up
-                // at its place on the paper, left margin = the transposed bottom margin.)
-                let physTop = kind == .header ? _px(setup.headerDistance) : _px(setup.width) - _px(setup.footerDistance) - hf.height
-                canvas.translate(rect.left + physTop, rect.top + _px(setup.height) - _px(setup.marginBottom))
-                canvas.rotate(-Double.pi / 2)
-            } else {
-                canvas.translate(rect.left + _pxMarginLeft(p), top)
+            let place: () -> Void = { [self] in
+                if setup.vertical {
+                    // (The page canvas is turned a quarter for the section: stand the running text back up
+                    // at its place on the paper, left margin = the transposed bottom margin.)
+                    let physTop = kind == .header ? _px(setup.headerDistance) : _px(setup.width) - _px(setup.footerDistance) - hf.height
+                    canvas.translate(rect.left + physTop, rect.top + _px(setup.height) - _px(setup.marginBottom))
+                    canvas.rotate(-Double.pi / 2)
+                } else {
+                    canvas.translate(rect.left + _pxMarginLeft(p), top)
+                }
+            }
+            place()
+            // (The header's and the footer's objects over their text are one stack: kept here and drawn together
+            // below, by height. Not when the story is painted in parts, each part clipped.)
+            if theme.wordRules, tableDrop == nil, headDrop == nil {
+                let layout = hf.layout, story = hf.document
+                layout._keepFloats = { list in
+                    for f in list { kept.append((f.z, kept.count, { place(); layout._paintKept(f, canvas, story) })) }
+                }
             }
             if let drop = tableDrop { canvas.clipRect(Rect.fromLTRB(-100_000, drop.end, 100_000, 100_000)) }
             if let hd = headDrop {
@@ -2651,6 +2668,7 @@ extension RichLayout {
             hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,
                             selection: nil, caret: nil)
             if headDrop != nil { canvas.restore() }
+            hf.layout._keepFloats = nil
             canvas.restore()
             if let drop = tableDrop {
                 canvas.save()
@@ -3062,7 +3080,7 @@ extension RichLayout {
         } else {
             _paintFlow(canvas, visible: visible, document: document, shading: false)
         }
-        _flushFloats(canvas, document)
+        _flushFloats(canvas, document, front: true)
         if let caret {
             let paint = Paint()
             paint.color = theme.caretColor
@@ -3590,7 +3608,10 @@ extension RichLayout {
             for i in paragraphs(intersecting: visible.top, visible.bottom) {
                 let g = geometry(i)
                 if g.bottom < visible.top || g.top > visible.bottom { continue }
+                // (A header or footer whose page takes its objects over the text keeps them, in its own frame: `_keepFloats`.)
+                if !shading, _keepFloats != nil { _pieceFrame = (0, .rect(Rect.fromLTRB(-1e6, -1e6, 1e6, 1e6)), 0, 0) }
                 if shading { _paintShading(i, canvas, document) } else { _paintParagraph(i, canvas, document) }
+                _pieceFrame = nil
             }
         }
     }

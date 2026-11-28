@@ -78,10 +78,12 @@ extension RichLayout {
     @inline(never)
     func _paintVerticalCellFloats(_ i: Int, _ g: ParagraphGeometry, _ canvas: any Canvas) {
         guard theme.wordRules, i < _inline.count, !_inline[i].isEmpty else { return }
-        for image in _inline[i] {
-            let key = "\(image.id)"
+        for k in _inline[i].indices {
+            let image = _inline[i][k]
             guard let float = image.float, !float.takesRoom, _decoded[image.id] == nil, image.textBox == nil,
-                  !_behindDrawn.contains(key) else { continue }
+                  !_behindDrawn.contains("\(image.id)") else { continue }
+            // (Kept, as the flow's other floats are, to be drawn in the page's stacking order: `_recordFloat`.)
+            if _recordFloat(i, k, image, turned: true) { continue }
             _paintOutline(image, _floatRect(float, image, g, i), canvas)
         }
     }
@@ -1186,6 +1188,8 @@ extension RichLayout {
     struct _DeferredFloat {
         let page: Int, z: Int64, seq: Int, i: Int, k: Int, behind: Bool
         let clip: _PieceClip, dx: Double, dy: Double, columnShift: Double
+        /// Anchored in a vertical-text cell: drawn by `_paintVerticalCellFloats`' rule, not as a line's item.
+        var turned = false
     }
 
     /// A floating object's place in its story's stack: its wp:anchor `relativeHeight`, or a VML
@@ -1211,7 +1215,7 @@ extension RichLayout {
     /// the objects that float over the text by their height, whichever paragraph holds them, all
     /// above the story's text (a later paragraph's text never covers an earlier one's object).
     /// True when the caller is not to draw it now.
-    func _recordFloat(_ i: Int, _ k: Int, _ image: ImageAttachment) -> Bool {
+    func _recordFloat(_ i: Int, _ k: Int, _ image: ImageAttachment, turned: Bool = false) -> Bool {
         let behind = image.sourceXML?.containsSubstring("behindDoc=\"1\"") == true || Self._stackHeight(image) < 0
         // (The pass before the text keeps the objects behind it, and draws nothing.)
         if _behindPass {
@@ -1225,34 +1229,42 @@ extension RichLayout {
         if behind { return false }
         if _dropCapPass == 1, image.isDropCap { return true }
         _deferredFloats!.append(_DeferredFloat(page: frame.page, z: Self._stackHeight(image), seq: _deferredFloats!.count, i: i, k: k, behind: false,
-                                               clip: frame.clip, dx: frame.dx, dy: frame.dy, columnShift: _floatColumnShift))
+                                               clip: frame.clip, dx: frame.dx, dy: frame.dy, columnShift: _floatColumnShift, turned: turned))
         return true
     }
 
     /// The kept floating objects drawn, page by page, lowest first (ties in the text's order).
-    func _flushFloats(_ canvas: any Canvas, _ document: RichDocument) {
+    /// (With `_keepFloats` set, the objects over the text are handed to it instead: a page's header and footer
+    /// share one stack, so their page draws both stories' objects together, by height — lab wob3z2 hfw1/hfw2.)
+    func _flushFloats(_ canvas: any Canvas, _ document: RichDocument, front: Bool = false) {
         guard let kept = _deferredFloats else { return }
         _deferredFloats = nil
-        for f in kept.sorted(by: { ($0.page, $0.z, $0.seq) < ($1.page, $1.z, $1.seq) }) {
-            canvas.save()
-            switch f.clip {
-            case .rect(let r): canvas.clipRect(r)
-            case .path(let p): canvas.clipPath(p, doAntiAlias: false)
-            }
-            canvas.translate(f.dx, f.dy)
-            _floatColumnShift = f.columnShift
-            let g = geometry(f.i)
-            let image = f.k < 0 ? document.paragraphs[f.i].image : f.k < _inline[f.i].count ? _inline[f.i][f.k] : nil
-            if let image, f.behind, _behindDrawn.contains("\(image.id)") { canvas.restore(); continue }
-            if f.k < 0 {
-                if let image, let box = imageRect(f.i) { _paintOwnPicture(f.i, image, box, canvas, document) }
-            } else if let all = g.painter.inlinePlaceholderBoxes {
-                _paintInlineItem(f.i, f.k, g, all, canvas, document)
-            }
-            _floatColumnShift = 0
-            if f.behind, let image { _behindDrawn.insert("\(image.id)") }
-            canvas.restore()
+        if front, let sink = _keepFloats { sink(kept); return }
+        for f in kept.sorted(by: { ($0.page, $0.z, $0.seq) < ($1.page, $1.z, $1.seq) }) { _paintKept(f, canvas, document) }
+    }
+
+    /// One kept floating object (`_DeferredFloat`), drawn in its piece's frame.
+    func _paintKept(_ f: _DeferredFloat, _ canvas: any Canvas, _ document: RichDocument) {
+        canvas.save()
+        switch f.clip {
+        case .rect(let r): canvas.clipRect(r)
+        case .path(let p): canvas.clipPath(p, doAntiAlias: false)
         }
+        canvas.translate(f.dx, f.dy)
+        _floatColumnShift = f.columnShift
+        let g = geometry(f.i)
+        let image = f.k < 0 ? document.paragraphs[f.i].image : f.k < _inline[f.i].count ? _inline[f.i][f.k] : nil
+        if let image, f.behind, _behindDrawn.contains("\(image.id)") { canvas.restore(); return }
+        if f.turned {
+            if let image, let float = image.float { _paintOutline(image, _floatRect(float, image, g, f.i), canvas) }
+        } else if f.k < 0 {
+            if let image, let box = imageRect(f.i) { _paintOwnPicture(f.i, image, box, canvas, document) }
+        } else if let all = g.painter.inlinePlaceholderBoxes {
+            _paintInlineItem(f.i, f.k, g, all, canvas, document)
+        }
+        _floatColumnShift = 0
+        if f.behind, let image { _behindDrawn.insert("\(image.id)") }
+        canvas.restore()
     }
 
     /// Paragraph `i`'s own picture (or text box) in `box`.
