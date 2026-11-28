@@ -38,12 +38,16 @@ extension WorkbookController {
         let bottomRow = CellRange(top: r.bottom, left: r.left, bottom: r.bottom, right: r.right)
         let leftCol = CellRange(top: r.top, left: r.left, bottom: r.bottom, right: r.left)
         let rightCol = CellRange(top: r.top, left: r.right, bottom: r.bottom, right: r.right)
-        // A side on, in a line kind ("thin" is the file's default and is not written), automatic colour.
-        func draw(_ range: CellRange, _ side: WritableKeyPath<CellStyle.Borders, Bool>, _ name: String, _ kind: String = "thin") {
+        // A side on in the pen's colour. A preset's own weight (thick, double) wins; a plain
+        // preset draws in the pen's Line Style, as Excel does. "thin" is the file's default
+        // and is not written.
+        let pen = (color: borderPenColor, kind: borderPenKind)
+        func draw(_ range: CellRange, _ side: WritableKeyPath<CellStyle.Borders, Bool>, _ name: String, _ preset: String = "thin") {
+            let kind = preset == "thin" ? pen.kind : preset
             setStyle({ st in
                 st.borders[keyPath: side] = true
                 st.borders.kinds[name] = kind == "thin" ? nil : kind
-                st.borders.colors[name] = nil
+                st.borders.colors[name] = pen.color
             }, range: range)
         }
         asOneStep {
@@ -57,6 +61,10 @@ extension WorkbookController {
                 setStyle({ st in
                     st.borders.top = true; st.borders.left = true; st.borders.bottom = true; st.borders.right = true
                     st.borders.kinds = [:]; st.borders.colors = [:]
+                    for side in ["top", "left", "bottom", "right"] {
+                        if pen.kind != "thin" { st.borders.kinds[side] = pen.kind }
+                        if let c = pen.color { st.borders.colors[side] = c }
+                    }
                 }, range: r)
             case .outside, .thickOutside:
                 let k = preset == .outside ? "thin" : "thick"
