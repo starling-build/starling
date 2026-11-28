@@ -360,6 +360,47 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(asked)
     }
 
+    func testSlidesCropButtonTurnsCropModeOnAndEnterEndsIt() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let pic = deck.addPicture(ImageAttachment(data: png, width: 1, height: 1), naturalSize: Size(100, 100))
+        deck.selectShapes([pic])
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Picture Format"))
+        XCTAssertTrue(ui.tap(text: "Crop"))
+        ui.pump()
+        XCTAssertTrue(deck.cropping === pic)
+        XCTAssertTrue(ui.tap(text: "Crop"), "pressed again, Crop applies and ends")
+        ui.pump()
+        XCTAssertNil(deck.cropping)
+        XCTAssertTrue(deck.selection.first === pic, "the picture stays selected")
+        XCTAssertTrue(ui.tap(text: "Crop"))
+        ui.pump()
+        XCTAssertNotNil(deck.cropping)
+        ui.press(.enter)
+        ui.pump()
+        XCTAssertNil(deck.cropping, "Enter applies the crop")
+        // In crop mode the left handle crops: dragged a quarter of the way in, a quarter of the picture is cut and the
+        // picture stays where it was. One undo step takes it back.
+        XCTAssertTrue(ui.tap(text: "Crop"))
+        ui.pump()
+        let canvas = try XCTUnwrap(ui.state(SlideCanvasState.self))
+        let f0 = pic.frame
+        let from = try XCTUnwrap(canvas.globalPoint(ofSlide: Offset(f0.left, f0.center.dy)))
+        let to = try XCTUnwrap(canvas.globalPoint(ofSlide: Offset(f0.left + f0.width / 4, f0.center.dy)))
+        ui.drag(from: from, to: to)
+        ui.pump()
+        XCTAssertEqual(pic.crop?.left ?? 0, 0.25, accuracy: 0.02)
+        XCTAssertEqual(pic.frame.right, f0.right, accuracy: 0.01)
+        XCTAssertEqual(pic.frame.width, f0.width * 0.75, accuracy: f0.width * 0.02)
+        deck.undo()
+        let back = try XCTUnwrap(deck.currentSlide.shapes.first { $0.picture != nil })
+        XCTAssertEqual(back.frame, f0)
+        XCTAssertNil(back.crop)
+    }
+
     func testTextOptionsButtonOpensTheDialogAndAppliesOrCancels() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(2000, 800))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))

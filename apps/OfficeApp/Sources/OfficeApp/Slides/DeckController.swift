@@ -1826,6 +1826,48 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Picture Format > Crop: the selected picture's handles crop it instead of resizing it, until Crop is pressed
+    /// again, Enter or Esc, or the selection moves on (as PowerPoint applies the crop on a click away).
+    private weak var _cropping: SlideShape? = nil
+    var cropping: SlideShape? {
+        guard let s = _cropping, selection.count == 1, selection.first === s, s.picture != nil else { return nil }
+        return s
+    }
+
+    func beginCrop() {
+        guard selection.count == 1, let s = selection.first, s.picture != nil else { return }
+        _cropping = s
+        _notify()
+    }
+
+    func endCrop() {
+        guard _cropping != nil else { return }
+        _cropping = nil
+        _notify()
+    }
+
+    /// The crop after a crop handle moved the frame from `old` to `new` (the picture stays where it is on the
+    /// slide): the edges the handle moved cut the picture by as much, at the picture's scale. `handle` is one of
+    /// the eight frame handles; a negative share pads, as PowerPoint's outward crop does.
+    static func cropAfterHandle(_ crop: EdgeInsets?, old: Rect, new: Rect, handle: Int) -> EdgeInsets {
+        let c = crop ?? .zero
+        let (hx, hy) = SlideCanvasState.handleUnits[handle]
+        let fullW = old.width / max(1 - c.left - c.right, 0.001), fullH = old.height / max(1 - c.top - c.bottom, 0.001)
+        let dw = (old.width - new.width) / max(fullW, 0.001), dh = (old.height - new.height) / max(fullH, 0.001)
+        return EdgeInsets(left: c.left + (hx == 0 ? dw : 0), top: c.top + (hy == 0 ? dh : 0),
+                          right: c.right + (hx == 1 ? dw : 0), bottom: c.bottom + (hy == 1 ? dh : 0))
+    }
+
+    /// A crop handle's drag (`beginFrameEdit` gives the drag its history entry): the frame shows less or more of the
+    /// picture, which stays put.
+    func setCropLive(_ shape: SlideShape, crop0: EdgeInsets?, frame0: Rect, frame: Rect, handle: Int) {
+        guard frame.width >= 1, frame.height >= 1 else { return }
+        let c = Self.cropAfterHandle(crop0, old: frame0, new: frame, handle: handle)
+        shape.crop = c == .zero ? nil : c
+        shape.frame = frame
+        _changed(keepSession: true)
+    }
+
     /// Crop the selected pictures to a shape: width over height, centred.
     func cropPictures(aspect: Double) {
         let pics = selection.filter { $0.picture != nil }

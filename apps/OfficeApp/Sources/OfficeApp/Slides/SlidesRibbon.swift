@@ -751,12 +751,17 @@ extension Ribbon {
                 Chrome.big(FluentSystemIcons.refresh, "Reset Picture", fluent) { deck.resetPictures() },
                 Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
             ]),
-            Chrome.group("Size", fluent, [Chrome.rows([
+            Chrome.group("Size", fluent, [
+                Chrome.bigToggle(FluentSystemIcons.cut, "Crop", deck.cropping != nil, fluent) {
+                    if deck.cropping != nil { deck.endCrop() } else { deck.beginCrop() }
+                },
+                Chrome.rows([
                 Chrome.menuButton(FluentSystemIcons.pageFit, "Crop to Aspect", "Crop the picture to a shape", fluent,
                                   items: crops.map { name, ratio in
                                       MenuFlyoutItem(text: Text(name), onPressed: { deck.cropPictures(aspect: ratio) })
                                   }),
-            ])]),
+                ]),
+            ]),
             Chrome.group("Arrange", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.chevronUp, "Bring to Front", fluent) { deck.arrange(.front) },
                 Chrome.small(FluentSystemIcons.chevronDown, "Send to Back", fluent) { deck.arrange(.back) },

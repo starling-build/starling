@@ -72,6 +72,8 @@ final class SlideCanvasState: State<StatefulWidget> {
     private enum Drag {
         case move(start: Offset, frames: [(SlideShape, Rect)], shape: SlideShape, wasSelected: Bool, moved: Bool)
         case resize(shape: SlideShape, handle: Int, start: Offset, frame: Rect)
+        /// A crop handle of a picture in crop mode: the frame moves over the picture, which stays.
+        case crop(shape: SlideShape, handle: Int, start: Offset, frame: Rect, crop: EdgeInsets?)
         case rotate(shape: SlideShape, startAngle: Double, startRotation: Double)
         /// The yellow handle of an elbow's middle run.
         case elbowRun(shape: SlideShape, key: String, alongWidth: Bool)
@@ -131,6 +133,12 @@ final class SlideCanvasState: State<StatefulWidget> {
     private func _slidePoint(_ global: Offset) -> Offset {
         let local = _box?.globalToLocal(global) ?? global
         return Offset((local.dx - _ox) / max(_px, 0.001), (local.dy - _oy) / max(_px, 0.001))
+    }
+
+    /// Where a slide point is on the screen (tests and driver scripts aim at handles with it).
+    func globalPoint(ofSlide p: Offset) -> Offset? {
+        guard let box = _box else { return nil }
+        return box.localToGlobal(Offset(_ox + p.dx * _px, _oy + p.dy * _px))
     }
 
     static func rotate(_ v: Offset, _ degrees: Double) -> Offset {
@@ -409,14 +417,17 @@ final class SlideCanvasState: State<StatefulWidget> {
             let units: [(Int, (Double, Double))] = isLine
                 ? [(0, (0, 0)), (4, (1, 1))]
                 : Array(Self.handleUnits.enumerated()).map { ($0.offset, $0.element) }
+            let cropping = deck.cropping === shape
+            if cropping, let ghost = _cropGhost(shape, ox: ox, oy: oy, px: px) { children.append(ghost) }
             for (i, u) in units {
                 let p = shape.isElbow ? (i == 0 ? shape.lineStart : shape.lineEndPoint) : Self._framePoint(shape, u.0, u.1)
                 children.append(Positioned(left: ox + p.dx * px - reach / 2, top: oy + p.dy * px - reach / 2, width: reach, height: reach,
-                                           child: _handle(accent: accent, shown: s, cursor: Self._cursor(i, shape.rotation)) { [weak self] e in
+                                           child: _handle(accent: accent, crop: cropping, shown: s, cursor: Self._cursor(i, shape.rotation)) { [weak self] e in
                                                guard let self else { return }
-                                               self._drag = .resize(shape: shape, handle: i,
-                                                                    start: self._slidePoint(e.position),
-                                                                    frame: shape.frame)
+                                               let at = self._slidePoint(e.position)
+                                               self._drag = cropping
+                                                   ? .crop(shape: shape, handle: i, start: at, frame: shape.frame, crop: shape.crop)
+                                                   : .resize(shape: shape, handle: i, start: at, frame: shape.frame)
                                                self.deck.beginFrameEdit()
                                            }))
             }
@@ -503,11 +514,35 @@ final class SlideCanvasState: State<StatefulWidget> {
     }
 
     /// `shown` is the handle as drawn; the widget is as big as the hit area, so the drawn square sits in its middle.
-    private func _handle(accent: Color, round: Bool = false, shown: Double, cursor: MouseCursor,
+    /// Crop mode: the whole picture's extent, the part the crop cuts away shaded, so the handles can bring it back.
+    private func _cropGhost(_ shape: SlideShape, ox: Double, oy: Double, px: Double) -> Widget? {
+        let f = shape.frame, c = shape.crop ?? .zero
+        let fullW = f.width / max(1 - c.left - c.right, 0.001), fullH = f.height / max(1 - c.top - c.bottom, 0.001)
+        let full = Rect.fromLTWH(-c.left * fullW * px, -c.top * fullH * px, fullW * px, fullH * px)
+        let w = f.width * px, h = f.height * px
+        // The bands outside the frame (the chrome lies over the shapes, so the frame's own part stays clear).
+        let bands = [Rect.fromLTRB(full.left, full.top, full.right, min(0, full.bottom)),
+                     Rect.fromLTRB(full.left, max(h, full.top), full.right, full.bottom),
+                     Rect.fromLTRB(full.left, max(0, full.top), min(0, full.right), min(h, full.bottom)),
+                     Rect.fromLTRB(max(w, full.left), max(0, full.top), full.right, min(h, full.bottom))]
+        var kids: [Widget] = bands.filter { $0.width > 0 && $0.height > 0 }.map {
+            Positioned(left: $0.left, top: $0.top, width: $0.width, height: $0.height,
+                       child: DecoratedBox(decoration: BoxDecoration(color: Color(0x59808080)), child: SizedBox(expand: ())))
+        }
+        kids.append(Positioned(left: full.left, top: full.top, width: full.width, height: full.height,
+                               child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: Color(0xFF606060), width: 1)),
+                                                   child: SizedBox(expand: ()))))
+        return Positioned(left: ox + f.left * px, top: oy + f.top * px, width: w, height: h,
+                          child: IgnorePointer(child: Transform(rotate: shape.rotation * .pi / 180,
+                                                                child: Stack(clipBehavior: .none, children: kids))))
+    }
+
+    /// `crop`: a crop handle, black with a white rim as PowerPoint draws them.
+    private func _handle(accent: Color, round: Bool = false, crop: Bool = false, shown: Double, cursor: MouseCursor,
                          onDown: @escaping (PointerDownEvent) -> Void) -> Widget {
         let box = DecoratedBox(
-            decoration: BoxDecoration(color: Color(0xFFFFFFFF),
-                                      border: Border.all(color: accent, width: 1.5),
+            decoration: BoxDecoration(color: crop ? Color(0xFF000000) : Color(0xFFFFFFFF),
+                                      border: Border.all(color: crop ? Color(0xFFFFFFFF) : accent, width: 1.5),
                                       borderRadius: BorderRadius.all(Radius(circular: round ? 6 : 1))),
             child: SizedBox(expand: ()))
         return Listener(
@@ -760,6 +795,9 @@ final class SlideCanvasState: State<StatefulWidget> {
             }
             _drag = .move(start: start, frames: frames, shape: shape, wasSelected: wasSelected, moved: moved)
             deck.setFramesLive(frames.map { ($0.0, $0.1.shift(Offset(dx, dy))) })
+        case .crop(let shape, let handle, let start, let frame, let crop):
+            let r = Self.resizedFrame(frame, rotation: shape.rotation, handle: handle, delta: Offset(p.dx - start.dx, p.dy - start.dy))
+            deck.setCropLive(shape, crop0: crop, frame0: frame, frame: r, handle: handle)
         case .resize(let shape, let handle, let start, let frame):
             let r = _resized(shape, frame, handle: handle, delta: Offset(p.dx - start.dx, p.dy - start.dy))
             if shape.isElbow {
@@ -833,7 +871,7 @@ final class SlideCanvasState: State<StatefulWidget> {
                 }
                 PlatformDispatcher.instance.scheduleFrame()
             }
-        case .resize, .rotate, .elbowRun, .adjust:
+        case .resize, .crop, .rotate, .elbowRun, .adjust:
             deck.endFrameEdit()
         case .draw(let preset, let a, let b):
             let m = _w.modifiers()
