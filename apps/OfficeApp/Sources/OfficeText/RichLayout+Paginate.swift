@@ -3028,6 +3028,43 @@ extension RichLayout {
     /// produce identical text, and where they differ, `diff` says which
     /// line broke elsewhere. Heights are line advances (the room pagination
     /// consumes), in logical pixels to a tenth, not a fallback font's ink metrics.
+    /// Where each laid-out line starts and the page (from 1) it is on, in flow order (W-ED-2:
+    /// Go To a page or a line). A picture paragraph is one line; unpaged, every line is page 1.
+    public func lineStarts(_ document: RichDocument) -> [(page: Int, at: RichPosition)] {
+        ensureLaidOut(document)
+        var out: [(page: Int, at: RichPosition)] = []
+        for i in 0 ..< count {
+            let para = document.paragraphs[i]
+            let g = geometry(i)
+            let pieces = _pieceStart.count == count + 1 ? _allPieces[_pieceStart[i] ..< _pieceStart[i + 1]] : []
+            func page(atFlow y: Double) -> Int {
+                guard isPaged else { return 1 }
+                let piece = pieces.first { $0.part != .rules && y < $0.flowBottom - 0.01 } ?? pieces.last
+                return piece.map { $0.page / _columns + 1 } ?? 1
+            }
+            if para.isImage || para.length == 0 {
+                out.append((page(atFlow: g.textTop), RichPosition(paragraph: i, offset: 0)))
+                continue
+            }
+            let map = _map(i)
+            let bottoms = Self._lineBottoms(g.painter)
+            let lines = g.painter.computeLineMetrics()
+            var y = g.textTop, start = 0, k = 0
+            let first = y
+            for line in lines {
+                out.append((page(atFlow: y), RichPosition(paragraph: i, offset: start)))
+                let r = g.painter.getLineBoundary(TextPosition(offset: map.painter(start)))
+                let end = max(start, min(map.paragraph(r.end), para.length))
+                y = first + (k < bottoms.count ? bottoms[k] : y - first + line.height)
+                k += 1
+                if end <= start || end >= para.length { break }
+                start = end
+            }
+            if lines.isEmpty { out.append((page(atFlow: y), RichPosition(paragraph: i, offset: 0))) }
+        }
+        return out
+    }
+
     public func lineDump(_ document: RichDocument) -> String {
         ensureLaidOut(document)
         var out = "pages \(pageCount)\n"
