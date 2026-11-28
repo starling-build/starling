@@ -747,6 +747,7 @@ extension Ribbon {
         let crops: [(String, Double)] = [("Square", 1), ("4:3", 4.0 / 3), ("3:2", 1.5), ("16:9", 16.0 / 9), ("3:4 Portrait", 0.75)]
         return [
             Chrome.group("Adjust", fluent, [
+                Chrome.big(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
                 Chrome.big(FluentSystemIcons.refresh, "Reset Picture", fluent) { deck.resetPictures() },
                 Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
             ]),
