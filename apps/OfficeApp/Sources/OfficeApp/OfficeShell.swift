@@ -2382,7 +2382,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: InsertTableDialog(
                     onOK: { [weak self] v in
                         guard let self else { return }
-                        self.controller.insertTable(rows: v.rows, columns: v.columns, fit: v.fit)
+                        self.controller.insertTable(rows: v.rows, columns: v.columns, fit: v.fit, textWidth: self.session.pageSetup.contentWidth)
                         self.setState { self._insertTableOpen = false }
                         self._editorFocus.requestFocus()
                     },

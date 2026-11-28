@@ -130,6 +130,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setMarginSettings(old: String?, new: String?)
     /// A part the file carries as is (the comments' `word/comments.xml`), set or removed (nil).
     case setKeptPart(String, old: Data?, new: Data?)
+    /// W-TB-5: a table nested in a cell, kept as its markup for the save (`RichDocument.keptTables`), set or removed (nil).
+    case setKeptTable(String, old: KeptTable?, new: KeptTable?)
     /// W-PG-3: the whole document at once (a watermark rewrites every header part, read back as Word would).
     case replaceDocument(old: RichDocument, new: RichDocument)
     /// A picture's shown size (its attachment replaced; the id survives).
@@ -267,6 +269,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.keptParts[name] = new
             changes.append(.all)
             return .setKeptPart(name, old: new, new: old)
+        case .setKeptTable(let key, let old, let new):
+            doc.keptTables[key] = new
+            changes.append(.all)
+            return .setKeptTable(key, old: new, new: old)
         case .replaceDocument(let old, let new):
             doc = new
             changes.append(.all)
@@ -2356,12 +2362,27 @@ public final class RichDocumentController: ChangeNotifier {
     /// `contents` lets Word-style autofit follow the text, `window` also spans the text width.
     public enum TableFit: Sendable { case fixed, contents, window }
 
-    public func insertTable(rows: Int, columns: Int, fit: TableFit = .contents) {
+    /// `textWidth`: the page's text width, which sizes a table put in a cell of a table with no column widths.
+    public func insertTable(rows: Int, columns: Int, fit: TableFit = .contents, textWidth: Double? = nil) {
         let rows = max(1, rows), columns = max(1, columns)
         edit {
             if hasSelection { _deleteSelectionOps() }
             let pos = selection.focus
             let para = document.paragraphs[pos.paragraph]
+            if para.cell != nil, !para.isImage, para.keptTable == nil,
+               let (nested, kept) = _nestedTable(rows: rows, columns: columns, fit: fit, in: para, textWidth: textWidth) {
+                // W-TB-5: in a cell, the table goes in the cell, as in Word: a block holding it, saved as Word nests one.
+                var at = pos.paragraph
+                if pos.offset > 0 {
+                    perform(.splitParagraph(pos, tailStyle: para.style))
+                    at += 1
+                }
+                perform(.setKeptTable(nested.keptTable!, old: nil, new: kept))
+                perform(.insertParagraphs(at: at, [nested]))
+                // (A cell ends in a paragraph: the one the caret was in, or its tail, stands under the table.)
+                _setCaret(RichPosition(paragraph: at, offset: 0))
+                return
+            }
             let id = UUID().uuidString
             var cells: [RichParagraph] = []
             for r in 0 ..< rows {
@@ -2403,6 +2424,50 @@ public final class RichDocumentController: ChangeNotifier {
             }
             if style != TableStyle() { perform(.setTableStyle(id, old: nil, new: style)) }
         }
+    }
+
+    /// A table of `rows` by `columns` set in the cell `para` is in, as the file reader sets a nested one: a block as wide
+    /// as the cell's text, holding the table, and the table's markup kept for the save. nil without the app's writer.
+    private func _nestedTable(rows: Int, columns: Int, fit: TableFit, in para: RichParagraph, textWidth: Double?) -> (RichParagraph, KeptTable)? {
+        guard let make = Self.sharedBlockXML, let cell = para.cell else { return nil }
+        let outer = document.paragraphs(inTable: cell.table).compactMap { document.paragraphs[$0].cell }
+        let count = max(1, outer.map { $0.column + $0.span }.max() ?? 1)
+        var width: Double
+        if let cols = document.tableColumns[cell.table], cols.count >= cell.column + cell.span {
+            width = cols[cell.column ..< cell.column + cell.span].reduce(0, +)
+        } else {
+            width = (textWidth ?? PageSetup.letter.contentWidth) / Double(count) * Double(cell.span)
+        }
+        let look = document.tableStyles[cell.table]
+        width -= (cell.padding?.left ?? look?.cellMarginLeft ?? 5.4) + (cell.padding?.right ?? look?.cellMarginRight ?? 5.4)
+        width = max(Double(columns) * 9, width)
+        let inner = RichDocumentController(plainText: "")
+        inner.insertTable(rows: rows, columns: columns, fit: fit)
+        var doc = RichDocument(paragraphs: inner.document.paragraphs.filter { $0.cell != nil })
+        guard let id = doc.paragraphs.first?.cell?.table else { return nil }
+        doc.tableStyles = inner.document.tableStyles
+        doc.tableColumns[id] = Array(repeating: width / Double(columns), count: columns)
+        guard let body = make(doc), let xml = Self._onlyTable(body.xml) else { return nil }
+        var box = RichTextBox(paragraphs: doc.paragraphs)
+        box.insetLeft = 0; box.insetTop = 0; box.insetRight = 0; box.insetBottom = 0
+        box.tableStyles = doc.tableStyles
+        box.tableColumns = doc.tableColumns
+        box.growsToFit = true
+        var image = ImageAttachment(data: Data(), width: width, height: 1, name: "table")
+        image.textBox = box
+        var p = RichParagraph(image: image, style: para.style)
+        p.cell = cell
+        p.keptTable = "ktn" + UUID().uuidString
+        return (p, KeptTable(xml: xml, rels: body.rels, texts: [p.text]))
+    }
+
+    /// The one table a written body holds, without the empty paragraph a body ends in; nil when it holds more.
+    static func _onlyTable(_ body: String) -> String? {
+        guard let a = body.rangeOfSubstring("<w:tbl>"), body[body.startIndex ..< a.lowerBound].allSatisfy(\.isWhitespace),
+              let r = body.rangeOfSubstring("</w:tbl>", in: a.upperBound ..< body.endIndex) else { return nil }
+        let rest = String(body[r.upperBound ..< body.endIndex])
+        for marker in ["<w:t>", "<w:t ", "<w:tbl", "<w:drawing"] where rest.containsSubstring(marker) { return nil }
+        return String(body[a.lowerBound ..< r.upperBound])
     }
 
     private func _tableEnd(from index: Int) -> Int {
@@ -2846,6 +2911,10 @@ public final class RichDocumentController: ChangeNotifier {
     /// Set by the app: puts a floating table's place (its kept `w:tblpPr` XML, nil: in the text) into the fields the
     /// layout reads, as the file reader does, so a table placed here lays out as the saved file opened would.
     nonisolated(unsafe) public static var sharedFloatPositionReader: ((String?, inout TableStyle) -> Void)?
+
+    /// Set by the app: a small document's body as the file writer writes it (its blocks, and the relationships they
+    /// name), so a table nested in a cell here is saved as Word nests one (W-TB-5). nil: tables in cells go after.
+    nonisolated(unsafe) public static var sharedBlockXML: ((RichDocument) -> (xml: String, rels: [KeptRel])?)?
 
     /// W-TB-5: place table `t` (Positioning dialog, the move handle): `xml` is its `w:tblpPr` and `w:tblOverlap` as Word
     /// writes them, nil to put it back in the text. One undo step.

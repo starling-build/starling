@@ -716,8 +716,30 @@ extension RichDocumentController {
     /// box's table looks and grids. nil when the box holds what the editor would lose (the same list as
     /// `textBoxParagraphs`) or a table inside a table's cell.
     public func textBoxDocument(at index: Int, inline id: String? = nil) -> RichDocument? {
+        if id == nil, let nested = _nestedTableDocument(at: index) { return nested }
         guard let image = _drawn(index, id) else { return nil }
         return Self._textBoxDocument(of: image)
+    }
+
+    /// W-TB-5: the table nested in a cell at `index` (a block the reader or `insertTable` made, its markup kept for the
+    /// save) as a small document to edit, when the editor writes back all it holds: no picture, field box or
+    /// content control, not floating, and no table in its own cells.
+    func _nestedTableDocument(at index: Int) -> RichDocument? {
+        guard index < document.paragraphs.count else { return nil }
+        let p = document.paragraphs[index]
+        guard p.cell != nil, let image = p.image, image.sourceXML == nil, image.float == nil, let box = image.textBox, box.growsToFit,
+              let kid = p.keptTable, let kept = document.keptTables[kid], kept.texts == [p.text] else { return nil }
+        for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict", "<w:drawing", "<w:tblpPr", "<w:fldChar", "<w:fldSimple", "<w:ins ", "<w:del ", "<w:moveFrom", "<w:moveTo"]
+        where kept.xml.containsSubstring(marker) { return nil }
+        // (One table, none in its cells: a second `<w:tbl` is a table inside it.)
+        guard let first = kept.xml.rangeOfSubstring("<w:tbl"), kept.xml.rangeOfSubstring("<w:tbl>", in: first.upperBound ..< kept.xml.endIndex) == nil,
+              kept.xml.rangeOfSubstring("<w:tbl ", in: first.upperBound ..< kept.xml.endIndex) == nil else { return nil }
+        guard !box.paragraphs.isEmpty, box.paragraphs.allSatisfy({ $0.cell != nil && $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }),
+              Set(box.paragraphs.compactMap { $0.cell?.table }).count == 1 else { return nil }
+        var doc = RichDocument(paragraphs: box.paragraphs)
+        doc.tableStyles = box.tableStyles
+        doc.tableColumns = box.tableColumns
+        return doc
     }
 
     /// `textBoxDocument` for an attachment in hand (a floating text box or a group child lifted out as one).
@@ -750,6 +772,7 @@ extension RichDocumentController {
     /// `contentXML`, one undo step. False when the box is not editable in place or nothing changed.
     @discardableResult
     public func setTextBoxContent(at index: Int, inline id: String? = nil, document: RichDocument, contentXML: String, rels: [KeptRel] = [], height: Double? = nil) -> Bool {
+        if id == nil, _nestedTableDocument(at: index) != nil { return _setNestedTable(at: index, document: document, contentXML: contentXML, rels: rels) }
         guard textBoxDocument(at: index, inline: id) != nil,
               let old = _drawn(index, id), var box = old.textBox, let xml = old.sourceXML,
               let open = xml.rangeOfSubstring("<w:txbxContent>"),
@@ -780,6 +803,27 @@ extension RichDocumentController {
         box.tableColumns = document.tableColumns.filter { ids.contains($0.key) }
         new.textBox = box
         _store(index, id, old: old, new: new)
+        return true
+    }
+
+    /// `setTextBoxContent` for a table nested in a cell: the block's table and the markup the save writes, one undo step.
+    /// False when the edit left more than the one table (the box's cells hold the whole table) or nothing changed.
+    private func _setNestedTable(at index: Int, document box: RichDocument, contentXML: String, rels: [KeptRel]) -> Bool {
+        let p = self.document.paragraphs[index]
+        guard var image = p.image, var tb = image.textBox, let kid = p.keptTable, let old = self.document.keptTables[kid],
+              box.paragraphs.allSatisfy({ $0.cell != nil }), Set(box.paragraphs.compactMap { $0.cell?.table }).count == 1,
+              let xml = RichDocumentController._onlyTable(contentXML) else { return false }
+        let ids = Set(box.paragraphs.compactMap { $0.cell?.table })
+        guard xml != old.xml || box.paragraphs != tb.paragraphs else { return false }
+        let before = image
+        tb.paragraphs = box.paragraphs
+        tb.tableStyles = box.tableStyles.filter { ids.contains($0.key) }
+        tb.tableColumns = box.tableColumns.filter { ids.contains($0.key) }
+        image.textBox = tb
+        edit {
+            _store(index, nil, old: before, new: image)
+            perform(.setKeptTable(kid, old: old, new: KeptTable(xml: xml, rels: rels, texts: [self.document.paragraphs[index].text])))
+        }
         return true
     }
 

@@ -25,6 +25,9 @@ enum TableStyleGallery {
         if RichDocumentController.sharedTableStyleLookResolver == nil {
             RichDocumentController.sharedTableStyleLookResolver = { resolve($0, table: $1, style: $2, look: $3) }
         }
+        if RichDocumentController.sharedBlockXML == nil {
+            RichDocumentController.sharedBlockXML = { TextBoxInsert.contentAndMedia($0).map { ($0.xml, $0.rels) } }
+        }
     }
 
     /// The gallery's sections, as Word groups them.

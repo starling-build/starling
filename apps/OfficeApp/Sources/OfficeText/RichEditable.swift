@@ -1082,6 +1082,13 @@ public final class RichEditableState: State<StatefulWidget> {
         return _layout.tableHandleRect(of: table).map { $0.shift(Offset(_originX, _w.padding.top - _scrollY)) }
     }
 
+    /// Paragraph `i`'s picture or block in the editable's own coordinates (tests drive a click on it).
+    func imageRectOnScreen(_ i: Int) -> Rect? {
+        _syncLayoutIfNeeded()
+        guard let flow = _layout.imageRect(i), let c = _layout.floatCanvasRect(i, flow) else { return nil }
+        return Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, c.width, c.height)
+    }
+
     private func _pointerHover(_ event: PointerEvent) {
         if _layout.width > 0, _layout.count > 0 {
             let onHandle = _tableHandle(at: event.localPosition)
