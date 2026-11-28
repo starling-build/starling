@@ -236,10 +236,10 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
         stop.label = { [weak self] in self?.textBox.placeholderText }
         stop.onFocus = { [weak self] (on: Bool) in if on { self?._focusNode.requestFocus() } }
         stop.isCurrent = { [weak self] in self?._focusNode.hasFocus ?? false }
-        stop.origin = { [weak self] in
+        stop.box = { [weak self] in
             guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
                   box.attached, box.hasSize else { return nil }
-            return box.localToGlobal(Offset(0, 0))
+            return box
         }
         _stop = stop
         KeyboardTraversal.shared.register(stop)

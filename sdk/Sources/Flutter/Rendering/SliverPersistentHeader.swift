@@ -603,7 +603,7 @@ open class RenderSliverPinnedPersistentHeader: RenderSliverPersistentHeader {
     /// can be connected once the full `showOnScreen` infrastructure is migrated.
     /// REASON: The `showOnScreen` method depends on viewport infrastructure not
     /// yet ported.
-    open func showOnScreen(
+    open override func showOnScreen(
         descendant: RenderObject? = nil,
         rect: Rect? = nil,
         duration: Duration = .zero,
@@ -875,7 +875,7 @@ open class RenderSliverFloatingPersistentHeader: RenderSliverPersistentHeader {
     /// logic and will be fully connected once the viewport infrastructure is migrated.
     /// REASON: The `showOnScreen` method depends on viewport infrastructure not
     /// yet ported.
-    open func showOnScreen(
+    open override func showOnScreen(
         descendant: RenderObject? = nil,
         rect: Rect? = nil,
         duration: Duration = .zero,

@@ -116,10 +116,10 @@ private final class _FlatButtonState: State<StatefulWidget> {
             guard let self, self.mounted else { return }
             self.setState { self._ring = on }
         }
-        stop.origin = { [weak self] in
+        stop.box = { [weak self] in
             guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
                   box.attached, box.hasSize else { return nil }
-            return box.localToGlobal(Offset(0, 0))
+            return box
         }
         _stop = stop
         KeyboardTraversal.shared.register(stop)

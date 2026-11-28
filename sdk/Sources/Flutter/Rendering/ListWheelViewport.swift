@@ -1262,7 +1262,7 @@ open class RenderListWheelViewport: RenderBox, RenderAbstractViewport {
     // MARK: - Show On Screen
 
     /// **Dart Source:** `list_wheel_viewport.dart:1149-1167`
-    open func showOnScreen(
+    open override func showOnScreen(
         descendant: RenderObject? = nil,
         rect: Rect? = nil,
         duration: Duration = .zero,

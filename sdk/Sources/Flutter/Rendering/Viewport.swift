@@ -1201,14 +1201,14 @@ open class RenderViewportBase: RenderBox, RenderAbstractViewport {
     // MARK: - showOnScreen
 
     /// **Dart Source:** `viewport.dart:1282-1307`
-    open func showOnScreen(
+    open override func showOnScreen(
         descendant: RenderObject? = nil,
         rect: Rect? = nil,
         duration: Duration = .zero,
         curve: any Curve = Curves.ease
     ) {
         if !offset.allowImplicitScrolling {
-            // Cannot scroll implicitly; delegate to super (no-op stub here).
+            super.showOnScreen(descendant: descendant, rect: rect, duration: duration, curve: curve)
             return
         }
 
@@ -1220,8 +1220,7 @@ open class RenderViewportBase: RenderBox, RenderAbstractViewport {
             duration: duration,
             curve: curve
         )
-        // In the full implementation, would call super.showOnScreen(rect: newRect, ...)
-        _ = newRect
+        super.showOnScreen(rect: newRect, duration: duration, curve: curve)
     }
 
     /// Make (a portion of) the given `descendant` of the given `viewport` fully
@@ -2090,3 +2089,22 @@ open class RenderShrinkWrappingViewport: RenderViewportBase {
 /// Lets `MultiChildRenderObjectElement` manage a viewport's sliver children
 /// (the widget layer's `_FullViewport` / `_ShrinkWrapViewport`).
 extension RenderViewportBase: SliverContainerRenderObjectHost {}
+
+/// A render object that paints its content shifted by a scroll offset.
+protocol ScrollShifting: AnyObject {
+    /// How far the content is drawn from where it would be unscrolled.
+    var scrollShift: Offset { get }
+}
+
+func scrollShift(_ direction: AxisDirection, _ pixels: Double) -> Offset {
+    switch direction {
+    case .down: return Offset(0, -pixels)
+    case .up: return Offset(0, pixels)
+    case .right: return Offset(-pixels, 0)
+    case .left: return Offset(pixels, 0)
+    }
+}
+
+extension RenderViewportBase: ScrollShifting {
+    var scrollShift: Offset { Flutter.scrollShift(axisDirection, offset.pixels) }
+}

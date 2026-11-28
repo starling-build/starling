@@ -49,10 +49,10 @@ final class _KeyboardPageState: State<StatefulWidget> {
         stop.handsOver = true
         stop.onFocus = { [weak self] on in if on, let w = self?.widget as? KeyboardPage { w.focus() } }
         stop.label = { [weak self] in (self?.widget as? KeyboardPage)?.name }
-        stop.origin = { [weak self] in
+        stop.box = { [weak self] in
             guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
                   box.attached, box.hasSize else { return nil }
-            return box.localToGlobal(Offset(0, 0))
+            return box
         }
         _stop = stop
         KeyboardTraversal.shared.register(stop)
@@ -95,10 +95,10 @@ final class _KeyboardRowState: State<StatefulWidget> {
             if d == 0 { return false }
             KeyboardTraversal.shared.move(reverse: d < 0); return true
         }
-        stop.origin = { [weak self] in
+        stop.box = { [weak self] in
             guard let self, self.mounted, let box = self.context?.findRenderObject() as? RenderBox,
                   box.attached, box.hasSize else { return nil }
-            return box.localToGlobal(Offset(0, 0))
+            return box
         }
         _stop = stop
         KeyboardTraversal.shared.register(stop)
@@ -113,9 +113,11 @@ final class _KeyboardRowState: State<StatefulWidget> {
         // child already describes itself (a slide thumbnail with its selected state) keeps that description.
         let child: Widget = row.child is Semantics ? row.child
             : Semantics(label: row.label, button: true, onTap: row.activate, excludeSemantics: true, child: row.child)
-        guard _ring else { return child }
-        return Stack(clipBehavior: .none, children: [child, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: DecoratedBox(
-            decoration: BoxDecoration(border: Border.all(color: Color(0xFF0F6CBD), width: 2)))))])
+        // The same shape with or without the ring: a lazy list cannot remount a row whose root changed type, and the
+        // row would vanish from the screen under the ring.
+        let ring: [Widget] = _ring ? [Positioned(left: 0, top: 0, right: 0, bottom: 0, child: IgnorePointer(child: DecoratedBox(
+            decoration: BoxDecoration(border: Border.all(color: Color(0xFF0F6CBD), width: 2)))))] : []
+        return Stack(clipBehavior: .none, children: [child] + ring)
     }
 }
 
@@ -131,8 +133,22 @@ public final class KeyStop {
     public var onFocus: (Bool) -> Void = { _ in }
     /// True while the control already holds the typing focus (a text box the pointer clicked).
     public var isCurrent: () -> Bool = { false }
+    /// The control's box while it is laid out, nil when it is not drawn.
+    public var box: () -> RenderBox? = { nil }
     /// Its top-left corner on screen, nil when it is not drawn.
-    public var origin: () -> Offset? = { nil }
+    public func origin() -> Offset? { box()?.localToGlobal(Offset(0, 0)) }
+    /// Its corner with every scroll above it undone: reading order, which must not change as a list scrolls under
+    /// the ring (the list's rows would pass the buttons beside it).
+    public func place() -> Offset? {
+        guard let b = box() else { return nil }
+        var o = b.localToGlobal(Offset(0, 0))
+        var p = b.parent
+        while let r = p {
+            if let v = r as? ScrollShifting { o = o - v.scrollShift }
+            p = r.parent
+        }
+        return o
+    }
     /// What it is called (a key tip is taken from its letters); nil when it has no name.
     public var label: () -> String? = { nil }
     /// An arrow key while this control holds the ring (dx, dy each -1, 0 or 1); true when it used the key
@@ -260,7 +276,7 @@ public final class KeyboardTraversal {
         else if let region { pool = live.filter { $0.region == region } }
         else { pool = live }
         return pool.sorted { a, b in
-            let pa = a.origin()!, pb = b.origin()!
+            let pa = a.place()!, pb = b.place()!
             let ra = (pa.dy / 10).rounded(), rb = (pb.dy / 10).rounded()
             return ra != rb ? ra < rb : pa.dx < pb.dx
         }
@@ -288,6 +304,8 @@ public final class KeyboardTraversal {
         focused = stop
         if let stop { _currentRegion = stop.region }
         stop?.onFocus(true)
+        // A ring below the fold of a gallery, pane or list scrolls into view, as Windows does.
+        stop?.box()?.showOnScreen()
     }
 
     /// Puts the ring on `stop` (or takes it away with nil): a popup closing hands it back to the button that opened it.
