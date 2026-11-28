@@ -130,6 +130,8 @@ public indirect enum EditOp: Equatable, Sendable {
     case setMarginSettings(old: String?, new: String?)
     /// A part the file carries as is (the comments' `word/comments.xml`), set or removed (nil).
     case setKeptPart(String, old: Data?, new: Data?)
+    /// W-PG-3: the whole document at once (a watermark rewrites every header part, read back as Word would).
+    case replaceDocument(old: RichDocument, new: RichDocument)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
     /// An inline picture in a paragraph's text, replaced (its id survives).
@@ -265,6 +267,10 @@ public indirect enum EditOp: Equatable, Sendable {
             doc.keptParts[name] = new
             changes.append(.all)
             return .setKeptPart(name, old: new, new: old)
+        case .replaceDocument(let old, let new):
+            doc = new
+            changes.append(.all)
+            return .replaceDocument(old: new, new: old)
         case .setImage(let index, let old, let new):
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
