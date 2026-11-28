@@ -1172,7 +1172,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 return
             }
             if let box = _selectedImageBox(group: true), box.rect.contains(event.localPosition),
-               (_controller.pictureWrap(at: box.index, inline: box.inline) != nil || _controller.isInLineShape(at: box.index, inline: box.inline)) {
+               (_controller.pictureWrap(at: box.index, inline: box.inline) != nil || _controller.isInText(at: box.index, inline: box.inline)) {
                 // The body of a selected floating picture: the finger moves it, as a mouse does (a tap that does not travel
                 // is still a tap: a text box opens for editing).
                 _moveDrag = (box.index, box.inline, event.localPosition)
@@ -1232,7 +1232,7 @@ public final class RichEditableState: State<StatefulWidget> {
         }
 
         if let box = _selectedImageBox(group: true), _handleHit(event.localPosition, _selectedImageBox()?.rect ?? box.rect) == nil, box.rect.contains(event.localPosition),
-           (_controller.pictureWrap(at: box.index, inline: box.inline) != nil || _controller.isInLineShape(at: box.index, inline: box.inline)) {
+           (_controller.pictureWrap(at: box.index, inline: box.inline) != nil || _controller.isInText(at: box.index, inline: box.inline)) {
             // The body of a selected floating picture: pressed and dragged, it moves.
             _moveDrag = (box.index, box.inline, event.localPosition)
             _moveDelta = Offset(0, 0)
@@ -1422,9 +1422,9 @@ public final class RichEditableState: State<StatefulWidget> {
             return
         }
         if let drag = _moveDrag {
-            // (A shape In Line with Text stands in its line: dragged, it moves in the text, to the caret shown where it would
-            // drop, as Word moves it; pressed without moving, it is only clicked into.)
-            if let id = drag.inline, _controller.isInLineShape(at: drag.index, inline: id) {
+            // (A drawing In Line with Text, or a picture alone in its paragraph, stands in the text: dragged, it moves in the
+            // text, to the caret shown where it would drop, as Word moves it; pressed without moving, it is only clicked.)
+            if _controller.isInText(at: drag.index, inline: drag.inline) {
                 let moved = abs(event.localPosition.dx - drag.start.dx) > 4 || abs(event.localPosition.dy - drag.start.dy) > 4
                 guard moved || _dropPosition != nil, _layout.width > 0 else { return }
                 let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
@@ -1614,12 +1614,16 @@ public final class RichEditableState: State<StatefulWidget> {
             _repaint.notifyListeners()
             return
         }
-        if let drag = _moveDrag, let id = drag.inline, let drop = _dropPosition {
-            // An inline shape dragged in the text stands where it was dropped.
+        if let drag = _moveDrag, let drop = _dropPosition {
+            // A drawing dragged in the text stands where it was dropped.
             _moveDrag = nil
             _moveDelta = nil
             _dropPosition = nil
-            _controller.moveInlinePicture(in: drag.index, id: id, to: drop)
+            if let id = drag.inline {
+                _controller.moveInlinePicture(in: drag.index, id: id, to: drop)
+            } else {
+                _controller.movePictureParagraph(at: drag.index, to: drop)
+            }
             _repaint.notifyListeners()
             return
         }
