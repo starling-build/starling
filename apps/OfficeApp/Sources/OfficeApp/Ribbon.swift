@@ -117,7 +117,7 @@ final class Ribbon: StatelessWidget {
         let slideTable = session.deck?.selectedTableOptions != nil
         if slideTable || session.summary.inCell { items.append(_tab(.tableDesign, fluent)) }
         if session.summary.inCell { items.append(_tab(.tableLayout, fluent)) }
-        if session.deck?.selectedChart != nil { items.append(_tab(.chartDesign, fluent)) }
+        if session.deck?.selectedChart != nil || session.wordChart != nil { items.append(_tab(.chartDesign, fluent)) }
         if session.headerFooterOpen, session.kind == .document { items.append(_tab(.headerFooter, fluent)) }
         if session.deck?.inMasterView ?? false { items.insert(_tab(.slideMaster, fluent), at: 1) }
         return ColoredBox(color: OfficeAppearance.surface(fluent),
@@ -199,6 +199,12 @@ final class Ribbon: StatelessWidget {
         case .references: return _references(fluent)
         case .review: return _review(fluent)
         case .tableDesign: return session.summary.inCell ? _tableDesign(fluent) : []
+        case .chartDesign:
+            guard let (image, chart) = session.wordChart else { return [] }
+            let c = session.controller
+            return chartDesignGroups(chart, fluent, set: { WordChartEdit.set($0, of: image, in: c) },
+                                     altText: { [session] in session.onPictureDialog?(.altText) },
+                                     delete: { c.deleteForward() })
         case .headerFooter: return session.headerFooterOpen ? _headerFooter(fluent) : []
         case .transitions, .slideShow, .chartDesign, .slideMaster, .animations, .formulas, .data: return []
         }

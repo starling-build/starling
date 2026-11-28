@@ -53,6 +53,10 @@ enum ChartPartPatcher {
         if old.type != new.type {
             guard ChartPartType.convert(plot, to: new) else { return nil }
         }
+        // Clustered, stacked or 100% stacked (the conversion above writes a plain grouping).
+        if (old.type != new.type && (new.stacked || new.percent)) || old.stacked != new.stacked || old.percent != new.percent {
+            guard grouping(plot, stacked: new.stacked, percent: new.percent) else { return nil }
+        }
         if dataChanged {
             guard rewriteData(plot, new, covered: old.series.count, writes: &writes) else { return nil }
         }
@@ -62,7 +66,36 @@ enum ChartPartPatcher {
         if old.legend != new.legend || old.legendPosition != new.legendPosition {
             out = ChartPartPatch.legend(out, new.legend ? .set(new.legendPosition) : .remove)
         }
+        if old.dataLabels != new.dataLabels { out = ChartPartPatch.labels(out, ChartLabelEdit(show: new.dataLabels)) }
+        if old.valueAxisTitle != new.valueAxisTitle {
+            out = ChartPartPatch.axisTitle(out, .value, new.valueAxisTitle.map { .set($0) } ?? .remove)
+        }
+        if old.categoryAxisTitle != new.categoryAxisTitle {
+            out = ChartPartPatch.axisTitle(out, .category, new.categoryAxisTitle.map { .set($0) } ?? .remove)
+        }
         return Result(xml: out, writes: writes)
+    }
+
+    /// The first chart group's `c:grouping` set to clustered (standard), stacked or 100% stacked. A bar or column group
+    /// stacks its bars on one another with `c:overlap` 100, as Office writes it, and a clustered one loses the overlap.
+    /// false where the group has no grouping to set (pie, scatter, radar).
+    static func grouping(_ plot: XNode, stacked: Bool, percent: Bool) -> Bool {
+        guard let group = ChartPartType.groups(plot).first,
+              ["c:barChart", "c:lineChart", "c:areaChart"].contains(group.name) else { return !stacked && !percent }
+        let bar = group.name == "c:barChart"
+        let val = percent ? "percentStacked" : stacked ? "stacked" : (bar ? "clustered" : "standard")
+        if let g = group.first("c:grouping") { g.attrs["val"] = val } else {
+            let at = (group.children.firstIndex { $0.name == "c:barDir" }).map { $0 + 1 } ?? 0
+            group.children.insert(ChartPartType.node("c:grouping", ["val": val]), at: at)
+        }
+        guard bar else { return true }
+        group.children.removeAll { $0.name == "c:overlap" }
+        if stacked || percent {
+            let at = (group.children.firstIndex { $0.name == "c:gapWidth" }).map { $0 + 1 }
+                ?? group.children.firstIndex { ["c:serLines", "c:axId", "c:extLst"].contains($0.name) } ?? group.children.count
+            group.children.insert(ChartPartType.node("c:overlap", ["val": "100"]), at: at)
+        }
+        return true
     }
 
     // MARK: Data
@@ -221,6 +254,38 @@ enum ChartPartPatcher {
         if !unnamed {
             put(ser, "c:tx", tx, before: ["c:spPr", "c:invertIfNegative", "c:marker", "c:dPt", "c:dLbls", "c:trendline", "c:errBars",
                                           "c:cat", "c:val", "c:xVal", "c:yVal", "c:smooth"])
+        }
+        // A multi-level category axis keeps its levels: the names are its inner level (the last column of its cells, or the
+        // last row where the categories run across), the outer levels stay as they are, cut to the new count.
+        if !scatter, let multi = ser.first("c:cat")?.first("c:multiLvlStrRef"), let f = multi.first("c:f"), let sp = Span(f.text),
+           let cache = multi.first("c:multiLvlStrCache") {
+            let oldCount = cache.first("c:ptCount")?["val"].flatMap(Int.init) ?? (sp.r1 - sp.r0 + 1)
+            let down = sp.r1 - sp.r0 + 1 == oldCount || sp.c1 - sp.c0 + 1 != oldCount
+            var ns = sp
+            if down { ns.r1 = sp.r0 + max(n, 1) - 1 } else { ns.c1 = sp.c0 + max(n, 1) - 1 }
+            f.text = ns.text
+            cache.first("c:ptCount")?.attrs["val"] = "\(n)"
+            for (k, lvl) in cache.all("c:lvl").enumerated() {
+                if k == 0 {
+                    lvl.children = lvl.children.filter { $0.name != "c:pt" }
+                    for (j, name) in c.categories.enumerated() {
+                        let pt = XNode(name: "c:pt", attrs: ["idx": "\(j)"]), v = XNode(name: "c:v", attrs: [:])
+                        v.text = name
+                        pt.children = [v]
+                        lvl.children.append(pt)
+                    }
+                } else {
+                    lvl.children = lvl.children.filter { $0.name != "c:pt" || ($0["idx"].flatMap(Int.init) ?? 0) < n }
+                }
+            }
+            let inner = down ? Span(sheetText: sp.sheetText, sheet: sp.sheet, c0: sp.c1, r0: sp.r0, c1: sp.c1, r1: sp.r0 + max(n, 1) - 1)
+                             : Span(sheetText: sp.sheetText, sheet: sp.sheet, c0: sp.c0, r0: sp.r1, c1: sp.c0 + max(n, 1) - 1, r1: sp.r1)
+            let oldInner = down ? Span(sheetText: sp.sheetText, sheet: sp.sheet, c0: sp.c1, r0: sp.r0, c1: sp.c1, r1: sp.r1)
+                                : Span(sheetText: sp.sheetText, sheet: sp.sheet, c0: sp.c0, r0: sp.r1, c1: sp.c1, r1: sp.r1)
+            write(c.categories.map { .text($0) }, old: oldInner, into: inner, &writes)
+            put(ser, vName, vNode, before: ["c:smooth", "c:shape"])
+            if alloc.cat == nil { alloc.cat = inner }
+            return
         }
         // Categories (or x values): shared by the series, so a new series reuses the first one's cells.
         let catSpan = (oldCat ?? alloc.cat)?.resized(n)

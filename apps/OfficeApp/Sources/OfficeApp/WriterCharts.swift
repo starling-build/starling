@@ -54,6 +54,9 @@ enum WriterCharts {
     /// object attachment `id`; false where it is no chart this can draw.
     @discardableResult
     static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil, userShapes: XNode? = nil, linkedSource: Bool = false) -> Bool {
+        lock.lock()
+        sources[id] = Source(theme: themePart, override: themeOverride, shapes: userShapes, linked: linkedSource)
+        lock.unlock()
         let space = ChartXML.canonical(space)
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         var colors = ColorContext(theme: pptxTheme)
@@ -167,6 +170,29 @@ enum WriterCharts {
         lock.unlock()
         installHooks()
         return true
+    }
+
+    /// What a chart was read with besides its part, so it can be read again from new bytes.
+    private struct Source { let theme: Data?, override: Data?, shapes: XNode?, linked: Bool }
+    private nonisolated(unsafe) static var sources: [String: Source] = [:]
+
+    /// The chart registered for the attachment `id`, as the app models it.
+    static func chart(_ id: String) -> Chart? {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[id]?.chart
+    }
+
+    /// The chart of `id` read again from its part's new bytes (an edit, an undo), with the theme and the rest it was
+    /// first read with; false where the bytes are no chart this can draw (the old drawing stays).
+    @discardableResult
+    static func reload(_ id: String, part data: Data) -> Bool {
+        lock.lock()
+        let source = sources[id]
+        lock.unlock()
+        guard let source, let space = XNode.parse(data) else { return false }
+        return register(space, for: id, themePart: source.theme, themeOverride: source.override,
+                        userShapes: source.shapes, linkedSource: source.linked)
     }
 
     /// Whether a chart is registered for `attachment`.

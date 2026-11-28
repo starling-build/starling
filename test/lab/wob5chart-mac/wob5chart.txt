@@ -1,0 +1,35 @@
+# W-OB-5 charts: Chart Design on a chart in a Word document (Change Chart Type, Edit Data, the chart's elements).
+# Run with OFFICE_FILE=test/lab/wob5chart-mac/wob5chart.docx (lab/wob5chart/source.docx), window 1440x932 (harness
+# points from ScreenMarksTests.testChartMarks). The file opens with its chart selected, so the tab is there at once.
+wait 1500
+shot ${OUT}/00-open.png
+click 668 81
+wait 400
+shot ${OUT}/01-chart-design.png
+click 265.5 112.5
+wait 400
+shot ${OUT}/02-chart-title-toggled.png
+click 268.5 154.5
+wait 400
+shot ${OUT}/03-data-labels-toggled.png
+chord cmd z
+wait 400
+chord cmd z
+wait 400
+shot ${OUT}/04-undone-twice.png
+click 163.5 149
+wait 600
+shot ${OUT}/05-edit-data-pane.png
+click 1210 378
+wait 200
+type 9.6
+key enter
+wait 500
+shot ${OUT}/06-first-value-9.6.png
+chord cmd z
+wait 500
+shot ${OUT}/07-value-undone.png
+click 62.5 149
+wait 600
+shot ${OUT}/08-change-chart-type.png
+quit

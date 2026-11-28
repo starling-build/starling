@@ -14,15 +14,25 @@ import FluentSystemIcons
 import Foundation
 
 final class ChartDataPane: StatefulWidget {
-    let deck: DeckController
-    let shape: SlideShape
+    /// The chart as it stands now (nil once it is gone).
+    let chart: () -> Chart?
+    /// Sets the chart; the key names the cell typed in, so typing in one cell is one undo step (nil: a step of its own).
+    let set: (Chart, String?) -> Void
     let onClose: () -> Void
 
-    init(key: (any Key)? = nil, deck: DeckController, shape: SlideShape, onClose: @escaping () -> Void) {
-        self.deck = deck
-        self.shape = shape
+    init(key: (any Key)? = nil, chart: @escaping () -> Chart?, set: @escaping (Chart, String?) -> Void,
+         onClose: @escaping () -> Void) {
+        self.chart = chart
+        self.set = set
         self.onClose = onClose
         super.init(key: key)
+    }
+
+    /// A slide's chart.
+    convenience init(key: (any Key)? = nil, deck: DeckController, shape: SlideShape, onClose: @escaping () -> Void) {
+        self.init(key: key, chart: { shape.chart }, set: { chart, cell in
+            deck.setChart(shape, chart, coalesce: cell.map { "\(shape.id):\($0)" })
+        }, onClose: onClose)
     }
 
     override func createState() -> State<StatefulWidget> { ChartDataPaneState() }
@@ -57,11 +67,11 @@ final class ChartDataPaneState: State<StatefulWidget> {
 
     private func _commit(_ chart: Chart, key: String) {
         _expected = chart
-        _w.deck.setChart(_w.shape, chart, coalesce: "\(_w.shape.id):\(key)")
+        _w.set(chart, key)
     }
 
     private func _changed(_ r: Int, _ c: Int, _ text: String) {
-        guard var chart = _w.shape.chart else { return }
+        guard var chart = _w.chart() else { return }
         if r < 0 {
             guard c >= 0 else { return }
             chart.series[c].name = text
@@ -77,18 +87,18 @@ final class ChartDataPaneState: State<StatefulWidget> {
 
     /// Rows or series added or taken away: fields re-made from the data.
     private func _reshape(_ edit: (inout Chart) -> Void) {
-        guard var chart = _w.shape.chart else { return }
+        guard var chart = _w.chart() else { return }
         edit(&chart)
         for c in _fields.values { c.dispose() }
         _fields = [:]
         _expected = chart
-        _w.deck.setChart(_w.shape, chart)
+        _w.set(chart, nil)
         setState {}
     }
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        guard let chart = _w.shape.chart else { return SizedBox(width: 0, height: 0, child: nil) }
+        guard let chart = _w.chart() else { return SizedBox(width: 0, height: 0, child: nil) }
         if chart != _expected {
             for c in _fields.values { c.dispose() }
             _fields = [:]
@@ -118,7 +128,7 @@ final class ChartDataPaneState: State<StatefulWidget> {
             controller: _field("title", chart.title ?? ""),
             placeholderText: "No title",
             onChanged: { [weak self] text in
-                guard let self, var chart = self._w.shape.chart else { return }
+                guard let self, var chart = self._w.chart() else { return }
                 chart.title = text.isEmpty ? nil : text
                 self._commit(chart, key: "title")
             })

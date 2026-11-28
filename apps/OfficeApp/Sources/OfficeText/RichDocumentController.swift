@@ -712,6 +712,42 @@ public final class RichDocumentController: ChangeNotifier {
         let op = document.trackRevisions ? _trackingFormat(op) : op
         let inverse = op.apply(to: &document, changes: &_pendingChanges)
         _undo[_undo.count - 1].inverses.append(inverse)
+        _keptPartApplied(op)
+    }
+
+    /// Told when an edit, an undo or a redo sets one of the kept parts (its package path and its bytes now): a chart drawn
+    /// from its part redraws from the new bytes.
+    public var onKeptPartChange: ((String, Data?) -> Void)?
+
+    private func _keptPartApplied(_ op: EditOp) {
+        if case .setKeptPart(let name, _, _) = op { onKeptPartChange?(name, document.keptParts[name]) }
+    }
+
+    /// Where the last `setKeptParts` with a coalescing key left the history: the key and the revision after it.
+    private var _partsCoalesce: (key: String, revision: Int)?
+
+    /// Kept parts set (nil takes one away) as one undo step named `label`. With a `coalesce` key, a change right after
+    /// another under the same key (nothing else edited, undone or redone between) joins that step: typing in one cell of
+    /// a chart's data is one step, as typing is.
+    public func setKeptParts(_ parts: [(String, Data?)], label: String, coalesce key: String? = nil) {
+        guard !readOnly else { return }
+        let changed = parts.filter { document.keptParts[$0.0] != $0.1 }
+        guard !changed.isEmpty else { return }
+        if let key, let last = _partsCoalesce, last.key == key, last.revision == revision, !_undo.isEmpty {
+            _inEdit = true
+            _redo.removeAll()
+            for (name, data) in changed { perform(.setKeptPart(name, old: document.keptParts[name], new: data)) }
+            _inEdit = false
+            revision += 1
+            _partsCoalesce = (key, revision)
+            notifyListeners()
+            return
+        }
+        edit {
+            for (name, data) in changed { perform(.setKeptPart(name, old: document.keptParts[name], new: data)) }
+        }
+        _undo[_undo.count - 1].label = label
+        _partsCoalesce = key.map { ($0, revision) }
     }
 
     private func _breakCoalescing() {
@@ -730,6 +766,7 @@ public final class RichDocumentController: ChangeNotifier {
         var redoInverses: [EditOp] = []
         for op in entry.inverses.reversed() {
             redoInverses.append(op.apply(to: &document, changes: &_pendingChanges))
+            _keptPartApplied(op)
         }
         _redo.append(UndoEntry(inverses: redoInverses.reversed(),
                                selectionBefore: entry.selectionBefore,
@@ -751,6 +788,7 @@ public final class RichDocumentController: ChangeNotifier {
         var undoInverses: [EditOp] = []
         for op in entry.inverses {
             undoInverses.append(op.apply(to: &document, changes: &_pendingChanges))
+            _keptPartApplied(op)
         }
         _undo.append(UndoEntry(inverses: undoInverses,
                                selectionBefore: entry.selectionBefore,
