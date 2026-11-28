@@ -450,6 +450,9 @@ public class TooltipState: State<StatefulWidget> {
     private var _forceRemoval: Bool = false
     private var _visible: Bool = true
     private var _tooltipTheme: TooltipThemeData = TooltipThemeData()
+    /// The scroll positions of the scrollables around the control while its tip shows: when one of them moves, the
+    /// control moves out from under the tip (or another one moves in under the pointer), so the tip goes.
+    private var _watchedScrolls: [ScrollPosition] = []
 
     private var tooltipWidget: Tooltip {
         return widget as! Tooltip
@@ -642,12 +645,34 @@ public class TooltipState: State<StatefulWidget> {
 
         // Conceal other tooltips so only one shows at a time
         Tooltip._concealOtherTooltips(self)
+        _watchScrolls()
 
         assert(!Tooltip._openedTooltips.contains(where: { $0 === self }))
         Tooltip._openedTooltips.append(self)
     }
 
+    private func _watchScrolls() {
+        _unwatchScrolls()
+        var ctx: (any BuildContext)? = context
+        while let c = ctx, let scrollable = c.findAncestorStateOfType(ScrollableState.self) {
+            if let position = scrollable.position {
+                position.addListener({ [weak self] in
+                    guard let self = self, self.mounted, self._entry != nil else { return }
+                    self._dismissTooltip(immediately: true)
+                }, owner: self)
+                _watchedScrolls.append(position)
+            }
+            ctx = scrollable.context
+        }
+    }
+
+    private func _unwatchScrolls() {
+        for position in _watchedScrolls { position.removeListeners(owner: self) }
+        _watchedScrolls = []
+    }
+
     private func _removeEntry() {
+        _unwatchScrolls()
         Tooltip._openedTooltips.removeAll { $0 === self }
         _dismissTimer?.invalidate()
         _dismissTimer = nil
@@ -686,6 +711,17 @@ public class TooltipState: State<StatefulWidget> {
                     guard let self = self else { return }
                     self._handleMouseExit()
                 },
+                child: result
+            )
+            // A click on the control is an answer to the tip: it goes at once and does not come back until the
+            // pointer leaves and enters again (a ribbon button's tip would otherwise cover what the click opened or
+            // the button next to it).
+            result = Listener(
+                onPointerDown: { [weak self] _ in
+                    guard let self = self, self.mounted else { return }
+                    self._dismissTooltip(immediately: true)
+                },
+                behavior: .translucent,
                 child: result
             )
         }
