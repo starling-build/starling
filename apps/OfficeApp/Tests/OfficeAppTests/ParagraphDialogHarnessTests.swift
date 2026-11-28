@@ -76,4 +76,27 @@ final class ParagraphDialogHarnessTests: XCTestCase {
         session.controller.undo()
         XCTAssertTrue(session.controller.currentParagraphStyle.tabStops.isEmpty)
     }
+
+    /// W-PA-2: the Line and Page Breaks page ticks reach the paragraph on OK, in one undo step.
+    func testLineAndPageBreaksPage() {
+        let (ui, session) = shell()
+        session.onParagraphDialog?(); ui.pump()
+        XCTAssertTrue(ui.tap(id: "pa-page-breaks"))
+        XCTAssertTrue(ui.has(text: "Widow/Orphan control"))
+        XCTAssertFalse(ui.has(id: "pa-align-left"), "the other page is hidden")
+        for id in ["pa-widow", "pa-keep-next", "pa-keep-lines", "pa-break-before", "pa-no-line-numbers", "pa-no-hyphens"] {
+            XCTAssertTrue(ui.tap(id: id), id)
+        }
+        XCTAssertTrue(ui.tap(id: "pa-page-indents"))
+        XCTAssertTrue(ui.has(id: "pa-align-left"), "back on Indents and Spacing, the ticks kept")
+        XCTAssertFalse(session.controller.currentParagraphStyle.keepNext, "nothing applies before OK")
+        ui.press(.enter); ui.pump()
+        let s = session.controller.currentParagraphStyle
+        XCTAssertFalse(s.widowControl); XCTAssertTrue(s.keepNext); XCTAssertTrue(s.keepLines); XCTAssertTrue(s.pageBreakBefore)
+        XCTAssertEqual(s.eastAsian["w:suppressLineNumbers"], "1"); XCTAssertEqual(s.eastAsian["w:suppressAutoHyphens"], "1")
+        session.controller.undo()
+        let u = session.controller.currentParagraphStyle
+        XCTAssertTrue(u.widowControl); XCTAssertFalse(u.keepNext); XCTAssertFalse(u.pageBreakBefore)
+        XCTAssertNil(u.eastAsian["w:suppressLineNumbers"])
+    }
 }
