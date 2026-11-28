@@ -2390,6 +2390,20 @@ final class OfficeShellState: State<StatefulWidget> {
                         self.controller.setNoteOptions(kind, options)
                         self._editorFocus.requestFocus()
                     },
+                    onInsert: { [weak self] kind, options, custom in
+                        guard let self else { return }
+                        self.setState { self._noteOptionsOpen = false }
+                        self.controller.setNoteOptions(kind, options)
+                        self.controller.insertNote(kind, customMark: custom)
+                        if let n = self.controller.noteAtCaret() { self._openNote(n) } else { self._editorFocus.requestFocus() }
+                    },
+                    onConvert: { [weak self] conversion in
+                        guard let self else { return }
+                        self.setState { self._noteOptionsOpen = false }
+                        self.controller.convertNotes(conversion)
+                        self._editorFocus.requestFocus()
+                    },
+                    counts: (controller.document.footnotes.count, controller.document.endnotes.count),
                     onCancel: { [weak self] in
                         self?.setState { self?._noteOptionsOpen = false }
                         self?._editorFocus.requestFocus()
