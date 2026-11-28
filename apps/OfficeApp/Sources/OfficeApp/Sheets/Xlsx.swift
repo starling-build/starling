@@ -125,6 +125,7 @@ enum Xlsx {
         // Sheets, in tab order.
         var activeTab = 0
         if let view = wbNode.child("bookViews")?.kids("workbookView").first, let a = Int(view["activeTab"] ?? "") { activeTab = a }
+        book.showComments = wbNode.child("bookViews")?.kids("workbookView").first?["showComments"]
         // Each sheet's part as it was parsed, without its cells: what the
         // readers of its drawings, objects and tables look through. They
         // parsed the part again, each of them — an 18 MB sheet four times.
@@ -1347,7 +1348,7 @@ enum Xlsx {
                 case "definedNames": body += names; wroteNames = true
                 case "calcPr": body += calc; wroteCalc = true
                 case "workbookProtection": body += prot; wroteProt = true
-                case "bookViews": body += (wroteProt ? "" : prot) + _bookViews(text, active: book.activeTab); wroteProt = true
+                case "bookViews": body += (wroteProt ? "" : prot) + _bookViews(text, active: book.activeTab, showComments: book.showComments); wroteProt = true
                 case "pivotCaches" where !newCaches.isEmpty:
                     if let end = text.findRange(of: "</pivotCaches>", backwards: true) {
                         var t = text
@@ -1379,7 +1380,7 @@ enum Xlsx {
             return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" + _withRels(split.rootStart) + body + "</" + split.rootName + ">"
         }
         let names = _definedNamesXML(book)
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"/></bookViews>" + sheets + names + calc + (newCaches.isEmpty ? "" : "<pivotCaches>" + cacheItems + "</pivotCaches>") + "</workbook>"
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + prot + "<bookViews><workbookView activeTab=\"\(book.activeTab)\"\(book.showComments.map { " showComments=\"\(_esc($0))\"" } ?? "")/></bookViews>" + sheets + names + calc + (newCaches.isEmpty ? "" : "<pivotCaches>" + cacheItems + "</pivotCaches>") + "</workbook>"
     }
 
     /// The file's names in order — a book-wide one with its current formula,
@@ -1405,20 +1406,23 @@ enum Xlsx {
         return out.isEmpty ? "" : "<definedNames>" + out + "</definedNames>"
     }
 
-    /// The original bookViews with activeTab set.
-    private static func _bookViews(_ text: String, active: Int) -> String {
+    /// The original bookViews with activeTab and showComments set.
+    private static func _bookViews(_ text: String, active: Int, showComments: String?) -> String {
         guard let start = text.findRange(of: "<workbookView") else { return text }
         let tagEnd = text[start.upperBound...].firstIndex(of: ">") ?? text.endIndex
         var tag = String(text[start.lowerBound ..< tagEnd])
-        if let r = tag.findRange(of: " activeTab=\"") {
-            let close = tag[r.upperBound...].firstIndex(of: "\"") ?? tag.endIndex
-            tag.replaceSubrange(r.lowerBound ..< tag.index(after: close), with: " activeTab=\"\(active)\"")
-        } else if tag.hasSuffix("/") {
-            tag.removeLast()
-            tag += " activeTab=\"\(active)\"/"
-        } else {
-            tag += " activeTab=\"\(active)\""
+        func set(_ name: String, _ value: String?) {
+            if let r = tag.findRange(of: " \(name)=\"") {
+                let close = tag[r.upperBound...].firstIndex(of: "\"") ?? tag.endIndex
+                tag.replaceSubrange(r.lowerBound ..< tag.index(after: close), with: value.map { " \(name)=\"\(_esc($0))\"" } ?? "")
+            } else if let value {
+                let closed = tag.hasSuffix("/")
+                if closed { tag.removeLast() }
+                tag += " \(name)=\"\(_esc(value))\"" + (closed ? "/" : "")
+            }
         }
+        set("activeTab", "\(active)")
+        set("showComments", showComments)
         return String(text[..<start.lowerBound]) + tag + String(text[tagEnd...])
     }
 
