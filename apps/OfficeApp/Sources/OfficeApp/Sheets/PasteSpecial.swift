@@ -15,11 +15,53 @@ struct PasteSpecial: Equatable, Sendable {
     var isPlain: Bool { self == PasteSpecial() }
 }
 
+/// The last paste, kept so the Paste Options button can make it again another way (X-CL-1).
+struct LastPaste {
+    let clip: WorkbookController.Clip
+    let how: PasteSpecial
+    let at: CellAddress
+    let sheet: Int
+    /// What the paste filled.
+    let range: CellRange
+    let dataRevision: Int
+
+    func with(dataRevision r: Int) -> LastPaste {
+        LastPaste(clip: clip, how: how, at: at, sheet: sheet, range: range, dataRevision: r)
+    }
+}
+
 extension WorkbookController {
+    /// Excel's Paste Options button after a paste: the last paste, while nothing has changed the cells since
+    /// and its sheet is the one shown.
+    var pasteOptions: LastPaste? {
+        guard let l = lastPaste, l.dataRevision == dataRevision, l.sheet == activeSheet else { return nil }
+        return l
+    }
+
+    /// Make the last paste again by `how`, in its place of the one before: one undo step takes the new one back.
+    func repaste(_ how: PasteSpecial) {
+        guard let l = pasteOptions, how != l.how else { return }
+        undo()
+        select(range: CellRange(top: l.at.row, left: l.at.col, bottom: l.at.row, right: l.at.col), active: l.at)
+        let was = dataRevision
+        pasteSpecial(l.clip, how)
+        // (Refused, say by a locked cell the turned block reaches: the first paste stands.)
+        if dataRevision == was { redo(); lastPaste = l.with(dataRevision: dataRevision) }
+    }
+
     /// Paste a copied clip at the selection by `how`. A clip that was cut is
     /// pasted as a copy (the source stays); "all" with nothing else set is the
     /// ordinary paste, which moves it.
     func pasteSpecial(_ clip: Clip, _ how: PasteSpecial) {
+        let was = dataRevision
+        defer {
+            // A copy that went in: the Paste Options button can make it again another way. (A cut moved its
+            // source, so there is nothing to make again.)
+            if dataRevision != was, !clip.cut {
+                lastPaste = LastPaste(clip: clip, how: how, at: selection.topLeft, sheet: activeSheet, range: selection,
+                                      dataRevision: dataRevision)
+            }
+        }
         if how.isPlain { paste(clip); return }
         let at = selection.topLeft
         let rows = how.transpose ? clip.range.cols : clip.range.rows

@@ -337,6 +337,8 @@ final class WorkbookController: ChangeNotifier {
     }
     /// Format Painter, armed: the cells whose formats the next selection takes.
     var painterSource: (sheet: Int, range: CellRange)? = nil
+    /// The last paste of the app's own copy (X-CL-1): what the Paste Options button offers to make again another way.
+    var lastPaste: LastPaste? = nil
     private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
     private var _dv: (sheet: ObjectIdentifier, revision: Int, rules: [ValidationRule])? = nil
 
