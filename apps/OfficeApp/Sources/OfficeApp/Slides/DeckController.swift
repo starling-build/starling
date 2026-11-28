@@ -85,6 +85,8 @@ struct ShapeState: Equatable {
     var altTitle: String? = nil
     var link: String? = nil
     var linkTip: String? = nil
+    var hoverLink: String? = nil
+    var hoverLinkTip: String? = nil
     var keptPicture: KeptPicture? = nil
     var autofit = false
     var fontScale = 1.0
@@ -3156,7 +3158,7 @@ final class DeckController: ChangeNotifier {
                    customPath: s.customPath, fillStyle: s.fillStyle, invisible: s.invisible, fileId: s.fileId,
                    sourceXML: s.sourceXML, sourceText: s.sourceText, sourcePart: s.sourcePart,
                    sourceChart: s.sourceChart, field: s.field, group: s.group, keptLine: s.keptLine,
-                   altText: s.altText, altTitle: s.altTitle, link: s.link, linkTip: s.linkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
+                   altText: s.altText, altTitle: s.altTitle, link: s.link, linkTip: s.linkTip, hoverLink: s.hoverLink, hoverLinkTip: s.hoverLinkTip, keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         // A read shape keeps its own XML and an edit patches only what changed, so a run says only what it
         // said in the file or what the user set: regenerating it would pin every resolved size, bold and
@@ -3320,6 +3322,8 @@ final class DeckController: ChangeNotifier {
         shape.altTitle = st.altTitle
         shape.link = st.link
         shape.linkTip = st.linkTip
+        shape.hoverLink = st.hoverLink
+        shape.hoverLinkTip = st.hoverLinkTip
         shape.autofit = st.autofit
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
@@ -3377,7 +3381,7 @@ final class DeckController: ChangeNotifier {
         var b = base
         b.frame = now.frame; b.rotation = now.rotation; b.flipH = now.flipH; b.flipV = now.flipV
         b.invisible = now.invisible; b.aspectLock = now.aspectLock
-        b.name = now.name; b.link = now.link; b.linkTip = now.linkTip; b.text = now.text; b.readShape = now.readShape
+        b.name = now.name; b.link = now.link; b.linkTip = now.linkTip; b.hoverLink = now.hoverLink; b.hoverLinkTip = now.hoverLinkTip; b.text = now.text; b.readShape = now.readShape
         // A yellow handle's drag: the adjust values are patched into the shape's own `a:prstGeom`, and the outline
         // and text rectangle drawn from them follow (the text frame's own margins unchanged).
         b.adjusts = now.adjusts; b.customPath = now.customPath
