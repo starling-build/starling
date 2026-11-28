@@ -496,6 +496,10 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// The results of the fields whose code is shown (see `toggleFieldCodes`), by field-code id.
     var _codeStash: [Int: [(text: String, style: CharStyle)]] = [:]
+    /// The placeholder a text control showed before typing replaced it, by glossary entry: what emptying it brings back.
+    var _placeholderShown: [String: (text: String, runs: [Run])] = [:]
+    /// The control (paragraph, id) the user typed over the placeholder of: typing at its end goes on inside it.
+    var _typingInControl: (Int, Int)?
     var _codeNext = 1
     private var _undo: [UndoEntry] = []
     private var _redo: [UndoEntry] = []
@@ -638,9 +642,11 @@ public final class RichDocumentController: ChangeNotifier {
         }
         let boundBefore: [Int: String] = outer ? [:] : _customBoundTexts()
         let noteMarks = outer ? nil : _noteMarkIds()
+        let filledBefore: Set<Int> = outer ? [] : _filledPlaceholderControls()
         body()
         if !outer {
             _syncCustomBound(before: boundBefore)
+            _restorePlaceholders(before: filledBefore)
             _dropOrphanNotes(before: noteMarks)
             _inEdit = false
             _undo[_undo.count - 1].selectionAfter = selection
@@ -695,6 +701,114 @@ public final class RichDocumentController: ChangeNotifier {
             }
         }
         return false
+    }
+
+    // MARK: Placeholder text in content controls
+
+    /// The non-empty text controls with a placeholder, by control id (for `_restorePlaceholders`).
+    private func _filledPlaceholderControls() -> Set<Int> {
+        var out = Set<Int>()
+        for p in document.paragraphs where !p.controlMarkers.isEmpty {
+            for c in p.placeholderControls where !c.range.isEmpty { out.insert(c.id) }
+        }
+        return out
+    }
+
+    /// A text control the edit emptied shows its placeholder again, as in Word (a control bound to custom XML is left
+    /// empty: its text is the bound value).
+    private func _restorePlaceholders(before: Set<Int>) {
+        guard !before.isEmpty else { return }
+        for i in document.paragraphs.indices where !document.paragraphs[i].controlMarkers.isEmpty {
+            let p = document.paragraphs[i]
+            for c in p.placeholderControls where c.range.isEmpty && before.contains(c.id) {
+                guard p.controlMarkers.first(where: { $0.id == c.id && $0.isStart })?.customBinding == nil,
+                      let shown = _placeholderContent(c.name, at: RichPosition(paragraph: i, offset: c.range.lowerBound)),
+                      let after = document.paragraphs[i].restoringPlaceholder(c.id, text: shown.text, runs: shown.runs) else { continue }
+                perform(.restoreParagraphs(i, count: 1, [after]))
+            }
+        }
+    }
+
+    /// The placeholder text glossary entry `name` shows, with its runs: as the document showed it (in this control or
+    /// another, kept when typing replaced it), else the entry's text from the glossary part in Word's grey Placeholder
+    /// Text over the style at `pos`.
+    func _placeholderContent(_ name: String, at pos: RichPosition) -> (text: String, runs: [Run])? {
+        if let kept = _placeholderShown[name] { return kept }
+        for p in document.paragraphs where !p.controlMarkers.isEmpty {
+            for c in p.placeholderControls where c.showing && c.name == name && !c.range.isEmpty {
+                let units = Array(p.text.utf16)
+                return (String(decoding: units[c.range], as: UTF16.self), p.runs(in: c.range))
+            }
+        }
+        guard let data = document.keptParts["word/glossary/document.xml"],
+              let text = Self._glossaryText(String(decoding: data, as: UTF8.self), name: name), !text.isEmpty else { return nil }
+        var style = pos.offset > 0 ? document.paragraphs[pos.paragraph].style(at: pos.offset) : CharStyle()
+        // (In the Placeholder Text style's colour: the document's style, or as another run shows it, else Word's grey.)
+        let shown = document.styles.styles.first(where: { $0.id == "PlaceholderText" && $0.char.color != nil })?.char
+            ?? document.paragraphs.lazy.flatMap(\.runs).first { $0.style.styleId == "PlaceholderText" }?.style
+        style.styleId = "PlaceholderText"
+        style.color = shown?.color ?? Color(0xFF808080)
+        style.colorTheme = shown?.colorTheme
+        return (text, [Run(length: text.utf16.count, style: style)])
+    }
+
+    /// The text of glossary entry `name` (its `w:docPartBody`'s `w:t`s) in the glossary document `xml`.
+    static func _glossaryText(_ xml: String, name: String) -> String? {
+        let key = "<w:name w:val=\"" + _xmlEscaped(name) + "\""
+        guard let n = xml.rangeOfSubstring(key),
+              let body = xml.rangeOfSubstring("<w:docPartBody", in: n.upperBound ..< xml.endIndex) else { return nil }
+        let end = xml.rangeOfSubstring("</w:docPartBody>", in: body.upperBound ..< xml.endIndex)?.lowerBound ?? xml.endIndex
+        var out = "", at = body.upperBound
+        while let t = xml.rangeOfSubstring("<w:t", in: at ..< end) {
+            guard let close = xml[t.upperBound ..< end].firstIndex(of: ">") else { break }
+            let next = xml[t.upperBound]
+            at = xml.index(after: close)
+            guard next == ">" || next == " " else { continue }   // not w:tab, w:tbl...
+            if xml[xml.index(before: close)] == "/" { continue }  // <w:t/>
+            guard let stop = xml.rangeOfSubstring("</w:t>", in: at ..< end) else { break }
+            out += String(xml[at ..< stop.lowerBound])
+            at = stop.upperBound
+        }
+        return _xmlUnescaped(out)
+    }
+
+    /// Typing at a text control showing its placeholder replaces the whole placeholder, as Word does; false when the
+    /// selection is not in one (then typing goes on as usual).
+    private func _typeOverPlaceholder(_ text: String) -> Bool {
+        let a = selection.start, b = selection.end
+        guard a.paragraph == b.paragraph, a.paragraph < document.paragraphs.count, !text.contains(Character("\n")) else { return false }
+        let p = document.paragraphs[a.paragraph]
+        guard !p.controlMarkers.isEmpty,
+              let c = p.placeholderControls.first(where: { $0.showing && $0.range.lowerBound <= a.offset && b.offset <= $0.range.upperBound
+                  && !($0.range.isEmpty) }),
+              let after = p.fillingPlaceholder(c.id, with: text) else { return false }
+        let units = Array(p.text.utf16)
+        _placeholderShown[c.name] = (String(decoding: units[c.range], as: UTF16.self), p.runs(in: c.range))
+        perform(.restoreParagraphs(a.paragraph, count: 1, [after]))
+        _setCaret(RichPosition(paragraph: a.paragraph, offset: c.range.lowerBound + text.utf16.count))
+        _typingInControl = (a.paragraph, c.id)
+        return true
+    }
+
+    /// Text typed at the end of the control the user typed over the placeholder of stays in it, as in Word (the caret is
+    /// in the control); elsewhere a control's end keeps typed text out.
+    private func _keepTypingInControl(at pos: RichPosition, count n: Int) {
+        guard let (i, id) = _typingInControl, i == pos.paragraph, i < document.paragraphs.count else { return }
+        var p = document.paragraphs[i]
+        guard let si = p.controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
+              let ei = p.controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }),
+              p.controlMarkers[si].offset < pos.offset, p.controlMarkers[ei].offset == pos.offset else { return }
+        p.controlMarkers[ei].offset += n
+        perform(.restoreParagraphs(i, count: 1, [p]))
+    }
+
+    /// The text control showing its placeholder at `pos`, with its range (a click there selects the whole placeholder).
+    public func placeholderControl(at pos: RichPosition) -> Range<Int>? {
+        guard pos.paragraph >= 0, pos.paragraph < document.paragraphs.count else { return nil }
+        let p = document.paragraphs[pos.paragraph]
+        guard !p.controlMarkers.isEmpty else { return nil }
+        return p.placeholderControls.first(where: { $0.showing && !$0.range.isEmpty && $0.range.lowerBound <= pos.offset
+            && pos.offset <= $0.range.upperBound })?.range
     }
 
     /// Text of every control bound to custom XML, by control id (empty when the document has no custom XML part).
@@ -852,6 +966,7 @@ public final class RichDocumentController: ChangeNotifier {
         guard !string.isEmpty else { return }
         let hint: UndoKindHint = string.contains(Character("\n")) ? .other : .typing
         edit(kind: hint) {
+            if _typeOverPlaceholder(string) { return }
             if hasSelection { _deleteSelectionOps() }
             if document.paragraphs[selection.focus.paragraph].isImage {
                 // Typing on a picture starts a paragraph below it.
@@ -871,6 +986,7 @@ public final class RichDocumentController: ChangeNotifier {
                     let runs = style.map { [Run(length: text.utf16.count, style: _typed(_leavingField($0, at: pos)))] }
                     let inherited = _typed(_leavingField(document.paragraphs[pos.paragraph].style(at: pos.offset), at: pos))
                     perform(.insertText(pos, text, runs ?? [Run(length: text.utf16.count, style: inherited)]))
+                    _keepTypingInControl(at: pos, count: text.utf16.count)
                     _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + text.utf16.count))
                 }
             }

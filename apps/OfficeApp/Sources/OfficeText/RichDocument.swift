@@ -2383,6 +2383,14 @@ extension RichControlMarker {
               store.uppercased() != "{6C3C8BC8-F283-45AE-878A-BAB7291924A1}" else { return nil }
         return (store.uppercased(), xpath)
     }
+    /// The glossary entry this control's placeholder names (`w:placeholder`'s `w:docPart`); nil when there is none.
+    public var placeholderName: String? {
+        guard let props = properties, let p = props.rangeOfSubstring("<w:placeholder"),
+              let d = props.rangeOfSubstring("<w:docPart ", in: p.upperBound ..< props.endIndex),
+              let a = props.rangeOfSubstring("w:val=\"", in: d.upperBound ..< props.endIndex),
+              let q = props[a.upperBound...].firstIndex(of: "\""), a.upperBound < q else { return nil }
+        return String(props[a.upperBound ..< q])
+    }
     /// Whether this is a check box control (Word 2010's `w14:checkbox`).
     public var isCheckBox: Bool { properties?.containsSubstring("<w14:checkbox") ?? false }
     /// A check box control's state; nil when this is not a check box.
@@ -2615,6 +2623,48 @@ extension RichParagraph {
                 props.insert(contentsOf: " w:fullDate=\"\(value)\"", at: tag.upperBound)
             }
         }
+    }
+
+    /// The text controls of this paragraph (plain or rich: not a check box, list or date picker) that have a placeholder
+    /// (`w:placeholder` naming a glossary entry): each with its text range, its entry's name and whether it shows it now.
+    public var placeholderControls: [(id: Int, range: Range<Int>, name: String, showing: Bool)] {
+        controlMarkers.compactMap { m in
+            guard m.isStart, let props = m.properties, let name = m.placeholderName, !m.isCheckBox,
+                  !props.containsSubstring("<w:dropDownList"), !props.containsSubstring("<w:comboBox"),
+                  !props.containsSubstring("<w:date ") && !props.containsSubstring("<w:date>") && !props.containsSubstring("<w:date/"),
+                  let end = controlMarkers.first(where: { $0.id == m.id && !$0.isStart }) else { return nil }
+            return (m.id, m.offset ..< max(m.offset, end.offset), name, props.containsSubstring("<w:showingPlcHdr"))
+        }
+    }
+
+    /// This paragraph with text control `id`'s placeholder replaced by `text` in the style of the text before the
+    /// control, as Word's typing over a placeholder does; nil when the control is not showing its placeholder.
+    public func fillingPlaceholder(_ id: Int, with text: String) -> RichParagraph? {
+        guard let c = placeholderControls.first(where: { $0.id == id && $0.showing }) else { return nil }
+        return _replacingControlText(id, c.range, with: text) { _ in }
+    }
+
+    /// This paragraph with the emptied control `id` showing its placeholder `text` (in `runs`) again, flagged
+    /// `w:showingPlcHdr` as Word saves it; nil when the control is not empty.
+    public func restoringPlaceholder(_ id: Int, text: String, runs: [Run]) -> RichParagraph? {
+        guard !text.isEmpty, let si = controlMarkers.firstIndex(where: { $0.id == id && $0.isStart }),
+              let ei = controlMarkers.firstIndex(where: { $0.id == id && !$0.isStart }),
+              controlMarkers[si].offset == controlMarkers[ei].offset, var props = controlMarkers[si].properties else { return nil }
+        var p = self
+        let at = controlMarkers[si].offset, n = text.utf16.count
+        p.insert(text, at: at, runs: runs)
+        p.controlMarkers[si].offset = at
+        p.controlMarkers[ei].offset = at + n
+        if !props.containsSubstring("<w:showingPlcHdr") {
+            // (After w:placeholder and w:temporary, where the schema puts it.)
+            var pos = props.rangeOfSubstring("</w:placeholder>")?.upperBound ?? props.endIndex
+            if pos == props.endIndex, let close = props.rangeOfSubstring("</w:sdtPr>") { pos = close.lowerBound }
+            for t in ["<w:temporary/>", "<w:temporary w:val=\"1\"/>", "<w:temporary w:val=\"true\"/>"]
+                where props[pos...].hasPrefix(t) { pos = props.index(pos, offsetBy: t.count) }
+            props.insert(contentsOf: "<w:showingPlcHdr/>", at: pos)
+            p.controlMarkers[si].properties = props
+        }
+        return p
     }
 
     /// This paragraph with content control `id` (its text at `range`) showing `text` instead, out of its placeholder,

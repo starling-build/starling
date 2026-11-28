@@ -8517,6 +8517,147 @@ final class DocxTests: XCTestCase {
         }
     }
 
+    /// Lab textctl1: "Name:" a plain text control and "Notes:" a rich text control, both showing their placeholders (Word's
+    /// default entry and one of the file's own, in the glossary part), and "City:" a plain text control holding "Paris"
+    /// with the default entry as its placeholder.
+    static func _textControlsDocx() throws -> Data {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .letter))
+        func part(_ name: String, _ edit: (inout String) throws -> Void) throws {
+            let i = try XCTUnwrap(entries.firstIndex { $0.name == name })
+            var xml = String(decoding: entries[i].data, as: UTF8.self)
+            try edit(&xml)
+            entries[i] = ZipEntry(name: name, data: Data(xml.utf8))
+        }
+        let w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        let ph = "<w:rPr><w:rStyle w:val=\"PlaceholderText\"/></w:rPr>"
+        func control(_ id: Int, _ alias: String, _ entry: String, plain: Bool, shown: String?, _ text: String) -> String {
+            "<w:sdt><w:sdtPr><w:alias w:val=\"\(alias)\"/><w:tag w:val=\"\(alias)\"/><w:id w:val=\"\(id)\"/>"
+                + "<w:placeholder><w:docPart w:val=\"\(entry)\"/></w:placeholder>" + (shown == nil ? "" : "<w:showingPlcHdr/>")
+                + (plain ? "<w:text/>" : "") + "</w:sdtPr><w:sdtContent><w:r>\(shown == nil ? "" : ph)<w:t>\(text)</w:t></w:r></w:sdtContent></w:sdt>"
+        }
+        let def = "DefaultPlaceholder_-1854013440", own = "0B1F5D3A2C4E4F6A8B9C1D2E3F4A5B6C"
+        try part("word/document.xml") { xml in
+            let body = try XCTUnwrap(xml.range(of: "<w:body>")).upperBound ..< (try XCTUnwrap(xml.range(of: "<w:sectPr"))).lowerBound
+            xml.replaceSubrange(body, with: "<w:p><w:r><w:t xml:space=\"preserve\">Name: </w:t></w:r>"
+                + control(31, "Name", def, plain: true, shown: "", "Click or tap here to enter text.") + "</w:p>"
+                + "<w:p><w:r><w:t xml:space=\"preserve\">Notes: </w:t></w:r>"
+                + control(32, "Notes", own, plain: false, shown: "", "Type your notes here.") + "</w:p>"
+                + "<w:p><w:r><w:t xml:space=\"preserve\">City: </w:t></w:r>"
+                + control(33, "City", def, plain: true, shown: nil, "Paris") + "</w:p>")
+        }
+        try part("word/styles.xml") { xml in
+            let end = try XCTUnwrap(xml.range(of: "</w:styles>"))
+            xml.replaceSubrange(end, with: "<w:style w:type=\"character\" w:styleId=\"PlaceholderText\"><w:name w:val=\"Placeholder Text\"/>"
+                + "<w:uiPriority w:val=\"99\"/><w:semiHidden/><w:rPr><w:color w:val=\"666666\"/></w:rPr></w:style></w:styles>")
+        }
+        try part("word/_rels/document.xml.rels") { xml in
+            let end = try XCTUnwrap(xml.range(of: "</Relationships>"))
+            xml.replaceSubrange(end, with: "<Relationship Id=\"rIdGlossary\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument\" Target=\"glossary/document.xml\"/></Relationships>")
+        }
+        try part("[Content_Types].xml") { xml in
+            let end = try XCTUnwrap(xml.range(of: "</Types>"))
+            xml.replaceSubrange(end, with: "<Override PartName=\"/word/glossary/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml\"/></Types>")
+        }
+        func entry(_ name: String, _ guid: String, _ text: String) -> String {
+            "<w:docPart><w:docPartPr><w:name w:val=\"\(name)\"/><w:category><w:name w:val=\"General\"/><w:gallery w:val=\"placeholder\"/></w:category>"
+                + "<w:types><w:type w:val=\"bbPlcHdr\"/></w:types><w:behaviors><w:behavior w:val=\"content\"/></w:behaviors><w:guid w:val=\"\(guid)\"/></w:docPartPr>"
+                + "<w:docPartBody><w:p><w:r>\(ph)<w:t>\(text)</w:t></w:r></w:p></w:docPartBody></w:docPart>"
+        }
+        entries.append(ZipEntry(name: "word/glossary/document.xml", data: Data(("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+            + "<w:glossaryDocument xmlns:w=\"\(w)\"><w:docParts>"
+            + entry(def, "{2B9C4D1E-6F3A-4B8C-9D2E-1A3B5C7D9E0F}", "Click or tap here to enter text.")
+            + entry(own, "{0B1F5D3A-2C4E-4F6A-8B9C-1D2E3F4A5B6C}", "Type your notes here.")
+            + "</w:docParts></w:glossaryDocument>").utf8)))
+        return try Zip.write(entries)
+    }
+
+    /// W-RV-3: typing over a text control's placeholder replaces it in the text's own style and clears
+    /// `w:showingPlcHdr`; emptying a control brings its placeholder back (from the glossary when nothing shows it).
+    func testTextControlPlaceholdersGiveWayToTyping() throws {
+        let c = RichDocumentController(document: try DocxFormat.read(try Self._textControlsDocx()).document)
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["Name: Click or tap here to enter text.", "Notes: Type your notes here.", "City: Paris"])
+        XCTAssertNotNil(c.document.paragraphs[0].style(at: 8).color, "the placeholder is grey")
+        XCTAssertEqual(c.placeholderControl(at: RichPosition(paragraph: 0, offset: 10)), 6 ..< 38)
+        XCTAssertNil(c.placeholderControl(at: RichPosition(paragraph: 2, offset: 8)), "a filled control has no placeholder showing")
+        // A caret in the placeholder: typing replaces all of it.
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 10), focus: RichPosition(paragraph: 0, offset: 10))
+        c.insertText("A"); c.insertText("da")
+        XCTAssertEqual(c.document.paragraphs[0].text, "Name: Ada")
+        XCTAssertNil(c.document.paragraphs[0].style(at: 7).color, "typed text is not grey")
+        XCTAssertNil(c.document.paragraphs[0].style(at: 7).styleId)
+        XCTAssertEqual(c.document.paragraphs[0].placeholderControls.first?.range, 6 ..< 9, "typing stays in the control")
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 1, offset: 7), focus: RichPosition(paragraph: 1, offset: 28))
+        c.insertText("Fine")
+        XCTAssertEqual(c.document.paragraphs[1].text, "Notes: Fine")
+        // Emptying a control shows its placeholder again, grey and flagged, the caret before it.
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 2, offset: 6), focus: RichPosition(paragraph: 2, offset: 11))
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs[2].text, "City: Click or tap here to enter text.")
+        XCTAssertEqual(c.document.paragraphs[2].placeholderControls.first?.showing, true)
+        XCTAssertEqual(c.document.paragraphs[2].style(at: 8).styleId, "PlaceholderText")
+        let out = String(decoding: try XCTUnwrap(try Zip.read(try DocxFormat.write(c.document, pageSetup: .letter)).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertEqual(out.components(separatedBy: "<w:showingPlcHdr/>").count, 2, "only City shows its placeholder: \(out)")
+        XCTAssertTrue(out.containsSubstring("<w:text/>"), out)
+        let saved = try DocxFormat.write(c.document, pageSetup: .letter)
+        XCTAssertNotNil(try Zip.read(saved).first { $0.name == "word/glossary/document.xml" }, "the glossary is kept")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[2].text, "City: Paris", "emptying and the placeholder are one undo step")
+        // Nothing shows the default entry now: emptying Name takes the glossary's text, in the Placeholder Text style.
+        let d = RichDocumentController(document: try DocxFormat.read(saved).document)
+        d.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 6), focus: RichPosition(paragraph: 0, offset: 9))
+        d.deleteBackward()
+        XCTAssertEqual(d.document.paragraphs[0].text, "Name: Click or tap here to enter text.")
+        XCTAssertEqual(d.document.paragraphs[0].style(at: 8).styleId, "PlaceholderText")
+        XCTAssertEqual(d.document.paragraphs[0].style(at: 8).color, Color(0xFF666666), "the document's Placeholder Text colour")
+    }
+
+    /// W-RV-3: in the app, a click on a text control's placeholder selects all of it and typing replaces it; selecting a
+    /// filled control's text and deleting it shows the placeholder again. TEXTCTL1_OUT=<dir>: start.docx, typed.docx and
+    /// the window points (1440x932) for the Word lab and Mac script.
+    func testTextControlPlaceholdersInTheApp() throws {
+        let start = try Self._textControlsDocx()
+        let path = NSTemporaryDirectory() + "textctl1-\(getpid()).docx"
+        try start.write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: path), title: "t"), size: Size(1440, 932))
+        for _ in 0 ..< 20 { ui.pump() }
+        let shell = try XCTUnwrap(ui.state(OfficeShellState.self))
+        let doc = shell.session.controller
+        let editor = try XCTUnwrap(ui.elements().first { ($0.widget as? RichEditable)?.controller === doc })
+        let rbox = try XCTUnwrap(editor.findRenderObject() as? RenderBox)
+        let st = try XCTUnwrap((editor as? StatefulElement)?.state as? RichEditableState)
+        let out = ProcessInfo.processInfo.environment["TEXTCTL1_OUT"]
+        var points = ""
+        func point(_ i: Int, _ offset: Int) throws -> Offset {
+            let r = try XCTUnwrap(st.caretRectOnScreen(RichPosition(paragraph: i, offset: offset)))
+            return rbox.localToGlobal(Offset(r.left + 2, r.top + r.height / 2))
+        }
+        // A click in the middle of each placeholder selects all of it; typing replaces it.
+        for (i, from, to, typed, want) in [(0, 6, 38, "Ada", "Name: Ada"), (1, 7, 28, "Fine", "Notes: Fine")] {
+            let p = try point(i, (from + to) / 2)
+            ui.click(at: p, kind: .mouse); ui.pump(); ui.pump()
+            XCTAssertEqual(doc.selection.start, RichPosition(paragraph: i, offset: from), "control \(i): the click selects the placeholder")
+            XCTAssertEqual(doc.selection.end, RichPosition(paragraph: i, offset: to))
+            ui.type(typed); ui.pump()
+            XCTAssertEqual(doc.document.paragraphs[i].text, want)
+            points += "click \(i): \(Int(p.dx)) \(Int(p.dy))\n"
+        }
+        // City: a double-click on "Paris" selects it; Backspace shows the placeholder again.
+        let city = try point(2, 8)
+        ui.click(at: city, kind: .mouse); ui.pump()
+        ui.click(at: city, kind: .mouse); ui.pump(); ui.pump()
+        XCTAssertEqual(doc.selection.start.offset, 6, "the double-click selects Paris")
+        XCTAssertEqual(doc.selection.end.offset, 11)
+        ui.press(.backspace); ui.pump()
+        XCTAssertEqual(doc.document.paragraphs[2].text, "City: Click or tap here to enter text.")
+        points += "city: \(Int(city.dx)) \(Int(city.dy))\n"
+        if let out {
+            try points.write(toFile: out + "/points.txt", atomically: true, encoding: .utf8)
+            try start.write(to: URL(fileURLWithPath: out + "/start.docx"))
+            try DocxFormat.write(doc.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out + "/typed.docx"))
+        }
+    }
+
     /// W-RV-3 lab forms1: two legacy check boxes (one ticked by default) and a check box control, each clicked once.
     /// FORMS1_OUT=<dir>: leaves start.docx (as authored) and clicked.docx (our save) for Word.
     func testFormCheckBoxesClickedOnceEach() throws {
