@@ -92,7 +92,7 @@ final class NestedTableTests: XCTestCase {
     /// A file whose outer 1x2 table's first cell holds a 1x2 table, `a` and `b` its cells' paragraphs. (Not one cell alone:
     /// a borderless table of one cell is read as a wrapper, not a table.)
     /// (`b` nil: the paragraph of an inline picture, its file and relationship in the package.)
-    private func fileNested(_ a: String, _ b: String?, beside: String = "<w:p><w:r><w:t>x</w:t></w:r></w:p>") throws -> RichDocumentController {
+    private func fileNested(_ a: String, _ b: String?, beside: String = "<w:p><w:r><w:t>x</w:t></w:r></w:p>", innerPr: String? = nil) throws -> RichDocumentController {
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
         let base = RichDocument(paragraphs: [RichParagraph(text: "a"), RichParagraph(image: ImageAttachment(data: png, width: 40, height: 20))])
         var entries = try Zip.read(try DocxFormat.write(base, pageSetup: .letter))
@@ -107,7 +107,7 @@ final class NestedTableTests: XCTestCase {
         }
         let from = try XCTUnwrap(xml.rangeOfSubstring("<w:body>")), to = try XCTUnwrap(xml.rangeOfSubstring("<w:sectPr"))
         let grid = "<w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr>"
-        let inner = "<w:tbl>\(grid)<w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr>"
+        let inner = "<w:tbl>\(innerPr ?? grid)<w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr>"
             + "<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr>\(a)</w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr>\(b)</w:tc></w:tr></w:tbl>"
         let outer = "<w:tbl>\(grid)<w:tblGrid><w:gridCol w:w=\"6000\"/><w:gridCol w:w=\"3000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"6000\" w:type=\"dxa\"/></w:tcPr>"
             + inner + "<w:p/></w:tc><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/></w:tcPr>\(beside)</w:tc></w:tr></w:tbl><w:p/>"
@@ -145,6 +145,65 @@ final class NestedTableTests: XCTestCase {
         let back = RichDocumentController(document: try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document)
         let j = try XCTUnwrap(back.document.paragraphs.firstIndex { $0.keptTable != nil })
         XCTAssertTrue(back.isNestedTable(at: j), "still editable after the save")
+    }
+
+    /// Content controls in the inner cells (one round a word, one round a whole paragraph) no longer make it read-only:
+    /// an edit beside them keeps both, settings and all.
+    func testANestedTableWithContentControlsIsEditable() throws {
+        let inline = "<w:p><w:r><w:t xml:space=\"preserve\">Name: </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val=\"Who\"/><w:tag w:val=\"who\"/><w:id w:val=\"11\"/><w:text/></w:sdtPr>"
+            + "<w:sdtContent><w:r><w:t>Ann</w:t></w:r></w:sdtContent></w:sdt></w:p>"
+        let block = "<w:sdt><w:sdtPr><w:tag w:val=\"blk\"/><w:id w:val=\"12\"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>whole</w:t></w:r></w:p></w:sdtContent></w:sdt>"
+        let c = try fileNested(inline, block)
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(c.isNestedTable(at: i), "content controls inside do not make it read-only")
+        let box = RichDocumentController(document: try XCTUnwrap(c.textBoxDocument(at: i)))
+        let k = try XCTUnwrap(box.document.paragraphs.firstIndex { $0.cell?.column == 0 })
+        box.moveTo(RichPosition(paragraph: k, offset: 0), extend: false)
+        box.insertText("Full ")
+        let (xml, rels, _) = try XCTUnwrap(TextBoxInsert.contentAndMedia(box.document))
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: box.document, contentXML: xml, rels: rels))
+        let saved = try body(try DocxFormat.write(c.document, pageSetup: .letter))
+        XCTAssertEqual(nestedCount(saved), 1, saved)
+        for kept in ["Full Name: ", "<w:alias w:val=\"Who\"/>", "<w:tag w:val=\"who\"/>", "Ann", "<w:tag w:val=\"blk\"/>", "whole"] {
+            XCTAssertTrue(saved.containsSubstring(kept), "\(kept) in \(saved)")
+        }
+        let back = RichDocumentController(document: try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document)
+        let j = try XCTUnwrap(back.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertTrue(back.isNestedTable(at: j), "still editable after the save")
+    }
+
+    /// A control round a whole row or cell is not one the editor writes back: that table stays as read.
+    func testARowContentControlKeepsItAsRead() throws {
+        let cell = "<w:sdt><w:sdtPr><w:id w:val=\"13\"/></w:sdtPr><w:sdtContent><w:tc><w:p><w:r><w:t>c</w:t></w:r></w:p></w:tc></w:sdtContent></w:sdt>"
+        // (The second cell's whole <w:tc> wrapped in a control: `b` is spliced inside a <w:tc>, so close and reopen it.)
+        let c = try fileNested("<w:p><w:r><w:t>a</w:t></w:r></w:p>", "<w:p/></w:tc>" + cell + "<w:tc><w:p/>")
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertFalse(c.isNestedTable(at: i))
+    }
+
+    /// A nested table that floats (`w:tblpPr`) opens for typing too, and the save keeps its position.
+    func testAFloatingNestedTableIsEditable() throws {
+        let pr = "<w:tblPr><w:tblpPr w:leftFromText=\"180\" w:rightFromText=\"180\" w:vertAnchor=\"text\" w:horzAnchor=\"margin\" w:tblpX=\"1440\" w:tblpY=\"360\"/>"
+            + "<w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr>"
+        let c = try fileNested("<w:p><w:r><w:t>a</w:t></w:r></w:p>", "<w:p><w:r><w:t>b</w:t></w:r></w:p>", innerPr: pr)
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertNotNil(c.document.paragraphs[i].image?.float, "read as a floating block")
+        XCTAssertTrue(c.isNestedTable(at: i), "a floating nested table is editable")
+        let box = RichDocumentController(document: try XCTUnwrap(c.textBoxDocument(at: i)))
+        let k = try XCTUnwrap(box.document.paragraphs.firstIndex { $0.cell?.column == 1 })
+        box.moveTo(RichPosition(paragraph: k, offset: 1), extend: false)
+        box.insertText("ee")
+        let (xml, rels, _) = try XCTUnwrap(TextBoxInsert.contentAndMedia(box.document))
+        XCTAssertTrue(c.setTextBoxContent(at: i, document: box.document, contentXML: xml, rels: rels))
+        let saved = try body(try DocxFormat.write(c.document, pageSetup: .letter))
+        XCTAssertEqual(nestedCount(saved), 1, saved)
+        XCTAssertTrue(saved.containsSubstring("bee"), saved)
+        for kept in ["w:tblpX=\"1440\"", "w:tblpY=\"360\"", "w:horzAnchor=\"margin\"", "w:leftFromText=\"180\""] {
+            XCTAssertTrue(saved.containsSubstring(kept), "\(kept) in \(saved)")
+        }
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let j = try XCTUnwrap(back.paragraphs.firstIndex { $0.keptTable != nil })
+        XCTAssertEqual(back.paragraphs[j].image?.float, c.document.paragraphs[i].image?.float, "it floats where it did")
     }
 
     /// A picture in an inner cell (one the file carried, inline) no longer makes it read-only: an edit beside it keeps it.

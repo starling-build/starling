@@ -725,16 +725,20 @@ extension RichDocumentController {
     public func isNestedTable(at index: Int) -> Bool { _nestedTableDocument(at: index) != nil }
 
     /// W-TB-5: the table nested in a cell at `index` (a block the reader or `insertTable` made, its markup kept for the
-    /// save) as a small document to edit, when the editor writes back all it holds: no field box, content control or
-    /// picture the file did not carry inline, not floating, and no table in its own cells.
+    /// save) as a small document to edit, when the editor writes back all it holds: no field box, no content control round
+    /// a row or cell, no picture the file did not carry inline, and no table in its own cells.
     func _nestedTableDocument(at index: Int) -> RichDocument? {
         guard index < document.paragraphs.count else { return nil }
         let p = document.paragraphs[index]
-        guard p.cell != nil, let image = p.image, image.sourceXML == nil, image.float == nil, let box = image.textBox, box.growsToFit,
+        guard p.cell != nil, let image = p.image, image.sourceXML == nil, let box = image.textBox, box.growsToFit,
               let kid = p.keptTable, let kept = document.keptTables[kid], kept.texts == [p.text] else { return nil }
-        // (Fields and tracked changes are written back as they were read, as in a text box.)
-        for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict", "<w:tblpPr"]
+        // (Fields and tracked changes are written back as they were read, as in a text box. A floating one keeps its
+        // `w:tblpPr`: the writer puts back the table properties it read.)
+        for marker in ["<mc:", "<w:object", "<w:pict"]
         where kept.xml.containsSubstring(marker) { return nil }
+        // (Content controls too, when each is one the paragraphs hold, round words or round whole paragraphs; one round a
+        // row or a cell is not modelled, so the counts differ and the table stays as read.)
+        guard Self._controlsAreKept(kept.xml, box.paragraphs) else { return nil }
         // (Pictures too, when each is an inline one the file carried, as in a text box.)
         guard Self._picturesAreKept(kept.xml, box.paragraphs) else { return nil }
         // (One table, none in its cells: a second `<w:tbl` is a table inside it.)
@@ -880,6 +884,19 @@ extension RichDocumentController {
         var images: [ImageAttachment] = []
         for p in paragraphs { images += [p.image].compactMap { $0 } + Array(p.inlineImages.values) }
         return images.count == drawings && images.allSatisfy { $0.sourceXML != nil && $0.float == nil && $0.textBox == nil }
+    }
+
+    /// Every `w:sdt` of `inner` is a control the paragraphs hold (an inline start or a block start), so the writer puts them all back.
+    static func _controlsAreKept(_ inner: String, _ paragraphs: [RichParagraph]) -> Bool {
+        var inXML = 0, from = inner.startIndex
+        while let r = inner.rangeOfSubstring("<w:sdt", in: from ..< inner.endIndex) {
+            from = r.upperBound
+            if from < inner.endIndex, inner[from] == ">" || inner[from] == " " { inXML += 1 }
+        }
+        let held = paragraphs.reduce(0) { n, p in
+            n + p.controlMarkers.filter(\.isStart).count + p.blockControlsBefore.filter(\.isStart).count + p.blockControlsAfter.filter(\.isStart).count
+        }
+        return inXML == held
     }
 
     private static let _idTags = ["<w:ins ", "<w:del ", "<w:bookmarkStart ", "<w:bookmarkEnd ", "<w:rPrChange ", "<w:pPrChange ", "<w:moveFrom ", "<w:moveTo ",
