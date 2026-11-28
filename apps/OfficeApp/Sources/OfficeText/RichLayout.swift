@@ -903,6 +903,28 @@ public final class RichTextTheme {
         0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < autoTextWhiteBelow
     }
 
+    /// Word's underline kinds as the engine draws them: dotted, dashed, double and wavy lines, the heavy and thick ones twice
+    /// as thick. Dot-dash kinds are drawn dashed; "words" and single are the plain line.
+    static func underlineRule(_ kind: String?) -> (style: TextDecorationStyle?, thickness: Double?) {
+        guard let kind else { return (nil, nil) }
+        let heavy = kind == "thick" || kind.hasSuffix("Heavy")
+        let base: TextDecorationStyle?
+        switch kind {
+        case "double": base = .double
+        case "dotted", "dottedHeavy": base = .dotted
+        case "dash", "dashedHeavy", "dashLong", "dashLongHeavy", "dotDash", "dashDotHeavy", "dotDotDash", "dashDotDotHeavy": base = .dashed
+        case "wave", "wavyHeavy", "wavyDouble": base = .wavy
+        default: base = nil
+        }
+        return (base, heavy ? 2 : nil)
+    }
+
+    /// An underline colour as the file gives it ("RRGGBB"); "auto" and anything else follow the text.
+    static func ruleColor(_ hex: String) -> Color? {
+        guard hex.utf8.count == 6, let v = UInt32(hex, radix: 16) else { return nil }
+        return Color(0xFF000000 | Int64(v))
+    }
+
     public func textStyle(for style: CharStyle, in paragraph: RichParagraphStyle, backdrop: Color? = nil,
                           named: RichNamedStyle? = nil, normal: CharStyle? = nil,
                           scale: Double, fontScale: Double = 1,
@@ -965,7 +987,14 @@ public final class RichTextTheme {
         }
         if style.link != nil && style.linkField == nil && style.color == nil { color = linkColor }
         var decorations: [TextDecoration] = []
-        if style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline)) { decorations.append(.underline) }
+        let underlined = style.underline || (((style.link != nil && style.linkField == nil) || (named?.char.underline ?? false)) && !style.off.contains(.underline))
+        if underlined { decorations.append(.underline) }
+        // The underline's own kind and colour (`w:u w:val`, `w:color`), the run's or else its style's. The engine draws one
+        // style and colour for all of a run's rules, so a struck or tracked run keeps the plain line in the text's colour.
+        let ownRule = underlined && (style.underline || named?.char.underline == true)
+            ? (style.underline ? (style.underlineKind, style.underlineColor) : (named?.char.underlineKind, named?.char.underlineColor)) : (nil, nil)
+        let rule = Self.underlineRule(ownRule.0)
+        let ruleColor = ownRule.1.flatMap(Self.ruleColor)
         if style.strikethrough || ((named?.char.strikethrough ?? false) && !style.off.contains(.strikethrough)) { decorations.append(.lineThrough) }
         var markupHides = false
         if let revision = style.revision {
@@ -1225,7 +1254,9 @@ public final class RichTextTheme {
             // (Slides draws the rule of a face it has a table for itself, `_paintRules`: the engine gets none for that run.)
             decoration: decorations.isEmpty || (!wordRules && Self.ruleMetrics(latinName, bold: bold, italic: italic) != nil)
                 ? TextDecoration.none : TextDecoration.combine(decorations),
-            decorationColor: color,
+            decorationColor: decorations.count == 1 && underlined ? ruleColor ?? color : color,
+            decorationStyle: decorations.count == 1 && underlined ? rule.style : nil,
+            decorationThickness: decorations.count == 1 && underlined ? rule.thickness : nil,
             debugLabel: familyName,
             fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {
