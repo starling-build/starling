@@ -38,7 +38,7 @@ final class SheetsFormatFontTabTests: XCTestCase {
     func testEachCheckBoxHasItsOwnColumnAndNothingOverflows() throws {
         let ui = dialog(CellFormatEdit.Values(.plain))
         XCTAssertTrue(ui.tap(text: "Font"))
-        for (a, b) in [("fc-bold", "fc-italic"), ("fc-italic", "fc-underline"), ("fc-strike", "fc-superscript"), ("fc-superscript", "fc-subscript")] {
+        for (a, b) in [("fc-bold", "fc-italic"), ("fc-strike", "fc-superscript"), ("fc-superscript", "fc-subscript")] {
             let x0 = try XCTUnwrap(ui.centre(id: a)), x1 = try XCTUnwrap(ui.centre(id: b))
             XCTAssertEqual(x1.dx - x0.dx, 130, accuracy: 0.5, "\(a) -> \(b)")
         }

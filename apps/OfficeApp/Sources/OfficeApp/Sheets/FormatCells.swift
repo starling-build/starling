@@ -23,7 +23,8 @@ struct CellFormatEdit: Equatable {
     var fontSize: CellFieldEdit<Double?> = .keep
     var bold: CellFieldEdit<Bool> = .keep
     var italic: CellFieldEdit<Bool> = .keep
-    var underline: CellFieldEdit<Bool> = .keep
+    /// Excel's Underline list, as the font's `u` names it (nil: None).
+    var underline: CellFieldEdit<String?> = .keep
     var strike: CellFieldEdit<Bool> = .keep
     /// Superscript (1), subscript (-1) or neither (0): the font's `vertAlign`.
     var script: CellFieldEdit<Int> = .keep
@@ -56,7 +57,8 @@ struct CellFormatEdit: Equatable {
         var numberFormat: String
         var fontName: String?
         var fontSize: Double?
-        var bold: Bool, italic: Bool, underline: Bool, strike: Bool
+        var bold: Bool, italic: Bool, strike: Bool
+        var underline: String?
         var script: Int
         var color: UInt32?, fill: UInt32?
         var hAlign: CellStyle.HAlign, vAlign: CellStyle.VAlign
@@ -68,7 +70,7 @@ struct CellFormatEdit: Equatable {
         var lineKind: String, lineColor: UInt32?
         init(_ s: CellStyle) {
             numberFormat = s.numberFormat; fontName = s.fontName; fontSize = s.fontSize
-            bold = s.bold; italic = s.italic; underline = s.underline; strike = s.strike; script = s.script
+            bold = s.bold; italic = s.italic; underline = s.underlineKind; strike = s.strike; script = s.script
             color = s.color; fill = s.fill; hAlign = s.hAlign; vAlign = s.vAlign; wrap = s.wrap; shrink = s.shrink
             justify = s.justify; indent = s.indent; rotation = s.rotation
             locked = s.locked; formulaHidden = s.formulaHidden
@@ -107,7 +109,7 @@ struct CellFormatEdit: Equatable {
     func apply(to s: inout CellStyle) {
         numberFormat.apply(&s.numberFormat)
         fontName.apply(&s.fontName); fontSize.apply(&s.fontSize)
-        bold.apply(&s.bold); italic.apply(&s.italic); underline.apply(&s.underline); strike.apply(&s.strike); script.apply(&s.script)
+        bold.apply(&s.bold); italic.apply(&s.italic); underline.apply(&s.underlineKind); strike.apply(&s.strike); script.apply(&s.script)
         color.apply(&s.color); fill.apply(&s.fill)
         hAlign.apply(&s.hAlign); vAlign.apply(&s.vAlign); wrap.apply(&s.wrap); shrink.apply(&s.shrink)
         justify.apply(&s.justify); indent.apply(&s.indent); rotation.apply(&s.rotation)
