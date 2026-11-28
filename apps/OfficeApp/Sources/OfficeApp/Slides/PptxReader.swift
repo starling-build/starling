@@ -1183,6 +1183,8 @@ struct PptxReader {
         var state = DeckState(slides: slides, current: 0, slideSize: size, firstSlideNum: presentation["firstSlideNum"].flatMap(Int.init) ?? 1)
         (state.show, state.customShows) = Self._showSettings(presentation, rels: rels, slides: slides, package: package)
         state.sourceShow = state.show
+        state.grid = SlideGridSettings.read(rels.first(where: { $0.kind == "viewProps" }).flatMap { package.xml($0.target) })
+        state.sourceGrid = state.grid
         (state.sections, state.slides) = Self._sections(presentation, rels: rels, slides: slides)
         return (state, deckTheme, package)
     }

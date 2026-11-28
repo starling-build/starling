@@ -236,6 +236,9 @@ struct DeckState: Equatable {
     /// The show settings as read: while `show` still equals them, the file's
     /// own `p:showPr` is saved as it was, spellings of the defaults included.
     var sourceShow: ShowSettings? = nil
+    /// The grid and drawing guides (`ppt/viewProps.xml`), and as read: the file's part is left as it was until they change.
+    var grid = SlideGridSettings()
+    var sourceGrid: SlideGridSettings? = nil
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -266,6 +269,30 @@ final class DeckController: ChangeNotifier {
     /// Set Up Slide Show, and the custom shows; both saved with the deck.
     private(set) var show = ShowSettings()
     private(set) var sourceShow: ShowSettings? = nil
+    /// View > Show: the grid and the drawing guides, saved with the deck (Grid and Guides is one undo step, as a guide's drag is).
+    private(set) var grid = SlideGridSettings()
+    private(set) var sourceGrid: SlideGridSettings? = nil
+    /// View > Ruler and Gridlines: PowerPoint's own settings, not the file's; for this session only.
+    private(set) var showRuler = false
+    private(set) var showGridlines = false
+    func setShowRuler(_ on: Bool) { guard on != showRuler else { return }; showRuler = on; notifyListeners() }
+    func setShowGridlines(_ on: Bool) { guard on != showGridlines else { return }; showGridlines = on; notifyListeners() }
+    /// Grid and Guides > Display smart guides when shapes are aligned (PowerPoint's own setting; on by default).
+    private(set) var smartGuides = true
+    func setSmartGuides(_ on: Bool) { guard on != smartGuides else { return }; smartGuides = on; notifyListeners() }
+    /// View > Guides: shows or hides the drawing guides (one undo step; turning them on with none adds the centre pair).
+    func setShowGuides(_ on: Bool) {
+        var g = grid
+        g.showGuides = on
+        if on { g.addCentreGuidesIfNone(slideSize) }
+        setGrid(g)
+    }
+    func setGrid(_ g: SlideGridSettings) {
+        guard g != grid else { return }
+        _checkpoint()
+        grid = g
+        _changed()
+    }
     private(set) var customShows: [CustomShow] = []
     /// The deck's sections, in order; empty when it has none.
     private(set) var sections: [SlideSection] = []
@@ -3166,7 +3193,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations, commentsFrom: slide.commentsFrom ?? slide.sourcePart)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows, sections: sections, sourceShow: sourceShow)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, recolourTheme: recolourTheme, firstSlideNum: firstSlideNum, masterBackground: masterBackground, slideScaling: slideScaling, show: show, customShows: customShows, sections: sections, sourceShow: sourceShow, grid: grid, sourceGrid: sourceGrid)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -3239,6 +3266,8 @@ final class DeckController: ChangeNotifier {
         slideScaling = state.slideScaling
         show = state.show
         sourceShow = state.sourceShow
+        grid = state.grid
+        sourceGrid = state.sourceGrid
         customShows = state.customShows
         sections = state.sections
         if let t = state.theme { theme = t }
