@@ -3591,9 +3591,11 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// is some fifteen thousand words, not the 71 its spaces make
     /// (seen in the status bar, 2026-10-13). The ideographic space is
     /// white space like any.
+    /// (A table nested in a cell is body text, as in Word: its cells' words count too.)
     public var wordCount: Int {
         var count = 0
         for p in paragraphs {
+            if let inner = p.nestedTableParagraphs { count += RichDocument(paragraphs: inner).wordCount }
             var inWord = false
             for scalar in p.text.unicodeScalars {
                 if scalar.properties.isWhitespace {
@@ -3619,7 +3621,15 @@ public struct RichDocument: Hashable, Codable, Sendable {
     }
 
     public var characterCount: Int {
-        paragraphs.reduce(0) { $0 + $1.text.count }
+        paragraphs.reduce(0) { $0 + $1.text.count + ($1.nestedTableParagraphs.map { RichDocument(paragraphs: $0).characterCount } ?? 0) }
+    }
+}
+
+extension RichParagraph {
+    /// The cells' paragraphs of a table nested in a cell, set as a block (`keptTable` with a growing box), or nil.
+    public var nestedTableParagraphs: [RichParagraph]? {
+        guard cell != nil, keptTable != nil, let box = image?.textBox, box.growsToFit else { return nil }
+        return box.paragraphs
     }
 }
 

@@ -725,19 +725,22 @@ extension RichDocumentController {
     public func isNestedTable(at index: Int) -> Bool { _nestedTableDocument(at: index) != nil }
 
     /// W-TB-5: the table nested in a cell at `index` (a block the reader or `insertTable` made, its markup kept for the
-    /// save) as a small document to edit, when the editor writes back all it holds: no picture, field box or
-    /// content control, not floating, and no table in its own cells.
+    /// save) as a small document to edit, when the editor writes back all it holds: no field box, content control or
+    /// picture the file did not carry inline, not floating, and no table in its own cells.
     func _nestedTableDocument(at index: Int) -> RichDocument? {
         guard index < document.paragraphs.count else { return nil }
         let p = document.paragraphs[index]
         guard p.cell != nil, let image = p.image, image.sourceXML == nil, image.float == nil, let box = image.textBox, box.growsToFit,
               let kid = p.keptTable, let kept = document.keptTables[kid], kept.texts == [p.text] else { return nil }
-        for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict", "<w:drawing", "<w:tblpPr", "<w:fldChar", "<w:fldSimple", "<w:ins ", "<w:del ", "<w:moveFrom", "<w:moveTo"]
+        // (Fields and tracked changes are written back as they were read, as in a text box.)
+        for marker in ["<mc:", "<w:sdt", "<w:object", "<w:pict", "<w:tblpPr"]
         where kept.xml.containsSubstring(marker) { return nil }
+        // (Pictures too, when each is an inline one the file carried, as in a text box.)
+        guard Self._picturesAreKept(kept.xml, box.paragraphs) else { return nil }
         // (One table, none in its cells: a second `<w:tbl` is a table inside it.)
         guard let first = kept.xml.rangeOfSubstring("<w:tbl"), kept.xml.rangeOfSubstring("<w:tbl>", in: first.upperBound ..< kept.xml.endIndex) == nil,
               kept.xml.rangeOfSubstring("<w:tbl ", in: first.upperBound ..< kept.xml.endIndex) == nil else { return nil }
-        guard !box.paragraphs.isEmpty, box.paragraphs.allSatisfy({ $0.cell != nil && $0.image == nil && $0.inlineImages.isEmpty && $0.keptTable == nil }),
+        guard !box.paragraphs.isEmpty, box.paragraphs.allSatisfy({ $0.cell != nil && $0.keptTable == nil }),
               Set(box.paragraphs.compactMap { $0.cell?.table }).count == 1 else { return nil }
         var doc = RichDocument(paragraphs: box.paragraphs)
         doc.tableStyles = box.tableStyles
@@ -782,16 +785,7 @@ extension RichDocumentController {
               let close = xml.rangeOfSubstring("</w:txbxContent>", in: open.upperBound ..< xml.endIndex) else { return false }
         // Revision and bookmark ids are one space for the whole file. The writer numbers a box's from 1 like the body's, so move
         // them above every id the other boxes already hold (the body's revisions are renumbered from 1 on save).
-        var highest = 99_999
-        for (i, p) in self.document.paragraphs.enumerated() {
-            // (The body: the ids its bookmarks keep from the file, and as many revision ids as it has revision runs.)
-            highest = max(highest, p.bookmarkMarkers.compactMap { Int($0.id) }.max() ?? 0)
-            highest = max(highest, p.runs.filter { $0.style.revision != nil }.count + p.bookmarks.count)
-            for other in [p.image].compactMap({ $0 }) + Array(p.inlineImages.values) {
-                if i == index, other.id == old.id { continue }
-                if let x = other.sourceXML { highest = max(highest, Self._highestRevisionId(in: x)) }
-            }
-        }
+        let highest = _highestIdOutside(index, image: old.id, keptTable: nil)
         let patched = String(xml[xml.startIndex ..< open.upperBound]) + Self._shiftRevisionIds(contentXML, by: highest) + String(xml[close.lowerBound...])
         let ids = Set(document.paragraphs.compactMap { $0.cell?.table })
         var new = old
@@ -809,13 +803,34 @@ extension RichDocumentController {
         return true
     }
 
+    /// The highest revision or bookmark id the document holds outside the box at `index` (its picture `image`, or its kept
+    /// table `keptTable`), at least 99,999: a box's ids are moved above it.
+    private func _highestIdOutside(_ index: Int, image: String?, keptTable: String?) -> Int {
+        var highest = 99_999
+        for (i, p) in self.document.paragraphs.enumerated() {
+            // (The body: the ids its bookmarks keep from the file, and as many revision ids as it has revision runs.)
+            highest = max(highest, p.bookmarkMarkers.compactMap { Int($0.id) }.max() ?? 0)
+            highest = max(highest, p.runs.filter { $0.style.revision != nil }.count + p.bookmarks.count)
+            for other in [p.image].compactMap({ $0 }) + Array(p.inlineImages.values) {
+                if i == index, other.id == image { continue }
+                if let x = other.sourceXML { highest = max(highest, Self._highestRevisionId(in: x)) }
+            }
+        }
+        for (k, t) in self.document.keptTables.sorted(by: { $0.key < $1.key }) where k != keptTable {
+            highest = max(highest, Self._highestRevisionId(in: t.xml))
+        }
+        return highest
+    }
+
     /// `setTextBoxContent` for a table nested in a cell: the block's table and the markup the save writes, one undo step.
     /// False when the edit left more than the one table (the box's cells hold the whole table) or nothing changed.
     private func _setNestedTable(at index: Int, document box: RichDocument, contentXML: String, rels: [KeptRel]) -> Bool {
         let p = self.document.paragraphs[index]
         guard var image = p.image, var tb = image.textBox, let kid = p.keptTable, let old = self.document.keptTables[kid],
               box.paragraphs.allSatisfy({ $0.cell != nil }), Set(box.paragraphs.compactMap { $0.cell?.table }).count == 1,
-              let xml = RichDocumentController._onlyTable(contentXML) else { return false }
+              let made = RichDocumentController._onlyTable(contentXML) else { return false }
+        // (Its revision and bookmark ids, numbered from 1, moved above every other id, as a text box's are.)
+        let xml = Self._shiftRevisionIds(made, by: _highestIdOutside(index, image: nil, keptTable: kid))
         let ids = Set(box.paragraphs.compactMap { $0.cell?.table })
         guard xml != old.xml || box.paragraphs != tb.paragraphs else { return false }
         let before = image

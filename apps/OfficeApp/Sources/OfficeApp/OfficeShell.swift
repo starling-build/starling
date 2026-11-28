@@ -121,6 +121,8 @@ final class OfficeShellState: State<StatefulWidget> {
     var _boxContentHeight: Double?
     /// W-TB-5: where in the box editor the click that opened it landed (a table nested in a cell), for the caret.
     var _boxCaretAt: Offset?
+    /// The page's layout of the nested table being edited (`RichLayout.boxFrame`): the editor sets it the same way.
+    var _boxRules: RichLayout?
     private let _boxFocus = FocusNode(debugLabel: "Text box")
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
@@ -2774,7 +2776,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 guard let self, let r, let b = self._boxEdit, b.rect != r else { return }
                 self.setState { self._boxEdit?.rect = r }
             },
-            onNestedTableEnter: { [weak self] index, rect, at in self?._enterBox(index, nil, rect, at: at) }
+            onNestedTableEnter: { [weak self] index, rect, at, frame in self?._enterBox(index, nil, rect, at: at, frame: frame) }
         )
         guard let b = _boxEdit else {
             return WriterAccessibility.wrap(editable, controller: controller, focused: _editorFocus.hasFocus)
@@ -2796,7 +2798,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 guard let self, self._boxEdit != nil, self._boxContentHeight != h else { return }
                 self.setState { self._boxContentHeight = h }
             },
-            caretAt: _boxCaretAt)
+            caretAt: _boxCaretAt,
+            boxRules: _boxRules)
         // A box that fits its text grows as the words do.
         var boxHeight = b.rect.height
         if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z * inset }
@@ -2805,7 +2808,7 @@ final class OfficeShellState: State<StatefulWidget> {
             // A press anywhere outside the box ends the edit (and still reaches the page under it).
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Listener(
                 onPointerDown: { [weak self] _ in self?._leaveBox() }, behavior: .translucent, child: SizedBox(expand: ()))),
-            Positioned(left: b.rect.left, top: b.rect.top, width: b.rect.width, height: boxHeight, child: framed(boxEditor, frame, z)),
+            Positioned(left: b.rect.left, top: b.rect.top, width: max(b.rect.width, _boxRules?.width ?? 0), height: boxHeight, child: framed(boxEditor, frame, z)),
         ])
     }
 
@@ -2821,9 +2824,18 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Start typing in the text box at `index`: the ribbon and the keys act on a controller over the box's own paragraphs
     /// until `_leaveBox` puts them back, as one undo step.
     /// `at`: the click that opened it (this view's coordinates), where the caret goes.
-    func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect, at: Offset? = nil) {
+    /// `frame`: the page's layout of a nested table's text (`RichLayout.boxFrame`), which the editor keeps to.
+    func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect, at: Offset? = nil, frame: (layout: RichLayout, document: RichDocument)? = nil) {
         let child = inline == nil ? controller.groupChild : nil
         guard _boxEdit == nil, var inside = (child != nil ? controller.groupChildTextDocument() : controller.textBoxDocument(at: index, inline: inline)) else { return }
+        // (A nested table keeps the page's layout while edited: its document's settings and the layout's width and rules.)
+        let rules = child == nil && inline == nil && controller.isNestedTable(at: index) && frame?.document.paragraphs == inside.paragraphs ? frame : nil
+        if let rules {
+            var same = rules.document
+            same.tableStyles = inside.tableStyles
+            same.tableColumns = inside.tableColumns
+            inside = same
+        }
         let main = controller
         if inside.paragraphs.isEmpty { inside.paragraphs = [RichParagraph(text: "")] }
         let box = RichDocumentController(document: inside)
@@ -2837,7 +2849,9 @@ final class OfficeShellState: State<StatefulWidget> {
             _boxEdit = (index, inline, rect, main, child == nil && main.textBoxAutoHeight(at: index, inline: inline), child)
             _boxContentHeight = nil
             _boxCaretAt = at.map { Offset($0.dx - rect.left, $0.dy - rect.top) }
+            _boxRules = rules?.layout
             session.controller = box
+            session.nestedTableHost = child == nil && inline == nil && main.isNestedTable(at: index) ? (main, index) : nil
             session.summary = session.summarize()
         }
         ScreenReader.announce("Editing text box. Escape to finish.", priority: .assertive)
@@ -2850,7 +2864,9 @@ final class OfficeShellState: State<StatefulWidget> {
         let box = controller
         setState {
             _boxEdit = nil
+            _boxRules = nil
             session.controller = b.main
+            session.nestedTableHost = nil
         }
         if let (xml, boxRels, media) = TextBoxInsert.contentAndMedia(box.document) {
             let rels = b.main.keepBoxMedia(media, rels: boxRels)

@@ -1399,7 +1399,7 @@ extension DocxFormat {
             // (a section break's own sectPr, kept as read with its w:sectPrChange id)
             if let x = p.style.sectionXML { takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: x)) }
         }
-        for x in [doc.sectionLeadXML, doc.sectionTailXML].compactMap({ $0 }) {
+        for x in [doc.sectionLeadXML, doc.sectionTailXML].compactMap({ $0 }) + doc.keptTables.values.map(\.xml) {
             takenAnnotationIDs.formUnion(RichDocumentController._annotationIds(in: x))
         }
         func nextRevisionID() -> Int {

@@ -781,6 +781,32 @@ extension RichLayout {
         return image.width > line + 0.5 ? line : nil
     }
 
+    /// The text of the box `image` as this layout sets it, and the document it is laid out from (the box's paragraphs with
+    /// the file's settings): an editor of the box lays it out the same way (`adoptBoxRules`), so editing a table nested in a
+    /// cell does not move its columns.
+    public func boxFrame(of image: ImageAttachment, _ document: RichDocument) -> (layout: RichLayout, document: RichDocument)? {
+        _textBox(image, document).map { ($0.layout, $0.document) }
+    }
+
+    /// Set this layout as `box` (a `boxFrame` layout) is: its width and its rules for a box's text and a nested table.
+    public func adoptBoxRules(from box: RichLayout) {
+        guard width != box.width || _nestedBlock != box._nestedBlock || _nestedInFixedTable != box._nestedInFixedTable
+              || _nestedInRealBox != box._nestedInRealBox || _nestedNarrowed != box._nestedNarrowed || _nestedCap != box._nestedCap
+              || _turnedBox != box._turnedBox || _inTextBox != box._inTextBox || _boxText != box._boxText
+              || _fixedTextFrame?.left != box._fixedTextFrame?.left || _fixedTextFrame?.right != box._fixedTextFrame?.right else { return }
+        _nestedBlock = box._nestedBlock
+        _nestedInFixedTable = box._nestedInFixedTable
+        _nestedInRealBox = box._nestedInRealBox
+        _nestedNarrowed = box._nestedNarrowed
+        _nestedCap = box._nestedCap
+        _turnedBox = box._turnedBox
+        _inTextBox = box._inTextBox
+        _boxText = box._boxText
+        _fixedTextFrame = box._fixedTextFrame
+        width = box.width
+        invalidateAll()
+    }
+
     func _textBox(_ image: ImageAttachment, _ document: RichDocument) -> _HeaderFooter? {
         guard theme.wordRules, let box = image.textBox else { return nil }
         let holding = _paragraphHolding(image.id, document)

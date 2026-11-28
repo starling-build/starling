@@ -142,6 +142,8 @@ final class OfficeSession {
         return image.outline != nil || image.textBox != nil ? .shapeFormat : .pictureFormat
     }
     var imageTab: RibbonTab { imageTab(at: summary.imageIndex, inline: summary.inlineImageID) }
+    /// While a nested table's cells are edited (`controller` is then their own): the document and the block's paragraph.
+    var nestedTableHost: (main: RichDocumentController, index: Int)?
     /// Paragraph `i` is the block holding a table nested in a cell (editable or kept as read).
     func isNestedTableBlock(_ i: Int) -> Bool {
         guard i < controller.document.paragraphs.count else { return false }
@@ -508,6 +510,12 @@ final class OfficeSession {
         s.hasSelection = c.hasSelection
         s.words = c.document.wordCount
         s.characters = c.document.characterCount
+        // (In a nested table's cells, the document's count as Word shows it, with the table's words as they stand now.)
+        if let h = nestedTableHost, h.index < h.main.document.paragraphs.count, let was = h.main.document.paragraphs[h.index].nestedTableParagraphs {
+            let old = RichDocument(paragraphs: was)
+            s.words += h.main.document.wordCount - old.wordCount
+            s.characters += h.main.document.characterCount - old.characterCount
+        }
         s.paragraph = c.caret.paragraph + 1
         s.paragraphs = c.document.paragraphs.count
         return s
