@@ -2848,6 +2848,9 @@ public final class RichDocumentController: ChangeNotifier {
     /// Where the floating picture at paragraph `index` (or its inline picture `id`) is drawn: its top and its paragraph's
     /// top, in points from the top of its page. Set by the editor that lays it out.
     public var pictureSpotProbe: ((Int, String?) -> (Double, Double)?)?
+    /// Where the floating picture at paragraph `index` (or its inline picture `id`) is drawn: its left and top, in points from
+    /// the left and top of its page. Set by the editor that lays it out (it lays out pending edits first).
+    public var pictureCornerProbe: ((Int, String?) -> (x: Double, y: Double)?)?
 
     /// Equal heights: every target row (the whole table when one row is chosen) gets the tallest of them.
     public func distributeRows() {

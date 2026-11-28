@@ -84,4 +84,51 @@ final class PictureDragTests: XCTestCase {
         c.undo()
         XCTAssertEqual(c.document, before)
     }
+
+    /// A picture placed by alignment (centred on the margin, top of the margin) is placed by offset once dragged, as Word
+    /// saves it: from the same frames, at the offset where it stood plus the drag.
+    func testDraggingAnAlignedPictureMakesItsPositionAnOffset() throws {
+        let base = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "text"), RichParagraph(image: ImageAttachment(data: png, width: 100, height: 50))]), pageSetup: .letter)
+        var entries = try Zip.read(base)
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let start = try XCTUnwrap(xml.rangeOfSubstring("<w:drawing>")), end = try XCTUnwrap(xml.rangeOfSubstring("</w:drawing>"))
+        let embed = try XCTUnwrap(xml.rangeOfSubstring("r:embed=\""))
+        let rid = String(xml[embed.upperBound...].prefix { $0 != "\"" })
+        xml.replaceSubrange(start.lowerBound ..< end.lowerBound, with: "<w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"margin\"><wp:align>center</wp:align></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"margin\"><wp:align>top</wp:align></wp:positionV><wp:extent cx=\"1270000\" cy=\"635000\"/>"
+            + "<wp:wrapSquare wrapText=\"bothSides\"/><wp:docPr id=\"5\" name=\"Picture 5\"/>"
+            + "<a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr>"
+            + "<pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+            + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1270000\" cy=\"635000\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: OfficeShell(initialPath: nil, startBlank: true), title: "Test"), size: Size(1280, 800))
+        defer { ui.dispose() }
+        let c = try XCTUnwrap(ui.state(OfficeShellState.self)).session.controller
+        c.load(try DocxFormat.read(try Zip.write(entries)).document)
+        ui.pump()
+        let i = try XCTUnwrap(c.document.paragraphs.firstIndex { $0.image?.float != nil })
+        XCTAssertNotNil(c.document.paragraphs[i].image?.float?.horizontalAlign)
+        let before = c.document
+        let probe = try XCTUnwrap(c.pictureCornerProbe)
+        let was = try XCTUnwrap(probe(i, nil))
+        XCTAssertTrue(c.movePicture(at: i, dx: 10, dy: 20))
+        let now = try XCTUnwrap(probe(i, nil))
+        XCTAssertEqual(now.x, was.x + 10, accuracy: 0.01, "drawn where it was dropped")
+        XCTAssertEqual(now.y, was.y + 20, accuracy: 0.01)
+        XCTAssertGreaterThan(was.x, 100, "it was drawn centred, not at the margin: \(was)")
+        let f = try XCTUnwrap(c.document.paragraphs[i].image?.float)
+        XCTAssertNil(f.horizontalAlign)
+        XCTAssertNil(f.verticalAlign)
+        let saved = try XCTUnwrap(c.document.paragraphs[i].image?.sourceXML)
+        XCTAssertTrue(saved.containsSubstring("<wp:positionH relativeFrom=\"margin\"><wp:posOffset>"), "same frame, by offset: \(saved.prefix(400))")
+        XCTAssertTrue(saved.containsSubstring("<wp:positionV relativeFrom=\"margin\"><wp:posOffset>\(20 * 12700)</wp:posOffset>"))
+        XCTAssertFalse(saved.containsSubstring("<wp:align>"))
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(try XCTUnwrap(back.paragraphs[i].image?.float).x, f.x, accuracy: 0.01, "kept by a save")
+        c.undo()
+        XCTAssertEqual(c.document, before, "one undo puts it back aligned")
+    }
 }
