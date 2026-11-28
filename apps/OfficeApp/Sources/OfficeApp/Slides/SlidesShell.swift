@@ -83,6 +83,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _pictureForBackground = false
     /// Set while the picker is open for a shape's picture (false) or texture (true) fill.
     private var _pictureForShapeFill: Bool? = nil
+    /// Set while the picker is open for Change Picture: the chosen file replaces the selected pictures.
+    private var _pictureForChange = false
     private var _hadPicture = false
     private var _hadTable = false
     private var _hadChart: SlideShape? = nil
@@ -361,6 +363,7 @@ final class SlidesShellState: State<StatefulWidget> {
             self._pictureForBackground = false
             self._pictureForShapeFill = nil
             self.session.pickingMedia = false
+            self._pictureForChange = false
             self._pickPicture()
         }
         session.onInsertMedia = { [weak self] video in
@@ -433,11 +436,20 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._pictureForBackground = false
             self._pictureForShapeFill = tiled
+            self._pictureForChange = false
+            self._pickPicture()
+        }
+        session.onChangePicture = { [weak self] in
+            guard let self, self.deck.selection.contains(where: { $0.picture != nil }) else { return }
+            self._pictureForBackground = false
+            self._pictureForShapeFill = nil
+            self._pictureForChange = true
             self._pickPicture()
         }
         session.onBackgroundPicture = { [weak self] in
             guard let self else { return }
             self._pictureForBackground = true
+            self._pictureForChange = false
             self._pickPicture()
         }
         session.onInsertShape = { [weak self] preset in
@@ -1252,8 +1264,9 @@ final class SlidesShellState: State<StatefulWidget> {
     private func _insertPicture(_ path: String, data: Data) {
         setState { _backstage = nil }
         let forBackground = _pictureForBackground
-        let forShapeFill = _pictureForShapeFill
+        let forShapeFill = _pictureForShapeFill, forChange = _pictureForChange
         _pictureForShapeFill = nil
+        _pictureForChange = false
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -1266,7 +1279,12 @@ final class SlidesShellState: State<StatefulWidget> {
                 let image = ImageAttachment(data: data, width: w, height: h, name: path.lastPathComponent,
                                             naturalWidth: w, naturalHeight: h)
                 self._endEditing()
-                if forBackground {
+                if forChange {
+                    self.deck.changePictures(to: image)
+                    self._deckFocus.requestFocus()
+                    self._flash("Changed to \(path.lastPathComponent)")
+                    return
+                } else if forBackground {
                     self.deck.setBackground(SlideFill(image: image))
                 } else if let tiled = forShapeFill {
                     self.deck.setPictureFill(image, tiled: tiled)

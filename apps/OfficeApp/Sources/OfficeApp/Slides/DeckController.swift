@@ -1539,6 +1539,25 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// Change Picture: the selected pictures show `image` instead, at its own proportions, as large as fits in the old
+    /// frame and centred on it (PowerPoint keeps the picture's place and size this way). The crop goes, since it cut the
+    /// old picture; outline, effects, alt text and animations stay. One undo step.
+    func changePictures(to image: ImageAttachment) {
+        let pics = selection.filter { $0.picture != nil }
+        guard !pics.isEmpty else { return }
+        _checkpoint()
+        let nw = image.naturalWidth ?? image.width, nh = image.naturalHeight ?? image.height
+        for s in pics {
+            s.kind = .picture(image)
+            s.crop = nil
+            guard nw > 0, nh > 0 else { continue }
+            let f = s.frame, fit = min(f.width / nw, f.height / nh)
+            let w = nw * fit, h = nh * fit
+            s.frame = Rect.fromLTWH(f.left + (f.width - w) / 2, f.top + (f.height - h) / 2, w, h)
+        }
+        _changed()
+    }
+
     /// Set the alt text and its title on the selected shapes, whatever their kind (empty clears). One undo step.
     func setAltText(_ text: String, title: String = "") {
         guard !selection.isEmpty else { return }

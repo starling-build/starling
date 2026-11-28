@@ -115,6 +115,41 @@ final class SlideIdentityTests: XCTestCase {
         XCTAssertTrue(back.slides[0].notes.document.paragraphs[0].runs.contains { $0.style.bold && $0.style.italic })
     }
 
+    /// S-PI-1b: Change Picture on a picture read from a file swaps its pixels in one undo step, keeps its place (the new
+    /// proportions fitted inside the old frame, centred), its alt text, and drops the old crop; the saved file holds the new pixels.
+    func testChangePictureKeepsThePlaceAndAltTextAndSavesTheNewPixels() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADUlEQVR4nGNgYPgPRAAFAgH/wSuWnwAAAABJRU5ErkJggg==")!
+        let d = try load(try Pptx.write(SlidesSample.make()))
+        let pic = try XCTUnwrap(d.slides.flatMap(\.shapes).first { $0.picture != nil })
+        d.select(try XCTUnwrap(d.slides.firstIndex { $0.shapes.contains { $0 === pic } }))
+        d.selectShapes([pic])
+        d.setAltText("Bands")
+        d.cropPictures(aspect: 1)
+        let old = try XCTUnwrap(pic.picture), box = pic.frame, oldCrop = try XCTUnwrap(pic.crop)
+        d.changePictures(to: ImageAttachment(data: png, width: 1.5, height: 0.75, name: "wide.png", naturalWidth: 1.5, naturalHeight: 0.75))
+        XCTAssertEqual(pic.picture?.data, png)
+        XCTAssertNil(pic.crop)
+        XCTAssertEqual(pic.frame.width, box.width, accuracy: 0.001, "a 2:1 picture in a square box takes its width")
+        XCTAssertEqual(pic.frame.height, box.width / 2, accuracy: 0.001)
+        XCTAssertEqual(pic.frame.center.dx, box.center.dx, accuracy: 0.001)
+        XCTAssertEqual(pic.frame.center.dy, box.center.dy, accuracy: 0.001)
+        XCTAssertEqual(pic.altText, "Bands")
+        d.undo()
+        let back = try XCTUnwrap(d.currentSlide.shapes.first { $0.picture != nil })
+        XCTAssertEqual(back.picture?.id, old.id, "one undo step brings the old picture back")
+        XCTAssertEqual(back.crop?.left ?? -1, oldCrop.left, accuracy: 0.001)
+        XCTAssertEqual(back.frame, box)
+        d.redo()
+        let out = try roundTrip(d)
+        XCTAssertTrue(out.parts.contains { $0.key.hasPrefix("ppt/media/") && $0.value == png }, "the new pixels are saved")
+        let again = try load(try Pptx.write(d))
+        let read = try XCTUnwrap(again.slides.flatMap(\.shapes).first { $0.picture != nil })
+        XCTAssertEqual(read.picture?.data, png)
+        XCTAssertNil(read.crop)
+        XCTAssertEqual(read.altText, "Bands")
+        XCTAssertEqual(read.frame.width / read.frame.height, 2, accuracy: 0.01)
+    }
+
     func testACroppedAndTurnedPictureKeepsItsRecolouring() throws {
         var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
         let part = try XCTUnwrap(package.parts.keys.first { $0.hasPrefix("ppt/slides/slide") && !$0.contains("_rels")
