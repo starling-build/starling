@@ -721,3 +721,51 @@ final class SlideFormatShapeTests: XCTestCase {
         XCTAssertEqual(b.textSpin, 0)
     }
 }
+
+/// ⌘Z after a change made from the Format Shape pane undoes it, even while a pane box had the keyboard (the
+/// boxes keep no undo of their own, and a box passes no undo chord on).
+final class SlideFormatShapeUndoTests: XCTestCase {
+    private func settle(_ ui: WidgetTester) {
+        for _ in 0 ..< 3 { ui.pump(); for cb in FrameCallbackScheduler.shared.takePostFrameCallbacks() { cb(.zero) } }
+        ui.pump()
+    }
+
+    private func undoChord(_ ui: WidgetTester) {
+        let main: Int64 = KeyModifiers.primary == .meta ? 0xFFE7 : 0xFFE3
+        func send(_ l: Int64, _ t: KeyEventType) {
+            FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: t, physical: 0, logical: l, character: nil, synthesized: false))
+        }
+        send(main, .down); send(0x7A, .down); send(0x7A, .up); send(main, .up); settle(ui)
+    }
+
+    func testUndoChordAfterAPaneChangeWhileABoxHadTheKeyboard() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(1440, 932))
+        settle(ui)
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        let a = deck.addShape(.rect)
+        deck.selectShapes([a]); settle(ui)
+        shell.session.onFormatShape?(); settle(ui)
+        // Enter in a box applies the width; ⌘Z straight after takes it back.
+        let width = a.frame.width
+        ui.tap(id: "fmt.width"); settle(ui)
+        let box = try XCTUnwrap(FocusManager.instance.focusedNode, "the box has the keyboard")
+        for _ in 0 ..< 10 { ui.press(.backspace) }
+        ui.type("200"); ui.press(.enter); settle(ui)
+        XCTAssertEqual(a.frame.width, 200, accuracy: 0.01)
+        XCTAssertFalse(FocusManager.instance.focusedNode === box, "the edit took the keyboard back from the box")
+        undoChord(ui)
+        XCTAssertEqual(a.frame.width, width, accuracy: 0.01, "⌘Z undid the width")
+        // A box has the keyboard, then a check box (not a box) changes the shape.
+        ui.tap(id: "fmt.line.width"); settle(ui)
+        let line = try XCTUnwrap(FocusManager.instance.focusedNode, "the box has the keyboard")
+        XCTAssertNotNil(a.fill)
+        ui.tap(id: "fmt.fill.none"); settle(ui)
+        XCTAssertNil(a.fill)
+        XCTAssertFalse(FocusManager.instance.focusedNode === line)
+        undoChord(ui)
+        XCTAssertNotNil(a.fill, "⌘Z brought the fill back")
+    }
+}

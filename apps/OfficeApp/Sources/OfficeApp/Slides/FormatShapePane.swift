@@ -29,6 +29,43 @@ final class FormatShapePaneState: State<StatefulWidget> {
     private var _w: FormatShapePane { widget as! FormatShapePane }
     private var _controllers: [String: TextEditingController] = [:]
     private var _shown: [String: String] = [:]
+    /// The pane's boxes that have the keyboard, and the deck's edit count last seen.
+    private var _focused: Set<String> = []
+    private var _edits = 0
+    private var _dropping = false
+
+    // A box keeps no undo of its own and passes no undo chord on, so while one has the keyboard ⌘Z would do
+    // nothing. Any edit to the deck (a box's Enter, a check box, a button, the ribbon) therefore takes the
+    // keyboard back from the pane's box, and the next ⌘Z undoes that edit.
+    override func initState() {
+        super.initState()
+        _listen(_w.deck)
+    }
+
+    override func didUpdateWidget(_ oldWidget: StatefulWidget) {
+        super.didUpdateWidget(oldWidget)
+        let old = (oldWidget as! FormatShapePane).deck
+        if old !== _w.deck { old.removeListeners(owner: self); _listen(_w.deck) }
+    }
+
+    override func dispose() {
+        _w.deck.removeListeners(owner: self)
+        super.dispose()
+    }
+
+    private func _listen(_ deck: DeckController) {
+        _edits = deck.edits
+        deck.addListener({ [weak self] in
+            guard let self, self._w.deck.edits != self._edits else { return }
+            self._edits = self._w.deck.edits
+            // The box's value is already applied: letting go must not apply it again as a second step.
+            if !self._focused.isEmpty { self._dropping = true; FocusManager.instance.focusedNode?.unfocus(); self._dropping = false }
+        }, owner: self)
+    }
+
+    private func _focus(_ id: String) -> (Bool) -> Void {
+        { [weak self] on in if on { self?._focused.insert(id) } else { self?._focused.remove(id) } }
+    }
 
     /// A number as the field shows it: at most two decimals, no trailing zeros.
     static func text(_ v: Double) -> String {
@@ -116,7 +153,10 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
                     onSubmitted: submit, enabled: some,
-                    onFocusChanged: { focused in if !focused, c.text != shown { submit(c.text) } })),
+                    onFocusChanged: { [weak self] focused in
+                        self?._focus(id)(focused)
+                        if !focused, self?._dropping != true, c.text != shown { submit(c.text) }
+                    })),
                 SizedBox(width: 6, height: nil, child: Text(unit ?? (id.hasSuffix("rotation") ? "°" : "pt"), style: caption)),
             ])
         }
@@ -133,7 +173,10 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
                     onSubmitted: submit, enabled: enabled,
-                    onFocusChanged: { focused in if !focused, c.text != shown { submit(c.text) } })),
+                    onFocusChanged: { [weak self] focused in
+                        self?._focus(id)(focused)
+                        if !focused, self?._dropping != true, c.text != shown { submit(c.text) }
+                    })),
             ])
         }
         let drawn = deck.selection.filter { $0.preset?.isLine != true }
@@ -238,7 +281,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                                     gg.stops[i].color = Color((Int64(gg.stops[i].color.value) & 0xFF00_0000) | Int64(v))
                                 }
                             } else { hc.text = hexShown; self?._shown[hexId] = hexShown }
-                        })),
+                        }, onFocusChanged: _focus(hexId))),
                     SizedBox(width: 6, height: nil, child: nil),
                     SizedBox(key: ValueKey(posId), width: 50, height: Chrome.fieldHeight, child: FluentTextBox(
                         controller: pc,
@@ -246,7 +289,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                             if let v = Double(Self.digits(text)), v >= 0, v <= 100 {
                                 deck.editGradient { gg in if gg.stops.indices.contains(i) { gg.stops[i].position = v / 100 } }
                             } else { pc.text = posShown; self?._shown[posId] = posShown }
-                        })),
+                        }, onFocusChanged: _focus(posId))),
                     SizedBox(width: 14, height: nil, child: Text("%", style: caption)),
                     IconButton(key: ValueKey("fmt.grad.remove.\(i)"), icon: Icon(FluentSystemIcons.close, size: 12, color: fluent.resources.textFillColorPrimary),
                                onPressed: g.stops.count > 2 ? { deck.removeGradientStop(at: i) } : nil),
@@ -332,7 +375,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
             Text("Alt text", style: caption), gap(4),
             SizedBox(key: ValueKey("fmt.alt"), width: 240, height: Chrome.fieldHeight, child: FluentTextBox(
                 controller: alt, placeholderText: hasPicture ? "Describe the picture" : "Pictures only",
-                onSubmitted: { text in deck.setAltText(text) }, enabled: hasPicture)), gap(14),
+                onSubmitted: { text in deck.setAltText(text) }, enabled: hasPicture, onFocusChanged: _focus("fmt.alt"))), gap(14),
             effects,
         ])
         return SizedBox(width: 300, height: nil, child: DecoratedBox(
