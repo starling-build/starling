@@ -534,6 +534,29 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertNil(t.text?.document.paragraphs.first { $0.cell?.column == 1 }?.cell?.verticalAlign)
     }
 
+    /// S-TB-1g: the tab strip holds one Table Design tab and one Table Layout tab, and a click into a cell then typing
+    /// puts the text in that cell (the cell is at 756,483 in the 1440x932 window: the new 2x2 table, 288x60 pt at 336,240).
+    func testSlidesTableCellTakesTypingAndTheStripHasOneTableDesign() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        shell.session.onInsertTable?(2, 2)
+        ui.pump(); ui.pump()
+        let t = try XCTUnwrap(deck.currentSlide.shapes.first { $0.kind == .table })
+        XCTAssertEqual(ui.texts().filter { $0 == "Table Design" }.count, 1)
+        XCTAssertEqual(ui.texts().filter { $0 == "Table Layout" }.count, 1)
+        // Leave the table, then come back to its first cell by the mouse.
+        deck.selectShapes([])
+        ui.pump()
+        let cell = Offset(756, 483)
+        ui.click(at: cell, kind: .mouse); ui.pump()
+        ui.click(at: cell, kind: .mouse); ui.pump()
+        XCTAssertEqual(ui.texts().filter { $0 == "Table Design" }.count, 1)
+        ui.type("Hi there")
+        let first = t.text?.document.paragraphs.first { $0.cell?.row == 0 && $0.cell?.column == 0 }
+        XCTAssertEqual(first?.text, "Hi there")
+    }
+
     /// S-TB-1a: selecting a table opens Table Design; its two switches reach the deck.
     func testSelectedTableOpensTableDesignAndTheSwitchesApply() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))
