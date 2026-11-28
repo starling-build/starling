@@ -685,6 +685,9 @@ final class SlideShape {
     var themeStyle = false
     /// A Shape Styles gallery entry given here: saved as its refs (`p:style`).
     var quickStyle: ShapeQuickStyle? = nil
+    /// What that entry drew when last given (in the deck's colours then): a fill, line or effect that still
+    /// shows it is saved as the ref alone, as PowerPoint does, so it follows the theme; a changed one is written.
+    var quickStyleLook: ShapeQuickStyle.Look? = nil
     var outlineWidth = 0.75
     /// The text body, if the shape has one.
     let text: RichDocumentController?

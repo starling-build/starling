@@ -1451,6 +1451,13 @@ private struct SlideXML {
                                                  lists: look?.effectsEdited ?? true, bevelEdit: look?.bevelEdited ?? true,
                                                  emptyList: look?.effectsEdited == true)
             }
+            // A Shape Styles entry: what still shows it is left to the refs, as PowerPoint saves it (so the entry
+            // is known as its own and follows the theme); only what was changed since is the shape's own.
+            if s.quickStyle != nil, let given = s.quickStyleLook {
+                if given.fillShown(by: s) { fillXML = "" }
+                if given.lineShown(by: s) { lineXML = "" }
+                if given.effectsShown(by: s) { effectsXML = "" }
+            }
             if let cam = s.camera { effectsXML = Self._effectsWithCamera(effectsXML, cam) }
             spPr += fillXML + lineXML + effectsXML
             var openPath = false
