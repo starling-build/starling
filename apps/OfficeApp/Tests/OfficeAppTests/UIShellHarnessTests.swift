@@ -505,6 +505,35 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertEqual(o.wrap, !before.wrap)
     }
 
+    /// S-TB-1g: in a Slides table cell, Table Layout is PowerPoint's: Cell Alignment and Cell Margins act on the
+    /// cell, and Word's table-only buttons (Table Width, AutoFit, Indent) are not there.
+    func testSlidesTableLayoutAlignsAndInsetsTheCell() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
+        let deck = try XCTUnwrap(shell.session.deck)
+        shell.session.onInsertTable?(2, 2)
+        ui.pump(); ui.pump()
+        let t = try XCTUnwrap(deck.currentSlide.shapes.first { $0.kind == .table })
+        XCTAssertTrue(shell.session.summary.inCell)
+        XCTAssertTrue(ui.tap(text: "Table Layout"))
+        ui.pump()
+        for word in ["Table Width", "AutoFit", "Indent", "Table Alignment"] { XCTAssertFalse(ui.has(text: word), word) }
+        func first() -> CellRef? { t.text?.document.paragraphs.first?.cell }
+        XCTAssertTrue(ui.tap(text: "Cell Alignment"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Align Bottom Center"))
+        ui.pump()
+        XCTAssertEqual(first()?.verticalAlign, "bottom")
+        XCTAssertEqual(t.text?.document.paragraphs.first?.style.alignment, .center)
+        XCTAssertTrue(ui.tap(text: "Cell Margins"))
+        ui.pump()
+        XCTAssertTrue(ui.tap(text: "Cell Margins: Wide"))
+        ui.pump()
+        XCTAssertEqual(first()?.padding, EdgeInsets(left: 10.8, top: 10.8, right: 10.8, bottom: 10.8))
+        // Only the caret's cell moves.
+        XCTAssertNil(t.text?.document.paragraphs.first { $0.cell?.column == 1 }?.cell?.verticalAlign)
+    }
+
     /// S-TB-1a: selecting a table opens Table Design; its two switches reach the deck.
     func testSelectedTableOpensTableDesignAndTheSwitchesApply() throws {
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1280, 800))

@@ -882,8 +882,34 @@ final class Ribbon: StatelessWidget {
             Chrome.textToggle("Header Row", style.headerRow, fluent) { c.setTableStyle { $0.headerRow.toggle() } },
             Chrome.small(FluentSystemIcons.header, style.headerRow ? "Repeat Header: On" : "Repeat Header: Off", fluent) { c.setRepeatedHeaderRows(style.headerRow ? 0 : max(1, row + 1)) },
         ])])
+        // PowerPoint's Layout tab: no table indent, width, alignment, AutoFit or row breaks (a slide table has
+        // none), borders live on Table Design, and Cell Margins set the chosen cells' own insets (a:tcPr marL..).
+        if session.deck != nil {
+            let slideSize = Chrome.group("Cell Size", fluent, [
+                Chrome.rows([
+                    Chrome.spinner("Row Height", style.rowHeights[row] ?? 0, fluent, step: 2, shown: style.rowHeights[row].map { "\(Int($0.rounded())) pt" } ?? "Auto") { v in
+                        c.setRowHeight(v < 1 ? nil : v)
+                    },
+                ]),
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
+                    Chrome.small(FluentSystemIcons.table, "Distribute Rows", fluent) { c.distributeRows() },
+                ]),
+            ])
+            let slideAlignment = Chrome.group("Alignment", fluent, [Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.table, "Cell Alignment", "Where the cell's text stands, across and down", fluent, items: alignItems + directionItems),
+                Chrome.menuButton(nil, "Cell Margins", "Margins inside the chosen cells", fluent, items: Self.slideCellMarginPresets.map { p in
+                    MenuFlyoutItem(text: Text("Cell Margins: \(p.name)"), onPressed: { c.setCellMargins(top: p.top, left: p.side, bottom: p.top, right: p.side) })
+                }),
+            ])])
+            return [select, rows, slideSize, slideAlignment]
+        }
         return [select, rows, size, alignment, borders, look]
     }
+
+    /// PowerPoint's Cell Margins presets, in points: Normal is its default 0.05" top and bottom, 0.1" sides.
+    static let slideCellMarginPresets: [(name: String, top: Double, side: Double)] =
+        [("Normal", 3.6, 7.2), ("None", 0, 0), ("Narrow", 3.6, 3.6), ("Wide", 10.8, 10.8)]
 
     // MARK: Picture Format
 
