@@ -525,7 +525,10 @@ public final class RichEditableState: State<StatefulWidget> {
         let shift = _chords.shift
         let key = KeyChordTracker.named(keyData.logical)
         if shift, key != nil, key != .escape { _kbSelecting = true }
-        if let onShortcut = _w.onShortcut, _chords.primary || key == .escape,
+        // (The function keys go to the app with any modifiers: Shift+F9 and Alt+F9 show field codes, as F9 updates.)
+        var function = false
+        if case .function = key { function = true }
+        if let onShortcut = _w.onShortcut, _chords.primary || key == .escape || function,
            onShortcut(keyData, _chords.modifiers) {
             return true
         }

@@ -2007,8 +2007,8 @@ extension DocxFormat {
                         addText(notes.label(n, footnote: footnote), mark)
                     }
                 case "w:footnoteRef":
-                    // A note's own mark, in the note: its number.
-                    if let n = notes.currentNote { addText(String(n), cs) }
+                    // A note's own mark, in the note: its number, in the notes' form (zh-424775e4's "①").
+                    if let n = notes.currentNote { addText(notes.label(n, footnote: true), cs) }
                 case "w:endnoteRef":
                     if let label = notes.currentNoteLabel { addText(label, cs) }
                 default: break
