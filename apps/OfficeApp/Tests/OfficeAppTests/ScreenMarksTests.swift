@@ -75,9 +75,24 @@ final class ScreenMarksTests: XCTestCase {
                               size: Self.size)
         ui.pump()
         XCTAssertTrue(ui.tap(text: "Chart Design")); ui.pump()
-        var out = ScreenMarks.lines(root: ui.elements().first, view: Self.size).joined(separator: "\n") + "\n--- edit data\n"
+        func marks(_ head: String) -> String {
+            "--- " + head + "\n" + ScreenMarks.lines(root: ui.elements().first, view: Self.size).joined(separator: "\n") + "\n"
+        }
+        var out = marks("chart design")
+        XCTAssertTrue(ui.tap(text: "Axis Titles")); ui.pump()
+        // Each menu: its marks open, then the entry the Mac script applies.
+        for (menu, entry) in [("Legend Position", "Top"), ("Grouping", "Stacked"), ("Quick Layout", "Layout 4"),
+                              ("Change Chart Type", "Bar")] {
+            XCTAssertTrue(ui.tap(text: menu), menu); ui.pump()
+            out += marks(menu)
+            // The menu is the last layer, so its entry is the last text that names it.
+            let box = ui.elements().last { ($0.widget as? Text)?.data?.hasPrefix(entry) == true }?.findRenderObject() as? RenderBox
+            XCTAssertNotNil(box, entry)
+            if let box { ui.tap(at: box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2))); ui.pump() }
+            out += marks("after " + entry)
+        }
         XCTAssertTrue(ui.tap(text: "Edit Data")); ui.pump()
-        out += ScreenMarks.lines(root: ui.elements().first, view: Self.size).joined(separator: "\n") + "\n"
+        out += marks("edit data")
         FileManager.default.createFile(atPath: dir + "/chart-1440x932.txt", contents: Data(out.utf8))
     }
 }

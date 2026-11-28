@@ -94,6 +94,48 @@ final class WordChartEditTests: XCTestCase {
         XCTAssertFalse(r2.xml.containsSubstring("<c:overlap"), "clustered bars drop the full overlap")
     }
 
+    /// Quick Layout as Word applies it (lab wobql: Word's ApplyLayout on a bar and a column chart): each kind has its own
+    /// list, a layout sets the gridlines, gap, overlap and labels as well as the elements, and the patched part reads back
+    /// as exactly the layout (so the menu checks it).
+    func testQuickLayoutMatchesWordsLayoutsAndPatchesThePart() throws {
+        func read(_ xml: String) -> Chart? { XNode.parse(Data(xml.utf8)).flatMap { ChartXML.read(ChartXML.canonical($0), color: { _ in nil }) } }
+        func layout(_ list: [ChartQuickLayout], _ name: String) throws -> ChartQuickLayout { try XCTUnwrap(list.first { $0.name == name }) }
+        XCTAssertEqual(ChartQuickLayout.bar.map(\.name).last, "Layout 10", "a bar chart has ten layouts")
+        XCTAssertEqual(ChartQuickLayout.column.map(\.name).last, "Layout 11")
+        XCTAssertTrue(ChartQuickLayout.layouts(for: Chart.sample(.pie)).isEmpty)
+        // Column Layout 8 has no bar twin: the column's 9 is the bar's 8.
+        XCTAssertEqual(try layout(ChartQuickLayout.column, "Layout 9").summary, try layout(ChartQuickLayout.bar, "Layout 8").summary)
+
+        var old = Chart.sample(.column)
+        old.title = "Sales"
+        let ten = try layout(ChartQuickLayout.column, "Layout 10"), four = try layout(ChartQuickLayout.column, "Layout 4")
+        let one = try layout(ChartQuickLayout.column, "Layout 1"), eight = try layout(ChartQuickLayout.column, "Layout 8")
+        // Layout 10: title kept, legend right, labels on the last series only, inside the bar ends, 9 pt; gap 75, overlap 40.
+        let a = ten.applied(to: old)
+        let r = try XCTUnwrap(ChartPartPatcher.patch(ChartXML.chartSpace(old), old: old, new: a))
+        let back = try XCTUnwrap(read(r.xml))
+        XCTAssertEqual(back.title, "Sales"); XCTAssertEqual(back.legendPosition, "r")
+        XCTAssertEqual(back.series.map(\.labelsShown), [false, false, true])
+        XCTAssertEqual(back.series.last?.labelPos, "inEnd"); XCTAssertEqual(back.series.last?.labelSize, 9)
+        XCTAssertEqual(back.gapWidth, 75); XCTAssertEqual(back.overlap, 40)
+        XCTAssertTrue(ten.matches(back), "the menu checks the layout just applied")
+        XCTAssertFalse(four.matches(back))
+        // Layout 4 over it: every series labelled, no title, legend bottom, no gridlines, no overlap.
+        let b = four.applied(to: back)
+        let r2 = try XCTUnwrap(ChartPartPatcher.patch(r.xml, old: back, new: b))
+        let b2 = try XCTUnwrap(read(r2.xml))
+        XCTAssertNil(b2.title); XCTAssertEqual(b2.legendPosition, "b"); XCTAssertFalse(b2.valueGrid)
+        XCTAssertEqual(b2.series.map(\.labelsShown), [true, true, true]); XCTAssertEqual(b2.series.map(\.labelSize), [9, 9, 9])
+        XCTAssertFalse(r2.xml.containsSubstring("<c:majorGridlines")); XCTAssertFalse(r2.xml.containsSubstring("<c:overlap"))
+        XCTAssertTrue(four.matches(b2))
+        // Layout 1 over that: labels gone, gridlines back; Layout 8 (column only): both axis titles, no legend, gap 0.
+        let c2 = try XCTUnwrap(read(try XCTUnwrap(ChartPartPatcher.patch(r2.xml, old: b2, new: one.applied(to: b2))).xml))
+        XCTAssertFalse(c2.dataLabels); XCTAssertTrue(c2.valueGrid); XCTAssertTrue(one.matches(c2))
+        let d = try XCTUnwrap(read(try XCTUnwrap(ChartPartPatcher.patch(r2.xml, old: b2, new: eight.applied(to: b2))).xml))
+        XCTAssertEqual(d.valueAxisTitle, "Axis Title"); XCTAssertEqual(d.categoryAxisTitle, "Axis Title")
+        XCTAssertFalse(d.legend); XCTAssertEqual(d.gapWidth, 0); XCTAssertTrue(eight.matches(d))
+    }
+
     /// A two-level category axis (names under years) keeps its outer level when a name is edited: only the inner names
     /// change, in the part and in the workbook's inner column (Word's lab wob5chart c5 had it flattened to one level).
     func testMultiLevelCategoriesKeepTheirOuterLevel() throws {
@@ -144,6 +186,14 @@ final class WordChartEditTests: XCTestCase {
                 if !c.categories.isEmpty { c.categories[0] = "Edited" }
             }),
             ("c6-axistitles", { $0.valueAxisTitle = "Axis Title"; $0.categoryAxisTitle = "Axis Title" }),
+        ] + ChartQuickLayout.bar.map { layout in
+            ("q-bar-" + layout.name.replacingOccurrences(of: " ", with: "").lowercased(), { $0 = layout.applied(to: $0) })
+        } + [
+            // A later layout over an earlier one: the second alone, labels and gridlines included.
+            ("q-bar-layout9-then1", { c in
+                c = ChartQuickLayout.bar.first { $0.name == "Layout 9" }!.applied(to: c)
+                c = ChartQuickLayout.bar.first { $0.name == "Layout 1" }!.applied(to: c)
+            }),
         ]
         for (name, edit) in edits {
             let c = RichDocumentController(document: try DocxFormat.read(try Data(contentsOf: URL(fileURLWithPath: input))).document)

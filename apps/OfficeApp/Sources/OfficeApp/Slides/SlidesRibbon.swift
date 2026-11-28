@@ -691,6 +691,7 @@ extension Ribbon {
         let axes = chart.type.hasAxes
         let stackable = [.column, .bar, .line, .area].contains(chart.type)
         let groupings: [(String, Bool, Bool)] = [("Clustered", false, false), ("Stacked", true, false), ("100% Stacked", true, true)]
+        let layouts = ChartQuickLayout.layouts(for: chart)
         return [
             Chrome.group("Type", fluent, [
                 FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
@@ -704,6 +705,17 @@ extension Ribbon {
             Chrome.group("Data", fluent, [
                 Chrome.big(FluentSystemIcons.tableEdit, "Edit Data", fluent) { [session] in session.onChartData?(true) },
             ]),
+        ] + (layouts.isEmpty ? [] : [
+            Chrome.group("Chart Layouts", fluent, [Chrome.rows([
+                Chrome.menuButton(FluentSystemIcons.grid, "Quick Layout", "Set the chart's elements in one step", fluent,
+                                  items: layouts.map { layout in
+                                      MenuFlyoutItem(text: Text(layout.name + "  (" + layout.summary + ")"),
+                                                     leading: Icon(layout.matches(chart) ? FluentSystemIcons.check : FluentSystemIcons.grid,
+                                                                   size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+                                                     onPressed: { apply(layout.applied(to: chart)) })
+                                  }),
+            ])]),
+        ] as [Widget]) + [
             Chrome.group("Chart Elements", fluent, [
                 Chrome.rows([
                     Chrome.small(chart.title != nil ? FluentSystemIcons.check : FluentSystemIcons.textT, "Chart Title", fluent,

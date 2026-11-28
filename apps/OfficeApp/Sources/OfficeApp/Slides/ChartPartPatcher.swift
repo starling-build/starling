@@ -57,6 +57,13 @@ enum ChartPartPatcher {
         if (old.type != new.type && (new.stacked || new.percent)) || old.stacked != new.stacked || old.percent != new.percent {
             guard grouping(plot, stacked: new.stacked, percent: new.percent) else { return nil }
         }
+        if old.valueGrid != new.valueGrid { valueGrid(plot, new.valueGrid) }
+        if old.gapWidth != new.gapWidth || old.overlap != new.overlap { spacing(plot, new) }
+        // Labels set series by series (a Quick Layout's size, position, or labels on one series only).
+        let perSeries = old.series.count == new.series.count && zip(old.series, new.series).contains {
+            $0.labelsShown != $1.labelsShown || $0.labelPos != $1.labelPos || $0.labelSize != $1.labelSize
+        }
+        if perSeries { seriesLabels(plot, new) }
         if dataChanged {
             guard rewriteData(plot, new, covered: old.series.count, writes: &writes) else { return nil }
         }
@@ -66,7 +73,7 @@ enum ChartPartPatcher {
         if old.legend != new.legend || old.legendPosition != new.legendPosition {
             out = ChartPartPatch.legend(out, new.legend ? .set(new.legendPosition) : .remove)
         }
-        if old.dataLabels != new.dataLabels { out = ChartPartPatch.labels(out, ChartLabelEdit(show: new.dataLabels)) }
+        if old.dataLabels != new.dataLabels && !perSeries { out = ChartPartPatch.labels(out, ChartLabelEdit(show: new.dataLabels)) }
         if old.valueAxisTitle != new.valueAxisTitle {
             out = ChartPartPatch.axisTitle(out, .value, new.valueAxisTitle.map { .set($0) } ?? .remove)
         }
@@ -96,6 +103,64 @@ enum ChartPartPatcher {
             group.children.insert(ChartPartType.node("c:overlap", ["val": "100"]), at: at)
         }
         return true
+    }
+
+    /// The value axis' major gridlines added (bare, as Office writes a new one: the theme draws them) or removed.
+    static func valueGrid(_ plot: XNode, _ on: Bool) {
+        for ax in plot.children where ax.name == "c:valAx" {
+            if !on { ax.children.removeAll { $0.name == "c:majorGridlines" }; continue }
+            guard ax.first("c:majorGridlines") == nil else { continue }
+            let at = (ax.children.firstIndex { $0.name == "c:axPos" }).map { $0 + 1 } ?? ax.children.count
+            ax.children.insert(ChartPartType.node("c:majorGridlines", [:]), at: at)
+        }
+    }
+
+    /// A bar or column group's gap width and overlap as `c` has them (an overlap of 0 is left out, as Word writes it).
+    static func spacing(_ plot: XNode, _ c: Chart) {
+        guard let group = ChartPartType.groups(plot).first, group.name == "c:barChart" else { return }
+        let gap = c.gapWidth ?? (c.stacked ? 150 : 219), overlap = c.overlap ?? (c.stacked ? 100 : -27)
+        group.children.removeAll { $0.name == "c:gapWidth" || $0.name == "c:overlap" }
+        var at = group.children.firstIndex { ["c:serLines", "c:axId", "c:extLst"].contains($0.name) } ?? group.children.count
+        group.children.insert(ChartPartType.node("c:gapWidth", ["val": String(gap)]), at: at)
+        at += 1
+        if overlap != 0 { group.children.insert(ChartPartType.node("c:overlap", ["val": String(overlap)]), at: at) }
+    }
+
+    /// Each series' own labels as `c` has them: shown with its position and size (the text as Word's chart style writes
+    /// it), or deleted where other series show theirs; the number format and fill a series' labels had stay. The group's
+    /// own `c:dLbls` goes, every series saying for itself.
+    static func seriesLabels(_ plot: XNode, _ c: Chart) {
+        guard let group = ChartPartType.groups(plot).first else { return }
+        let n = ChartPartType.node
+        func val(_ name: String, _ v: String) -> XNode { n(name, ["val": v]) }
+        for (k, ser) in group.all("c:ser").enumerated() where k < c.series.count {
+            let s = c.series[k], old = ser.first("c:dLbls")
+            ser.children.removeAll { $0.name == "c:dLbls" }
+            guard c.dataLabels else { continue }
+            let d = n("c:dLbls", [:])
+            if s.labelsShown {
+                d.children += [old?.first("c:numFmt"), old?.first("c:spPr")].compactMap { $0 }
+                if let size = s.labelSize {
+                    let run = n("a:defRPr", ["sz": String(Int((size * 100).rounded())), "b": "0", "i": "0", "u": "none",
+                                             "strike": "noStrike", "kern": "1200", "baseline": "0"])
+                    let scheme = n("a:schemeClr", ["val": "tx1"])
+                    scheme.children = [val("a:lumMod", "75000"), val("a:lumOff", "25000")]
+                    let fill = n("a:solidFill", [:]); fill.children = [scheme]
+                    run.children = [fill, n("a:latin", ["typeface": "+mn-lt"]), n("a:ea", ["typeface": "+mn-ea"]), n("a:cs", ["typeface": "+mn-cs"])]
+                    let pPr = n("a:pPr", [:]); pPr.children = [run]
+                    let para = n("a:p", [:]); para.children = [pPr, n("a:endParaRPr", ["lang": "en-US"])]
+                    let tx = n("c:txPr", [:]); tx.children = [n("a:bodyPr", [:]), n("a:lstStyle", [:]), para]
+                    d.children.append(tx)
+                } else if let t = old?.first("c:txPr") { d.children.append(t) }
+                if let pos = s.labelPos { d.children.append(val("c:dLblPos", pos)) }
+                d.children += [val("c:showLegendKey", "0"), val("c:showVal", "1"), val("c:showCatName", "0"), val("c:showSerName", "0"),
+                               val("c:showPercent", "0"), val("c:showBubbleSize", "0")]
+            } else {
+                d.children = [val("c:delete", "1")]
+            }
+            put(ser, "c:dLbls", d, before: ["c:trendline", "c:errBars", "c:cat", "c:val", "c:xVal", "c:yVal", "c:smooth", "c:shape", "c:extLst"])
+        }
+        group.children.removeAll { $0.name == "c:dLbls" }
     }
 
     // MARK: Data
