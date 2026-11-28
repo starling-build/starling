@@ -263,6 +263,10 @@ extension SlideContext {
         if let blip = el.first("p:blipFill")?.first("a:blip") {
             (s.pictureAlpha, s.pictureDuotone) = PptxReader.blipEffects(blip, colors: colors)
             s.pictureLevels = PptxReader.blipLevels(blip)
+            if let l = blip.first("a:lum") {
+                s.pictureBrightness = (l["bright"].flatMap(Double.init) ?? 0) / 100000
+                s.pictureContrast = (l["contrast"].flatMap(Double.init) ?? 0) / 100000
+            }
             if let change = blip.first("a:clrChange"), let from = change.first("a:clrFrom").flatMap({ colors.color(in: $0) }),
                let to = change.first("a:clrTo").flatMap({ colors.color(in: $0) }) {
                 s.pictureColorChange = [from, to]
@@ -305,6 +309,7 @@ extension SlideContext {
         s.sourcePart = part
         s.altText = el.descendant("p:cNvPr")?["descr"].flatMap { $0.isEmpty ? nil : $0 }
         s.keptPicture = KeptPicture(imageId: image.id, alt: s.altText, crop: crop, rotation: rotation, alpha: s.pictureAlpha,
+                                    brightness: s.pictureBrightness, contrast: s.pictureContrast,
                                     geometry: s.pictureGeometry, freeform: s.customPath != nil)
         return s
     }

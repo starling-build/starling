@@ -63,6 +63,8 @@ struct ShapeState: Equatable {
     var pictureAlpha = 1.0
     var pictureDuotone: [Color]? = nil
     var pictureLevels: [Double]? = nil
+    var pictureBrightness = 0.0
+    var pictureContrast = 0.0
     var pictureColorChange: [Color]? = nil
     var pictureInset = EdgeInsets.zero
     var fillsWithBackground = false
@@ -2015,6 +2017,22 @@ final class DeckController: ChangeNotifier {
 
     private var _transparencyDragOpen = false
 
+    /// Picture Format > Corrections: the selected pictures' brightness and contrast, -100...100 % each (nil keeps a picture's own),
+    /// one undo step. The colour matrix drawn is rebuilt from the pair, so it takes the place of a black-and-white (`a:biLevel`) look.
+    func setPictureCorrection(brightness: Double? = nil, contrast: Double? = nil) {
+        let pics = selection.filter { $0.picture != nil }
+        func f(_ p: Double?) -> Double? { p.map { max(-100, min(100, $0.rounded())) / 100 } }
+        let b = f(brightness), c = f(contrast)
+        guard pics.contains(where: { (b != nil && $0.pictureBrightness != b) || (c != nil && $0.pictureContrast != c) }) else { return }
+        _checkpoint()
+        for s in pics {
+            if let b { s.pictureBrightness = b }
+            if let c { s.pictureContrast = c }
+            s.pictureLevels = PptxReader.lumLevels(bright: s.pictureBrightness, contrast: s.pictureContrast)
+        }
+        _changed()
+    }
+
     /// Picture Format > Crop to Shape: the selected pictures cut to the outline of `preset` (a rectangle undoes it), one undo step.
     func setPictureGeometry(_ preset: ShapePreset) {
         let pics = selection.filter { $0.picture != nil }
@@ -2025,6 +2043,34 @@ final class DeckController: ChangeNotifier {
         _changed()
     }
 
+    /// A picture's own size, whatever frame it is stretched into: the size it was inserted at, else (a picture read
+    /// from a file records none) its pixel size from the PNG or JPEG header.
+    static func naturalSize(_ img: ImageAttachment) -> (Double, Double)? {
+        if let w = img.naturalWidth, let h = img.naturalHeight, w > 0, h > 0 { return (w, h) }
+        if let px = ImageAttachment.pngPixelSize(img.data) { return (Double(px.width), Double(px.height)) }
+        return jpegPixelSize(img.data).map { (Double($0.0), Double($0.1)) }
+    }
+
+    /// A JPEG's pixel size from its first start-of-frame marker (SOF0...SOF15 but DHT, JPG and DAC), without decoding it.
+    static func jpegPixelSize(_ d: Data) -> (Int, Int)? {
+        let b = [UInt8](d)
+        guard b.count > 4, b[0] == 0xFF, b[1] == 0xD8 else { return nil }
+        var i = 2
+        while i + 9 < b.count {
+            guard b[i] == 0xFF else { return nil }
+            let m = b[i + 1]
+            if m == 0xFF { i += 1; continue }
+            if m == 0xD8 || m == 0x01 || (m >= 0xD0 && m <= 0xD7) { i += 2; continue }
+            let len = Int(b[i + 2]) << 8 | Int(b[i + 3])
+            if m >= 0xC0, m <= 0xCF, m != 0xC4, m != 0xC8, m != 0xCC {
+                let h = Int(b[i + 5]) << 8 | Int(b[i + 6]), w = Int(b[i + 7]) << 8 | Int(b[i + 8])
+                return w > 0 && h > 0 ? (w, h) : nil
+            }
+            i += 2 + len
+        }
+        return nil
+    }
+
     /// Picture Format > Crop > Fill (`fit` false) and Fit (`fit` true): the whole picture scaled, its shape kept, to cover the
     /// frame (the overhang cut away) or to sit inside it (the rest of the frame empty, a negative crop). The frame stays.
     func cropPictures(fit: Bool) {
@@ -2033,7 +2079,7 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         for s in pics {
             guard let img = s.picture else { continue }
-            let nw = img.naturalWidth ?? s.frame.width, nh = img.naturalHeight ?? s.frame.height
+            let (nw, nh) = Self.naturalSize(img) ?? (s.frame.width, s.frame.height)
             let natural = nw / max(nh, 0.001), frame = s.frame.width / max(s.frame.height, 0.001)
             // Wider than the frame: Fill cuts the sides, Fit leaves room above and below; narrower, the other way round.
             if (natural > frame) != fit {
@@ -2053,7 +2099,7 @@ final class DeckController: ChangeNotifier {
         _checkpoint()
         for s in pics {
             guard let img = s.picture else { continue }
-            let nw = img.naturalWidth ?? s.frame.width, nh = img.naturalHeight ?? s.frame.height
+            let (nw, nh) = Self.naturalSize(img) ?? (s.frame.width, s.frame.height)
             let natural = nw / max(nh, 0.001)
             var c = EdgeInsets.zero
             if natural > aspect {
@@ -3166,6 +3212,8 @@ final class DeckController: ChangeNotifier {
         st.readShape = s.readShape
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
+        st.pictureBrightness = s.pictureBrightness
+        st.pictureContrast = s.pictureContrast
         st.sizeGroup = s.sizeGroup
         st.generatedHang = s.generatedHang
         st.outlineDash = s.outlineDash
@@ -3258,6 +3306,8 @@ final class DeckController: ChangeNotifier {
         shape.pictureAlpha = st.pictureAlpha
         shape.pictureDuotone = st.pictureDuotone
         shape.pictureLevels = st.pictureLevels
+        shape.pictureBrightness = st.pictureBrightness
+        shape.pictureContrast = st.pictureContrast
         shape.pictureColorChange = st.pictureColorChange
         shape.pictureInset = st.pictureInset
         shape.fillsWithBackground = st.fillsWithBackground

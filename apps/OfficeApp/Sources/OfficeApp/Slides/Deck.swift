@@ -160,6 +160,9 @@ struct KeptPicture: Equatable {
     var rotation: Double
     /// The blip's opacity (`a:alphaModFix`) as read: a changed one is patched into the kept element.
     var alpha: Double = 1
+    /// The blip's brightness and contrast (`a:lum`), fractions -1...1, as read: a changed pair is patched into the kept element.
+    var brightness: Double = 0
+    var contrast: Double = 0
     /// The preset outline it was cut to (`nil`: a rectangle or a freeform) as read: a changed one is written in place of the old.
     var geometry: ShapePreset? = nil
     /// Whether it was cut to a freeform outline (`a:custGeom`): one cleared since is replaced by the preset.
@@ -834,6 +837,9 @@ final class SlideShape {
     var pictureDuotone: [Color]? = nil
     /// Brightness and contrast, or black and white, as a colour matrix.
     var pictureLevels: [Double]? = nil
+    /// The brightness and contrast (`a:lum`) behind `pictureLevels`, fractions -1...1 (Picture Format > Corrections).
+    var pictureBrightness = 0.0
+    var pictureContrast = 0.0
     /// PowerPoint's Set Transparent Color (`a:clrChange`): the colour of
     /// the picture that is drawn as another — in every file seen, as
     /// nothing at all — as [from, to]. Drawn for a metafile's fills,

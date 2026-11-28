@@ -1466,8 +1466,12 @@ struct PptxReader {
             return m + [0, 0, 0, 1, 0]
         }
         guard let l = blip.first("a:lum") else { return nil }
-        let bright = (l["bright"].flatMap(Double.init) ?? 0) / 100000
-        let contrast = (l["contrast"].flatMap(Double.init) ?? 0) / 100000
+        return lumLevels(bright: (l["bright"].flatMap(Double.init) ?? 0) / 100000,
+                         contrast: (l["contrast"].flatMap(Double.init) ?? 0) / 100000)
+    }
+
+    /// Brightness and contrast (`a:lum`, fractions -1...1) as a colour matrix; nil when both are 0.
+    static func lumLevels(bright: Double, contrast: Double) -> [Double]? {
         guard bright != 0 || contrast != 0 else { return nil }
         let cf = contrast < 0 ? 1 + contrast : 1 / max(0.01, 1 - contrast)
         // PowerPoint print fit (lab lum3, 48 bright/contrast pairs, worst

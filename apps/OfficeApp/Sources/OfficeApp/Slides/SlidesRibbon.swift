@@ -775,6 +775,24 @@ extension Ribbon {
         return Chrome.menuButton(FluentSystemIcons.brightness, "Transparency", "How much of the slide shows through the picture", fluent, items: items)
     }
 
+    /// Picture Format > Corrections: PowerPoint's Brightness/Contrast grid (-40...+40 % in steps of 20 each), and a reset.
+    private func _pictureCorrectionsMenu(_ deck: DeckController, _ fluent: FluentThemeData) -> Widget {
+        let pic = deck.selection.first { $0.picture != nil }
+        let steps: [Double] = [-40, -20, 0, 20, 40]
+        func sign(_ v: Double) -> String { v > 0 ? "+\(Int(v))%" : "\(Int(v))%" }
+        var items: [MenuFlyoutItem] = []
+        for c in steps {
+            for b in steps {
+                let on = pic.map { abs($0.pictureBrightness * 100 - b) < 0.5 && abs($0.pictureContrast * 100 - c) < 0.5 } ?? false
+                let icon = Icon(on ? FluentSystemIcons.check : FluentSystemIcons.brightness,
+                                size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary)
+                items.append(MenuFlyoutItem(text: Text("Brightness: \(sign(b)) Contrast: \(sign(c))"), leading: icon,
+                                            onPressed: { deck.setPictureCorrection(brightness: b, contrast: c) }))
+            }
+        }
+        return Chrome.menuButton(FluentSystemIcons.brightness, "Corrections", "Brightness and contrast of the picture", fluent, items: items)
+    }
+
     private func _slidePictureFormat(_ deck: DeckController, _ fluent: FluentThemeData) -> [Widget] {
         let crops: [(String, Double)] = [("Square", 1), ("4:3", 4.0 / 3), ("3:2", 1.5), ("16:9", 16.0 / 9), ("3:4 Portrait", 0.75)]
         return [
@@ -782,6 +800,7 @@ extension Ribbon {
                 Chrome.big(FluentSystemIcons.image, "Change Picture", fluent) { [session] in session.onChangePicture?() },
                 Chrome.big(FluentSystemIcons.refresh, "Reset Picture", fluent) { deck.resetPictures() },
                 Chrome.big(FluentSystemIcons.info, "Alt Text", fluent) { [session] in session.onAltText?() },
+                _pictureCorrectionsMenu(deck, fluent),
                 _pictureTransparencyMenu(deck, fluent),
             ]),
             Chrome.group("Size", fluent, [

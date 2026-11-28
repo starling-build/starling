@@ -662,7 +662,8 @@ final class UIShellHarnessTests: XCTestCase {
     /// (the box lets go of the keyboard as the ring moves on); a locked picture keeps 4:3.
     func testSlidesFormatPaneWidthAppliesToAPicture() throws {
         KeyboardTraversal.shared.reset(); defer { KeyboardTraversal.shared.reset() }   // no ring left by an earlier test
-        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        // Tall enough for the Size rows under the picture's sections.
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 1200))
         let shell = try XCTUnwrap(ui.state(SlidesShellState.self))
         let deck = try XCTUnwrap(shell.session.deck)
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
@@ -678,6 +679,38 @@ final class UIShellHarnessTests: XCTestCase {
             XCTAssertEqual(pic.frame.width, 180, accuracy: 0.01, "\(key)")
             XCTAssertEqual(pic.frame.height, 135, accuracy: 0.01, "the lock keeps 4:3")
         }
+    }
+
+    /// The Mac's square-fill-fit bug: a picture read from a file, stretched into a square, did not change on Crop to
+    /// Aspect > Fill or Fit (a read picture records no size of its own, so the frame's shape was taken for it). Its
+    /// pixel size is used: a 4:3 picture in a 240 pt square is cut 12.5 % each side by Fill, and Fit leaves 1/6 above and below.
+    func testSlidesFillAndFitOnAStretchedPictureFromAFile() throws {
+        // A real 4 x 3 pixel PNG.
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAIAAAA7ljmRAAAAEElEQVR4nGP4z8AARww4OQD1MQv1NXv7ggAAAABJRU5ErkJggg==")!
+        let made = DeckController()
+        _ = made.addPicture(ImageAttachment(data: png, width: 4, height: 3), naturalSize: Size(240, 240), at: Rect.fromLTWH(100, 100, 240, 240))
+        let path = NSTemporaryDirectory() + "squarefit-\(UUID().uuidString).pptx"
+        try Pptx.write(made).write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: SlidesShell(initialPath: path, onSwitch: { _, _ in }), title: "Test"), size: Size(1440, 932))
+        let deck = try XCTUnwrap(ui.state(SlidesShellState.self)?.session.deck)
+        let pic = try XCTUnwrap(deck.currentSlide.shapes.first { $0.picture != nil })
+        XCTAssertNil(pic.picture?.naturalWidth, "a read picture records no size of its own")
+        XCTAssertEqual(pic.frame.width, pic.frame.height, accuracy: 0.01)
+        deck.selectShapes([pic]); ui.pump()
+        XCTAssertTrue(ui.tap(text: "Picture Format")); ui.pump()
+        func crop(_ item: String) {
+            XCTAssertTrue(ui.tap(text: "Crop to Aspect")); ui.pump()
+            XCTAssertTrue(ui.tap(text: item)); ui.pump(); ui.pump()
+        }
+        crop("Fill")
+        XCTAssertEqual(pic.crop?.left ?? 9, 0.125, accuracy: 1e-6, "Fill cuts the sides")
+        XCTAssertEqual(pic.crop?.right ?? 9, 0.125, accuracy: 1e-6)
+        XCTAssertEqual(pic.crop?.top ?? 9, 0, accuracy: 1e-6)
+        crop("Fit")
+        XCTAssertEqual(pic.crop?.top ?? 9, -1.0 / 6, accuracy: 1e-6, "Fit leaves room above and below")
+        XCTAssertEqual(pic.crop?.bottom ?? 9, -1.0 / 6, accuracy: 1e-6)
+        XCTAssertEqual(pic.crop?.left ?? 9, 0, accuracy: 1e-6)
     }
 
     func testSlidesTableSizeMarginsAndUndo() throws {
