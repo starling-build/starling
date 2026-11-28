@@ -198,6 +198,11 @@ final class FormatCellsDialogState: State<StatefulWidget> {
                 _check("fc-underline", "Underline", values.underline) { $0.underline = $1 },
                 _check("fc-strike", "Strikethrough", values.strike) { $0.strike = $1 },
             ]),
+            Row(children: [
+                // Excel's Effects: the two are exclusive, so ticking one clears the other.
+                _check("fc-superscript", "Superscript", values.script == 1) { $0.script = $1 ? 1 : 0 },
+                _check("fc-subscript", "Subscript", values.script == -1) { $0.script = $1 ? -1 : 0 },
+            ]),
             Text("Text colour", style: fluent.typography.bodyStrong),
             _swatches("fc-color", values.color, noneLabel: "Automatic") { [weak self] c in self?._set { $0.color = c } },
         ])

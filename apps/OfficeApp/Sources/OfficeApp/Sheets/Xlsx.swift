@@ -1875,7 +1875,10 @@ enum Xlsx {
             if st.underline {
                 if let b = base, b.style.underline, b.style.accounting == st.accounting, let u = baseFont["u"] { font += u } else { font += "<u/>" }
             }
-            if st.script != 0, let b = base, b.style.script == st.script, let v = baseFont["vertAlign"] { font += v }
+            if st.script != 0 {
+                if let b = base, b.style.script == st.script, let v = baseFont["vertAlign"] { font += v }
+                else { font += st.script > 0 ? "<vertAlign val=\"superscript\"/>" : "<vertAlign val=\"subscript\"/>" }
+            }
             font += "<sz val=\"\(_num(book.fontSize(st) >= 1 ? book.fontSize(st) : 11))\"/>"
             if let b = base, b.style.color == st.color, let c = baseFont["color"] { font += c }
             else { font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>" }
@@ -1887,7 +1890,7 @@ enum Xlsx {
             func same(_ a: CellStyle, _ b: CellStyle, _ keys: [PartialKeyPath<CellStyle>]) -> Bool {
                 keys.allSatisfy { k in String(describing: a[keyPath: k]) == String(describing: b[keyPath: k]) }
             }
-            let fontKeys: [PartialKeyPath<CellStyle>] = [\.bold, \.italic, \.underline, \.strike, \.fontName, \.fontSize, \.color]
+            let fontKeys: [PartialKeyPath<CellStyle>] = [\.bold, \.italic, \.underline, \.strike, \.script, \.fontName, \.fontSize, \.color]
             var fontId = 0, fillId = 0, borderId = 0
             if let base, same(st, base.style, fontKeys), let f = Int(base.xf.attrs["fontId"] ?? "0") { fontId = f }
             else { fontId = index(&fonts, font) }
