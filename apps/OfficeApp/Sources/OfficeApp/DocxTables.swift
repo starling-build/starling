@@ -2910,10 +2910,27 @@ extension DocxFormat {
         // reference" (a training handbook's notes each broke a character
         // early), and ours of a name the file has is not added beside it.
         for id in characterStyles.keys.sorted() { out += characterStyles[id]! }
-        for id in tableStyles.keys.sorted() { out += tableStyles[id]! }
+        // Word's default table style, as Word writes it. Without it Word
+        // (in its legacy layout mode) set form_footnotes' tables 5pt to
+        // the right of the original's: 12.3% -> 9.9% with it.
+        // (A file that already had one keeps its own: two styles with one id is a file Word may refuse.)
+        if !tableStyles.values.contains(where: { $0.containsSubstring("w:styleId=\"TableNormal\"") }) {
+        out += "<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"
+        }
+        // A table style after the style it is based on: Word does not look ahead for a base (lab tb4b: Grid
+        // Table 4 written before Normal Table drew its cells with no padding, Normal Table's 5.4 pt lost).
+        var written = Set<String>(), order: [String] = []
+        func put(_ id: String) {
+            guard !written.contains(id), let x = tableStyles[id] else { return }
+            written.insert(id)
+            if let b = TableStyleGallery.attribute(x, "w:basedOn", "w:val") { put(b) }
+            order.append(id)
+        }
+        for id in tableStyles.keys.sorted() { put(id) }
+        for id in order { out += tableStyles[id]! }
         // Word's own note styles, for the notes Starling writes (10 pt single-spaced text, raised reference marks).
         for (kind, name) in [("Footnote", "footnote"), ("Endnote", "endnote")] where notes {
-            if !sheet.styles.contains(where: { $0.name.lowercased() == "\(name) text" }) {
+            if sheet["\(kind)Text"] == nil, !sheet.styles.contains(where: { $0.name.lowercased() == "\(name) text" }) {
                 out += "<w:style w:type=\"paragraph\" w:styleId=\"\(kind)Text\"><w:name w:val=\"\(name) text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style>"
             }
             if characterStyleIds["\(name) reference"] == nil, characterStyles["\(kind)Reference"] == nil {
@@ -2923,28 +2940,9 @@ extension DocxFormat {
         if characterStyleIds["hyperlink"] == nil, characterStyles["Hyperlink"] == nil {
         out += "<w:style w:type=\"character\" w:styleId=\"Hyperlink\"><w:name w:val=\"Hyperlink\"/><w:rPr><w:color w:val=\"0563C1\"/><w:u w:val=\"single\"/></w:rPr></w:style>"
         }
-        // Word's default table style, as Word writes it. Without it Word
-        // (in its legacy layout mode) set form_footnotes' tables 5pt to
-        // the right of the original's: 12.3% -> 9.9% with it.
-        // (A file that already had one keeps its own: two styles with one id is a file Word may refuse.)
-        if !tableStyles.values.contains(where: { $0.containsSubstring("w:styleId=\"TableNormal\"") }) {
-        out += "<w:style w:type=\"table\" w:default=\"1\" w:styleId=\"TableNormal\"><w:name w:val=\"Normal Table\"/><w:uiPriority w:val=\"99\"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w=\"0\" w:type=\"dxa\"/><w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/><w:bottom w:w=\"0\" w:type=\"dxa\"/><w:right w:w=\"108\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr></w:style>"
-        }
         // The file's ids for our styles, for kept markup that names them.
         for (fileId, ours) in aliases.sorted(by: { $0.key < $1.key }) where sheet[ours] != nil || ours == RichNamedStyle.normalId {
             out += "<w:style w:type=\"paragraph\" w:styleId=\"\(_esc(fileId))\"><w:name w:val=\"\(_esc(ours)) \(_esc(fileId))\"/><w:basedOn w:val=\"\(_esc(ours))\"/></w:style>"
-        }
-        if notes {
-            // The marks and the notes' own paragraphs, Word's defaults;
-            // a file that defined its own note text style keeps it above.
-            for kind in ["Footnote", "Endnote"] {
-                if characterStyleIds["\(kind.lowercased()) reference"] == nil, characterStyles["\(kind)Reference"] == nil {
-                out += "<w:style w:type=\"character\" w:styleId=\"\(kind)Reference\"><w:name w:val=\"\(kind.lowercased()) reference\"/><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr></w:style>"
-                }
-                if sheet["\(kind)Text"] == nil, !sheet.styles.contains(where: { $0.name.lowercased() == "\(kind.lowercased()) text" }) {
-                    out += "<w:style w:type=\"paragraph\" w:styleId=\"\(kind)Text\"><w:name w:val=\"\(kind.lowercased()) text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style>"
-                }
-            }
         }
         out += "</w:styles>"
         return out

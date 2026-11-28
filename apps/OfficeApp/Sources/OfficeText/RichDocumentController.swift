@@ -2768,7 +2768,7 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// A table's paragraphs with the style's fills redrawn (cells the user shaded keep their shading) and, when both looks
-    /// are known, each run's bold, italic and colour moved from the old style's look to the new one's where the run
+    /// are known, each paragraph's alignment and each run's bold, italic and colour moved from the old style's look to the new one's where the run
     /// still shows the old style's (a run the user formatted otherwise keeps it).
     static func restyled(_ paras: [RichParagraph], table t: String, look: Int, fills: TableCondFills?,
                          old: TableStyleLook?, new: TableStyleLook?) -> [RichParagraph] {
@@ -2786,6 +2786,7 @@ public final class RichDocumentController: ChangeNotifier {
             let was = old?.char(row: c.row, column: c.column, span: c.span, rowSpan: c.rowSpan) ?? CellCharLook()
             let now = new.char(row: c.row, column: c.column, span: c.span, rowSpan: c.rowSpan)
             guard was != now else { continue }
+            if paras[i].style.alignment == was.align { paras[i].style.alignment = now.align }
             for j in paras[i].runs.indices {
                 var st = paras[i].runs[j].style
                 if st.bold == was.bold, was.bold != now.bold { st.bold = now.bold; st.boldWithoutBCs = false }
