@@ -29,6 +29,7 @@ enum SheetCommand {
     case dataValidation            // Data → Data Validation
     case consolidate               // Data → Consolidate
     case fillSeries                // Home → Fill → Series
+    case flashFill                 // Home → Fill → Flash Fill (Ctrl+E): Excel's message when it finds no pattern
     case goToSpecial               // Home → Find & Select → Go To Special
     case scenarioManager           // Data → What-If Analysis → Scenario Manager
     case chartTitles(Int)          // Chart Design → Edit Titles
@@ -244,6 +245,7 @@ extension Ribbon {
                 ("Up", { wb.fillUp() }),
                 ("Left", { wb.fillLeft() }),
                 ("Series…", { wb.onCommand?(.fillSeries) }),
+                ("Flash Fill (⌘E)".keys, { wb.onCommand?(.flashFill) }),
             ]),
             Chrome.menu(Text("Clear", style: fluent.typography.caption), Icon(FluentSystemIcons.textClearFormatting, size: Chrome.iconSize,
                         color: fluent.resources.textFillColorPrimary), fluent, [

@@ -400,6 +400,8 @@ final class WorkbookController: ChangeNotifier {
     }
     /// The last paste of the app's own copy (X-CL-1): what the Paste Options button offers to make again another way.
     var lastPaste: LastPaste? = nil
+    /// The last fill-handle fill or Flash Fill (X-FI-1): what the Auto Fill Options button offers to make again another way.
+    var lastFill: LastFill? = nil
     private var _cf: (sheet: ObjectIdentifier, revision: Int, evaluator: CFEvaluator)? = nil
     private var _dv: (sheet: ObjectIdentifier, revision: Int, rules: [ValidationRule])? = nil
 
