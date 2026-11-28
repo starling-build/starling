@@ -137,15 +137,6 @@ enum TableStyleGallery {
         return value(String(xml[r.lowerBound ..< e.upperBound]), attr)
     }
 
-    /// The style's own cell shading (its root w:tcPr, outside every conditional part).
-    static func rootFill(_ xml: String) -> Color? {
-        let root = xml.rangeOfSubstring("<w:tblStylePr").map { String(xml[..<$0.lowerBound]) } ?? xml
-        guard let tc = root.rangeOfSubstring("<w:tcPr>") else { return nil }
-        let tcPr = String(root[tc.lowerBound...])
-        guard let fill = attribute(tcPr, "w:shd", "w:fill"), fill != "auto", let v = Int64(fill, radix: 16) else { return nil }
-        return Color(0xFF00_0000 | v)
-    }
-
     // MARK: The look, through the reader
 
     /// What style `id` (nil: none) gives table `t` of `doc` under Table Style Options `look`: a throwaway document with a
@@ -180,13 +171,8 @@ enum TableStyleGallery {
         for p in back.paragraphs {
             guard let c = p.cell, c.table == bt, c.row < rows, c.column < cols, let r = p.runs.first else { continue }
             chars[c.row][c.column] = CellCharLook(r.style)
+            chars[c.row][c.column].align = p.style.alignment
         }
-        var fills = back.tableCondFills[bt]
-        if let id, let x = doc.keptTableStyles[id], let base = rootFill(x) {
-            var f = fills ?? TableCondFills(byType: [:])
-            f.byType["wholeTable"] = base
-            fills = f
-        }
-        return TableStyleLook(borders: back.tableStyles[bt] ?? TableStyle(), fills: fills, chars: chars)
+        return TableStyleLook(borders: back.tableStyles[bt] ?? TableStyle(), fills: back.tableCondFills[bt], chars: chars)
     }
 }

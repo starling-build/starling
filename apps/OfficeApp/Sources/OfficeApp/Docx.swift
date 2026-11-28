@@ -318,6 +318,11 @@ enum DocxFormat {
         // The same with the style's first-row paragraph look on top.
         var headerBases: [String: RichParagraphStyle] = [:]
         var headerRootBases: [String: RichParagraphStyle] = [:]
+        /// A table style's conditional parts' paragraph properties (w:tblStylePr/w:pPr) other than the header's, by part
+        /// type, base style's first: List Table 7 Colorful's first column, its header cell too, is right-aligned in
+        /// Word's print (lab tb4).
+        var partPPrs: [String: [String: [XNode]]] = [:]
+        var headerPPrs: [String: [XNode]] = [:]
         var docBase = base
         // Cell margins by table style, each side from the style's chain
         // down to the default table style, then Word's own (0, 5.4pt).
@@ -464,6 +469,12 @@ enum DocxFormat {
                     }
                 }
                 if hasHeaderPPr { headerBases[id] = hps; headerRootBases[id] = hroot }
+                for n in chain {
+                    for part in n.all("w:tblStylePr") {
+                        guard let t = part["w:type"], let pPr = part.first("w:pPr") else { continue }
+                        if t == "firstRow" { headerPPrs[id, default: []].append(pPr) } else { partPPrs[id, default: [:]][t, default: []].append(pPr) }
+                    }
+                }
                 tableNodes[id] = style
                 tableEdges[id] = _edges(style.first("w:tblPr"), "w:tblBorders")
                 tableSides[id] = style.first("w:tblPr")?.first("w:tblBorders")
@@ -532,6 +543,10 @@ enum DocxFormat {
                         default: break
                         }
                         if let t = part["w:type"], let fill, cond.fills[t] == nil { cond.fills[t] = fill }
+                    }
+                    // The style's own cell shading, under every part; a wholeTable part's own stands over it (Grid Table 5 Dark's light body, lab tb4).
+                    if cond.fills["wholeTable"] == nil, let c = node.first("w:tcPr")?.first("w:shd")?["w:fill"].flatMap({ RichLayout.wordColor($0, names: false) }) {
+                        cond.fills["wholeTable"] = c
                     }
                     cur = node.first("w:basedOn")?["w:val"]
                 }
@@ -2578,6 +2593,28 @@ enum DocxFormat {
                         if let sid = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"] {
                             if r == 0, firstRowOn, let hb = headerBases[sid], let hr = headerRootBases[sid] { cellBase = hb; cellRootBase = hr }
                             else if let tb = tableBases[sid], let tr = tableRootBases[sid] { cellBase = tb; cellRootBase = tr }
+                            // The column, last-row and corner parts' paragraph look, the header's over it (Word's order:
+                            // columns, then rows, then corners).
+                            if let parts = partPPrs[sid], let tb = tableBases[sid], let tr = tableRootBases[sid] {
+                                let firstRowHere = r == 0 && firstRowOn, lastRowHere = lookBits & 0x40 != 0 && r == rowCount - 1
+                                let firstColHere = column == 0 && firstColOn, lastColHere = lookBits & 0x100 != 0 && column + span >= gridCount
+                                var order: [String] = []
+                                if firstColHere { order.append("firstCol") }
+                                if lastColHere { order.append("lastCol") }
+                                if lastRowHere { order.append("lastRow") }
+                                if firstRowHere && firstColHere { order.append("nwCell") }
+                                if firstRowHere && lastColHere { order.append("neCell") }
+                                if lastRowHere && firstColHere { order.append("swCell") }
+                                if lastRowHere && lastColHere { order.append("seCell") }
+                                let own = order.flatMap { parts[$0] ?? [] }
+                                if !own.isEmpty {
+                                    let header = firstRowHere ? headerPPrs[sid] ?? [] : []
+                                    cellBase = tb; cellRootBase = tr
+                                    for pPr in own + header {
+                                        _paragraphProps(pPr, into: &cellBase); _paragraphProps(pPr, into: &cellRootBase)
+                                    }
+                                }
+                            }
                         }
                         notes.cellSizeFromTable = false
                         if cellChar.fontSize == nil, !normalStatesSize, let size = tableStyleSize { cellChar.fontSize = size; notes.cellSizeFromTable = true }

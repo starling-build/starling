@@ -1628,8 +1628,10 @@ public struct CellCharLook: Hashable, Sendable {
     public var bold = false, italic = false
     public var color: Color? = nil
     public var colorTheme: String? = nil
-    public init(bold: Bool = false, italic: Bool = false, color: Color? = nil, colorTheme: String? = nil) {
-        self.bold = bold; self.italic = italic; self.color = color; self.colorTheme = colorTheme
+    /// The cell's paragraph alignment (a part's w:pPr: List Table 7 Colorful's first column is right-aligned).
+    public var align: ParagraphAlignment = .left
+    public init(bold: Bool = false, italic: Bool = false, color: Color? = nil, colorTheme: String? = nil, align: ParagraphAlignment = .left) {
+        self.bold = bold; self.italic = italic; self.color = color; self.colorTheme = colorTheme; self.align = align
     }
     public init(_ c: CharStyle) { self.init(bold: c.bold, italic: c.italic, color: c.color, colorTheme: c.colorTheme) }
 }

@@ -101,6 +101,48 @@ final class TableStylesGalleryTests: XCTestCase {
         XCTAssertTrue(x.containsSubstring("<w:color w:val=\"FEFEFE\""), x)
     }
 
+    func testTheStylesPartNamesABaseBeforeTheStylesOnItAndEachStyleOnce() throws {
+        let c = grid()
+        TableStyleGallery.apply("GridTable4-Accent1", to: c)
+        let styles = try XCTUnwrap(try part(try DocxFormat.write(c.document, pageSetup: .letter), "word/styles.xml"))
+        // Word does not look ahead for a base style: written after Grid Table 4, Normal Table's 5.4 pt cell padding
+        // was lost in Word's print (lab tb4b).
+        let base = try XCTUnwrap(styles.rangeOfSubstring("w:styleId=\"TableNormal\"")), grid = try XCTUnwrap(styles.rangeOfSubstring("w:styleId=\"GridTable4-Accent1\""))
+        XCTAssertLessThan(base.lowerBound, grid.lowerBound)
+        var ids: [String] = [], rest = Substring(styles)
+        while let r = rest.rangeOfSubstring("w:styleId=\"") {
+            let tail = rest[r.upperBound...]
+            guard let e = tail.firstIndex(of: "\"") else { break }
+            ids.append(String(tail[..<e]))
+            rest = tail[e...]
+        }
+        XCTAssertEqual(ids.count, Set(ids).count, "a style id twice is a file Word repairs: \(ids)")
+    }
+
+    func testTheStylesOwnShadingFillsItsPlainCells() throws {
+        let c = grid()
+        TableStyleGallery.apply("GridTable5Dark-Accent2", to: c)
+        let d = c.document
+        let body = try XCTUnwrap(para(d, 2, 1).cell?.fill, "Grid Table 5 Dark's light body (Word's print, lab tb4)")
+        XCTAssertNotEqual(body, para(d, 1, 1).cell?.fill, "the band stands over it")
+        let back = try DocxFormat.read(try DocxFormat.write(d, pageSetup: .letter)).document
+        XCTAssertEqual(para(back, 2, 1).cell?.fill, body, "an opened file shades it too")
+    }
+
+    func testAPartsAlignmentMovesWithTheStyle() throws {
+        let c = grid()
+        TableStyleGallery.apply("ListTable7Colorful-Accent6", to: c)
+        XCTAssertEqual(para(c.document, 1, 0).style.alignment, .right, "List Table 7's first column, as Word prints it (lab tb4)")
+        XCTAssertEqual(para(c.document, 1, 1).style.alignment, .left)
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(para(back, 1, 0).style.alignment, .right)
+        XCTAssertEqual(para(back, 0, 0).style.alignment, .right, "the header cell of the first column too")
+        TableStyleGallery.apply("GridTable4-Accent1", to: c)
+        XCTAssertEqual(para(c.document, 1, 0).style.alignment, .left)
+        c.undo()
+        XCTAssertEqual(para(c.document, 1, 0).style.alignment, .right)
+    }
+
     func testTheGalleryListsWordsStyles() {
         let g = TableStyleGallery.groups
         XCTAssertEqual(g.map(\.0), ["Plain Tables", "Grid Tables", "List Tables"])
