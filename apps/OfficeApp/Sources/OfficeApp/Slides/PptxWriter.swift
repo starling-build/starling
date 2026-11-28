@@ -1064,8 +1064,17 @@ private struct SlideXML {
 
     /// The shape's effects with the camera of its `a:scene3d` set to `name` (the light rig and `a:sp3d` stay). With
     /// no scene, one is added unless the camera is square on.
-    static func _effectsWithCamera(_ effects: String, _ name: String) -> String {
-        let camera = "<a:camera prst=\"\(PptxXML.escape(name, attribute: true))\"/>"
+    /// `turn`, when given, is a turn typed in Format Shape: written as the camera's `a:rot` (60000ths of a degree), with
+    /// the lens as `fov` when the preset is a perspective one.
+    static func _effectsWithCamera(_ effects: String, _ name: String, turn: Scene3D? = nil, turned: Bool = false) -> String {
+        let prst = "<a:camera prst=\"\(PptxXML.escape(name, attribute: true))\""
+        var camera = prst + "/>"
+        if turned {
+            let t = turn ?? Scene3D(depth: 0)
+            func a(_ v: Double) -> Int { Int((v * 60000).rounded()) }
+            let fov = t.fov.flatMap { name.hasPrefix("perspective") ? " fov=\"\(a($0))\"" : nil } ?? ""
+            camera = prst + fov + "><a:rot lat=\"\(a(t.lat))\" lon=\"\(a(t.lon))\" rev=\"\(a(t.rev))\"/></a:camera>"
+        }
         if let a = effects.rangeOfSubstring("<a:scene3d"), let e = effects.rangeOfSubstring("</a:scene3d>", in: a.lowerBound..<effects.endIndex),
            let c0 = effects.rangeOfSubstring("<a:camera", in: a.lowerBound..<e.lowerBound) {
             var out = effects
@@ -1076,7 +1085,7 @@ private struct SlideXML {
             out.replaceSubrange(c1, with: camera)
             return out
         }
-        if name == "orthographicFront" { return effects }
+        if name == "orthographicFront", !turned { return effects }
         let scene = "<a:scene3d>\(camera)<a:lightRig rig=\"threePt\" dir=\"t\"/></a:scene3d>"
         if let sp = effects.rangeOfSubstring("<a:sp3d") { var out = effects; out.insert(contentsOf: scene, at: sp.lowerBound); return out }
         return effects + scene
@@ -1495,7 +1504,7 @@ private struct SlideXML {
                 if given.lineShown(by: s) { lineXML = "" }
                 if given.effectsShown(by: s) { effectsXML = "" }
             }
-            if let cam = s.camera { effectsXML = Self._effectsWithCamera(effectsXML, cam) }
+            if let cam = s.camera { effectsXML = Self._effectsWithCamera(effectsXML, cam, turn: s.scene3d, turned: s.cameraTurned) }
             spPr += fillXML + lineXML + effectsXML
             var openPath = false
             if case .geometry(let p) = s.kind { openPath = p.isOpenPath }
@@ -1521,7 +1530,7 @@ private struct SlideXML {
                 let wrap = s.noWrap && s.bodyWrap == "none" ? "none" : "square"
                 let cols = s.columns > 1 ? " numCol=\"\(s.columns)\" spcCol=\"\(Self._emu(s.columnGap))\"" : ""
                 xml += "<p:txBody><a:bodyPr\(vert) wrap=\"\(wrap)\"\(cols) lIns=\"\(Self._emu(ins.left))\" tIns=\"\(Self._emu(ins.top))\" "
-                    + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\"\(s.anchorCentred ? " anchorCtr=\"1\"" : "") rtlCol=\"0\">\(s.warp?.xml ?? "")\(fit)</a:bodyPr>"
+                    + "rIns=\"\(Self._emu(ins.right))\" bIns=\"\(Self._emu(ins.bottom))\" anchor=\"\(anchor)\"\(s.anchorCentred ? " anchorCtr=\"1\"" : "") rtlCol=\"0\">\(s.warp?.xml ?? "")\(fit)\(s.flatText ? "<a:flatTx/>" : "")</a:bodyPr>"
                     + "<a:lstStyle/>" + PptxText.paragraphs(doc, defaults: s, field: s.field) + "</p:txBody>"
             }
             return xml + "</p:sp>"

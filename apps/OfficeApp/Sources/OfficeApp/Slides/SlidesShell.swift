@@ -118,6 +118,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _animationPane = false
     private var _selectionPane = false
     private var _formatShape = false
+    /// The Format Shape section to show first ("rotation3d"), nil for the pane's usual order.
+    private var _formatShapeSection: String? = nil
     private var _formatBackground = false
     /// A thumbnail being dragged to a new place: where it started, the
     /// pointer's start, and where it would land.
@@ -446,7 +448,10 @@ final class SlidesShellState: State<StatefulWidget> {
             self?.setState { self?._formatBackground.toggle() }
         }
         session.onFormatShape = { [weak self] in
-            self?.setState { self?._formatShape.toggle() }
+            self?.setState { self?._formatShape.toggle(); self?._formatShapeSection = nil }
+        }
+        session.onFormatShape3D = { [weak self] in
+            self?.setState { self?._formatShape = true; self?._formatShapeSection = "rotation3d" }
         }
         session.onSelectionPane = { [weak self] in
             self?.setState { self?._selectionPane.toggle() }
@@ -1902,7 +1907,7 @@ final class SlidesShellState: State<StatefulWidget> {
                                                   onClose: { [weak self] in self?.setState { self?._formatBackground = false } }))
             }
             if _formatShape {
-                panes.append(FormatShapePane(deck: deck, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
+                panes.append(FormatShapePane(deck: deck, section: _formatShapeSection, onClose: { [weak self] in self?.setState { self?._formatShape = false } }))
             }
             if _chartData, let chart = deck.selectedChart {
                 panes.append(ChartDataPane(key: ValueKey("chart data \(chart.id)"), deck: deck, shape: chart,
@@ -2531,7 +2536,7 @@ final class SlidesShellState: State<StatefulWidget> {
             m.item("Ungroup", enabled: deck.canUngroup) { deck.ungroupSelection() }
             m.item("Regroup", enabled: deck.canRegroup) { deck.regroupSelection() }
             m.separator()
-            m.item("Format Shape…") { [weak self] in self?.setState { self?._formatShape = true } }
+            m.item("Format Shape…") { [weak self] in self?.setState { self?._formatShape = true; self?._formatShapeSection = nil } }
             _linkItems(m, link: deck.selectedShapeLink.link, remove: { deck.setShapeLink(nil, tip: nil) })
             m.separator()
             m.item("Rotate Right 90°") { deck.rotateSelection(by: 90) }

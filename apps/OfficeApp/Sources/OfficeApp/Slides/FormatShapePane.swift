@@ -15,9 +15,12 @@ import Foundation
 final class FormatShapePane: StatefulWidget {
     let deck: DeckController
     let onClose: () -> Void
+    /// The section shown first: "rotation3d" when opened from the ribbon's "3-D Rotation Options…".
+    let section: String?
 
-    init(deck: DeckController, onClose: @escaping () -> Void) {
+    init(deck: DeckController, section: String? = nil, onClose: @escaping () -> Void) {
         self.deck = deck
+        self.section = section
         self.onClose = onClose
         super.init()
     }
@@ -226,9 +229,11 @@ final class FormatShapePaneState: State<StatefulWidget> {
             editShadow { (sh: inout CharShadow) in let d = hypot(sh.dx, sh.dy); let a = v * Double.pi / 180; sh.dx = cos(a) * d; sh.dy = sin(a) * d }
         })
         fx.append(gap(14))
-        fx.append(Text("3-D rotation", style: caption)); fx.append(gap(4))
+        // 3-D Rotation: the preset, the turn about each axis as PowerPoint's X/Y/Z, the perspective (a perspective
+        // preset's lens) and Keep Text Flat. Opened from the ribbon's "3-D Rotation Options…", it stands first.
+        var r3: [Widget] = [Text("3-D rotation", style: caption), gap(4)]
         let camera = first.map { $0.camera ?? ($0.scene3d?.cameraName.isEmpty == false ? $0.scene3d!.cameraName : "orthographicFront") } ?? "orthographicFront"
-        fx.append(Row(children: [
+        r3.append(Row(children: [
             SizedBox(width: 110, height: nil, child: Text("Preset", style: caption)),
             SizedBox(key: ValueKey("fmt.rotation3d"), width: 120, height: 30, child: Button(onPressed: some ? {
                 let presets = Extrusion.rotationPresets
@@ -236,7 +241,26 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 deck.setCamera(presets[(at + 1) % presets.count].0)
             } : nil, child: Text(Extrusion.rotationPresets.first { $0.0 == camera }?.1 ?? camera))),
         ]))
-        fx.append(gap(14))
+        let scene = first?.scene3d
+        r3.append(gap(6))
+        r3.append(row("fmt.rot3d.x", "X Rotation", some ? Self.text(scene?.lon ?? 0) : "", min: -100000, unit: "°") { deck.setRotation3D(x: $0) })
+        r3.append(gap(6))
+        r3.append(row("fmt.rot3d.y", "Y Rotation", some ? Self.text(scene?.lat ?? 0) : "", min: -100000, unit: "°") { deck.setRotation3D(y: $0) })
+        r3.append(gap(6))
+        r3.append(row("fmt.rot3d.z", "Z Rotation", some ? Self.text(scene?.rev ?? 0) : "", min: -100000, unit: "°") { deck.setRotation3D(z: $0) })
+        r3.append(gap(6))
+        // The lens is a perspective camera's only (PowerPoint greys the box for the others).
+        let lensed = camera.hasPrefix("perspective")
+        r3.append(row("fmt.rot3d.perspective", "Perspective", lensed ? Self.text(scene?.fov ?? (camera.hasPrefix("perspectiveHeroicExtreme") ? 80 : 45)) : "",
+                      min: 0, unit: "°") { v in if lensed { deck.setRotation3D(perspective: v) } })
+        r3.append(gap(6))
+        r3.append(Checkbox(key: ValueKey("fmt.rot3d.flat"), checked: some && first?.flatText == true, onChanged: { (v: Bool?) in
+            if some { deck.setFlatText(v ?? false) }
+        }, content: Text("Keep text flat")))
+        r3.append(gap(14))
+        let rotation3D = Column(crossAxisAlignment: .start, children: r3)
+        let rotationFirst = _w.section == "rotation3d"
+        if !rotationFirst { fx.append(rotation3D) }
         // Glow and soft edges: what the ribbon's Shape Effects presets set, with the size typed.
         let glowOn = some && first?.glowRadius != nil
         fx.append(Text("Glow", style: caption)); fx.append(gap(4))
@@ -327,7 +351,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                 gap(14),
             ])
         } ?? SizedBox(width: nil, height: 0, child: nil)
-        let body = Column(crossAxisAlignment: .start, children: [
+        let body = Column(crossAxisAlignment: .start, children: (rotationFirst ? [rotation3D] as [Widget] : []) + [
             Text("Fill & Line", style: fluent.typography.bodyStrong), gap(10),
             Text("Fill", style: caption), gap(4),
             Checkbox(key: ValueKey("fmt.fill.none"), checked: some && !fillOn, onChanged: { v in

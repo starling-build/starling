@@ -518,6 +518,67 @@ final class SlideFormatShapeTests: XCTestCase {
         return deck
     }
 
+    /// Format Shape > 3-D Rotation: X/Y/Z as PowerPoint's (X the turn about the upright axis, `lon`), the perspective lens of a
+    /// perspective preset, and Keep Text Flat; each one undo step, written as PowerPoint writes them and read back.
+    func testRotation3DBoxesAndKeepTextFlat() throws {
+        let deck = DeckController()
+        let a = deck.addShape(.rect)
+        deck.selectShapes([a])
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: FormatShapePane(deck: deck, section: "rotation3d", onClose: {}), title: "Test"),
+                              size: Size(1280, 800))
+        settle(ui)
+        func enter(_ id: String, _ text: String) {
+            XCTAssertTrue(ui.tap(id: id), id)
+            for _ in 0 ..< 10 { ui.press(.backspace) }
+            ui.type(text); ui.press(.enter); settle(ui)
+        }
+        enter("fmt.rot3d.x", "20")
+        enter("fmt.rot3d.y", "-10")
+        enter("fmt.rot3d.z", "30")
+        XCTAssertEqual(a.scene3d?.lon ?? -1, 20, accuracy: 1e-9)
+        XCTAssertEqual(a.scene3d?.lat ?? -1, 350, accuracy: 1e-9, "a turn is kept in 0..<360")
+        XCTAssertEqual(a.scene3d?.rev ?? -1, 30, accuracy: 1e-9)
+        XCTAssertTrue(ui.tap(id: "fmt.rot3d.flat")); settle(ui)
+        XCTAssertTrue(a.flatText)
+        var xml = try slideXML(deck)
+        XCTAssertTrue(xml.contains("<a:scene3d><a:camera prst=\"orthographicFront\"><a:rot lat=\"21000000\" lon=\"1200000\" rev=\"1800000\"/></a:camera>"
+                                   + "<a:lightRig rig=\"threePt\" dir=\"t\"/></a:scene3d>"), xml)
+        XCTAssertTrue(xml.contains("<a:flatTx/></a:bodyPr>"))
+        let (back, _, _) = try Pptx.read(Pptx.write(deck))
+        let b = try XCTUnwrap(back.slides[0].shapes.first { $0.name == a.name })
+        XCTAssertEqual(b.scene3d?.lon ?? -1, 20, accuracy: 0.01)
+        XCTAssertEqual(b.scene3d?.lat ?? -1, 350, accuracy: 0.01)
+        XCTAssertEqual(b.scene3d?.rev ?? -1, 30, accuracy: 0.01)
+        XCTAssertTrue(b.flatText, "Keep Text Flat survives saving")
+        deck.undo(); XCTAssertFalse(a.flatText, "one undo per change")
+        deck.undo(); XCTAssertEqual(a.scene3d?.rev ?? -1, 0, accuracy: 1e-9)
+        // A perspective preset's lens is written as fov; a preset chosen again drops the typed turn.
+        deck.setCamera("perspectiveLeft")
+        enter("fmt.rot3d.perspective", "60")
+        XCTAssertEqual(a.scene3d?.fov ?? 0, 60, accuracy: 1e-9)
+        xml = try slideXML(deck)
+        XCTAssertTrue(xml.contains("<a:camera prst=\"perspectiveLeft\" fov=\"3600000\"><a:rot "), xml)
+        deck.setCamera("isometricLeftDown")
+        XCTAssertFalse(a.cameraTurned)
+        XCTAssertTrue(try slideXML(deck).contains("<a:camera prst=\"isometricLeftDown\"/>"))
+    }
+
+    /// Shape Effects > 3-D Rotation > 3-D Rotation Options… opens Format Shape with its 3-D Rotation boxes.
+    func testRotationOptionsOpensThePane() throws {
+        let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light),
+                                        home: SlidesShell(initialPath: nil, onSwitch: { _, _ in }), title: "Test"),
+                              size: Size(2000, 800))
+        let deck = try XCTUnwrap(ui.state(SlidesShellState.self)?.session.deck)
+        let s = deck.addShape(.rect); deck.selectShapes([s]); ui.pump()
+        XCTAssertFalse(ui.has(id: "fmt.rot3d.x"))
+        XCTAssertTrue(ui.tap(text: "Shape Effects")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "3-D Rotation")); ui.pump()
+        XCTAssertTrue(ui.tap(text: "3-D Rotation Options…")); settle(ui)
+        XCTAssertTrue(ui.has(id: "fmt.rot3d.x"))
+        XCTAssertTrue(ui.has(id: "fmt.rot3d.flat"))
+    }
+
     private func slideXML(_ deck: DeckController) throws -> String {
         let out = PptxPackage(try Zip.read(try Pptx.write(deck)))
         return String(data: out.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!

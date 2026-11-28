@@ -303,6 +303,7 @@ extension Ribbon {
                 MenuFlyoutSubItem(text: Text(name), items: Extrusion.rotationPresets.filter { test($0.0) }.map { prst, label in
                     item("fx.rotation.\(prst)", label) { deck.setCamera(prst) } })
             }
+            + [MenuFlyoutSeparator(), item("fx.rotation.options", "3-D Rotation Options…") { [session] in session.onFormatShape3D?() }] as [MenuFlyoutItemBase]
         return [
             item("fx.clear", "No Effects") { deck.clearEffects() },
             MenuFlyoutSeparator(),
