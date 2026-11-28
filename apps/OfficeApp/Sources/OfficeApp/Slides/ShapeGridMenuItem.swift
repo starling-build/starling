@@ -7,7 +7,7 @@ import FlutterSwiftBridge
 /// Home > Shapes as PowerPoint shows it: one panel, each group a heading over a grid of shape icons, every shape named in
 /// its tooltip. The panel has a fixed height and scrolls, so it stays inside a small window (a submenu per group ran
 /// off the bottom: Basic Shapes alone is 45 rows).
-final class ShapeGridMenuItem: MenuFlyoutItemBase {
+final class ShapeGridMenuItem: MenuFlyoutItemBase, RibbonPopupChoosing {
     static let columns = 12
     static let cell = 24.0
     static let height = 420.0
@@ -23,6 +23,10 @@ final class ShapeGridMenuItem: MenuFlyoutItemBase {
     init(ink: Color, hover: Color, recent: [ShapePreset] = [], outlinesOnly: Bool = false, onChoose: @escaping (ShapePreset) -> Void) {
         self.ink = ink; self.hover = hover; self.recent = recent; self.onChoose = onChoose; self.outlinesOnly = outlinesOnly
         super.init(key: ValueKey(outlinesOnly ? "crop-shape-grid" : "shape-grid"))
+    }
+
+    func closing(_ also: @escaping () -> Void) -> MenuFlyoutItemBase {
+        ShapeGridMenuItem(ink: ink, hover: hover, recent: recent, outlinesOnly: outlinesOnly) { [onChoose] in onChoose($0); also() }
     }
 
     override func buildItem(_ context: any BuildContext) -> Widget {

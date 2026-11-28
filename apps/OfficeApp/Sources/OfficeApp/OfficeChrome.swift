@@ -131,6 +131,7 @@ private final class _FlatButtonState: State<StatefulWidget> {
     fileprivate func _closingPopup(_ items: [MenuFlyoutItemBase], _ w: FlatButton) -> [MenuFlyoutItemBase] {
         guard !w.keepsPopupOpen, context?.findAncestorWidgetOfExactType(RibbonPopupScope.self) != nil else { return items }
         return items.map { item in
+            if let c = item as? RibbonPopupChoosing { return c.closing { [weak self] in self?._closePopup(w) } }
             guard let i = item as? MenuFlyoutItem, let press = i.onPressed else { return item }
             return MenuFlyoutItem(key: i.key, text: i.text, leading: i.leading, trailing: i.trailing,
                                   onPressed: { [weak self] in press(); self?._closePopup(w) },
