@@ -834,10 +834,26 @@ final class SlidesShellState: State<StatefulWidget> {
         }
     }
 
+    /// Each self-sizing box's text revision when last seen.
+    private var _growSeen: [Int: Int] = [:]
+
+    /// A box that sizes itself to its text (spAutoFit) takes the height its text needs once its text changes, as
+    /// PowerPoint's text boxes grow while you type. A box as a file left it keeps its frame until then.
+    private func _growToText() {
+        for shape in deck.currentSlide.shapes where DeckController.resizesToText(shape) {
+            guard let text = shape.text else { continue }
+            guard let seen = _growSeen[shape.id] else { _growSeen[shape.id] = text.revision; continue }
+            guard seen != text.revision else { continue }
+            _growSeen[shape.id] = text.revision
+            if let h = SlideTextCache.fittedHeight(shape) { deck.fitHeight(shape, h) }
+        }
+    }
+
     private func _deckChanged() {
         if _outline && !_outlineSyncing && !_outlineFocus.hasFocus { _loadOutline() }
         _fitTables()
         _autofit()
+        _growToText()
         // A selected picture opens its tab; leaving it returns Home.
         let picture = deck.selection.contains { $0.picture != nil }
         if picture && !_hadPicture { _tab = .pictureFormat }
