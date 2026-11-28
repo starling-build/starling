@@ -119,7 +119,7 @@ enum SchemeColor {
         guard names.contains(p[0]) else { return nil }
         var kids = ""
         if p.count == 3 { kids += "<a:lumMod val=\"\(p[1])\"/><a:lumOff val=\"\(p[2])\"/>" }
-        if alpha < 255 { kids += "<a:alpha val=\"\(alpha * 100000 / 255)\"/>" }
+        if alpha < 255 { kids += "<a:alpha val=\"\(PptxText.alphaVal(alpha))\"/>" }
         return "<a:solidFill><a:schemeClr val=\"\(p[0])\">\(kids)</a:schemeClr></a:solidFill>"
     }
 

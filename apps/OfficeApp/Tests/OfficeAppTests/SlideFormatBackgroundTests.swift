@@ -235,6 +235,10 @@ final class SlideFormatBackgroundTests: XCTestCase {
         deck.setBackground(SlideFill(color: FormatBackgroundPaneState.transparent(Color(0xFF00AA00), 25)))
         let data = try Pptx.write(deck)
         let slide1 = String(data: PptxPackage(try Zip.read(data)).parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        // 50% transparency saves as PowerPoint writes it, 50000, not 50196 (alpha 128 of 255).
+        XCTAssertTrue(slide1.contains("<a:alpha val=\"50000\"/>"), slide1)
+        let slide2 = String(data: PptxPackage(try Zip.read(data)).parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        XCTAssertTrue(slide2.contains("<a:alpha val=\"75000\"/>"), slide2)
         XCTAssertTrue(slide1.contains("<a:path path=\"circle\"><a:fillToRect l=\"50000\" t=\"50000\" r=\"50000\" b=\"50000\"/></a:path>"), slide1)
         let (state, _, _) = try Pptx.read(data)
         let f = try XCTUnwrap(state.slides[0].background)
@@ -243,6 +247,15 @@ final class SlideFormatBackgroundTests: XCTestCase {
         let solid = try XCTUnwrap(state.slides[1].background?.color)
         XCTAssertEqual(solid.value & 0xFFFFFF, 0x00AA00)
         XCTAssertEqual(FormatBackgroundPaneState.transparency(solid), 25, accuracy: 1)
+    }
+
+    func testEveryWholePercentSavesExactlyAndOtherAlphasAsBefore() {
+        for p in 0 ... 100 {
+            let a = Int((Double(p) / 100 * 255).rounded())
+            XCTAssertEqual(PptxText.alphaVal(a), p * 1000, "\(p)%")
+        }
+        // An alpha read from a file that is no whole percent (33333 reads as 85) saves as it did.
+        XCTAssertEqual(PptxText.alphaVal(85), 33333)
     }
 
     func testSolidTransparencyFromThePane() throws {

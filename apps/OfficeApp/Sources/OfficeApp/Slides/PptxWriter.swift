@@ -1055,7 +1055,7 @@ private struct SlideXML {
         let dist = Int((hypot(sh.dx, sh.dy) * Pptx.emu).rounded())
         var deg = atan2(sh.dy, sh.dx) * 180 / .pi
         if deg < 0 { deg += 360 }
-        let alpha = sh.color.alpha < 255 ? "<a:alpha val=\"\(Int((Double(sh.color.alpha) / 255 * 100000).rounded()))\"/>" : ""
+        let alpha = sh.color.alpha < 255 ? "<a:alpha val=\"\(PptxText.alphaVal(sh.color.alpha))\"/>" : ""
         let rgb = String(sh.color.value & 0xFFFFFF, radix: 16, uppercase: true)
         let hex = String(repeating: "0", count: max(0, 6 - rgb.count)) + rgb
         return "<a:outerShdw blurRad=\"\(Int((sh.blur * Pptx.emu).rounded()))\" dist=\"\(dist)\" dir=\"\(Int((deg * 60000).rounded()))\" algn=\"ctr\" rotWithShape=\"0\">"
@@ -1147,7 +1147,7 @@ private struct SlideXML {
             return PptxTemplates.blipFillXML(f, rid: rid)
         }
         if f.stops.count >= 2 {
-            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\">\($0.color.alpha < 255 ? "<a:alpha val=\"\($0.color.alpha * 100000 / 255)\"/>" : "")</a:srgbClr></a:gs>" }.joined()
+            let stops = f.stops.map { "<a:gs pos=\"\(Int(($0.position * 100000).rounded()))\"><a:srgbClr val=\"\(PptxText.hex($0.color))\">\($0.color.alpha < 255 ? "<a:alpha val=\"\(PptxText.alphaVal($0.color.alpha))\"/>" : "")</a:srgbClr></a:gs>" }.joined()
             if let path = f.path {
                 // A radial (or rectangular) blend out from the fill-to point: `a:path`, as Format Background makes it.
                 func v(_ x: Double) -> Int { Int((x * 100000).rounded()) }
@@ -1179,7 +1179,7 @@ private struct SlideXML {
         guard let c else { return "<a:noFill/>" }
         let alpha = (c.value >> 24) & 0xFF
         if let scheme, let x = SchemeColor.xml(scheme, alpha: Int(alpha)) { return x }
-        let a = alpha < 255 ? "<a:alpha val=\"\(alpha * 100000 / 255)\"/>" : ""
+        let a = alpha < 255 ? "<a:alpha val=\"\(PptxText.alphaVal(Int(alpha)))\"/>" : ""
         return "<a:solidFill><a:srgbClr val=\"\(PptxText.hex(c))\">\(a)</a:srgbClr></a:solidFill>"
     }
 
@@ -2008,7 +2008,7 @@ enum PptxText {
             let dist = Int((hypot(sh.dx, sh.dy) * Pptx.emu).rounded())
             var deg = atan2(sh.dy, sh.dx) * 180 / .pi
             if deg < 0 { deg += 360 }
-            let alpha = sh.color.alpha < 255 ? "<a:alpha val=\"\(Int((Double(sh.color.alpha) / 255 * 100000).rounded()))\"/>" : ""
+            let alpha = sh.color.alpha < 255 ? "<a:alpha val=\"\(PptxText.alphaVal(sh.color.alpha))\"/>" : ""
             shadow = "<a:effectLst><a:outerShdw blurRad=\"\(Int((sh.blur * Pptx.emu).rounded()))\" dist=\"\(dist)\" dir=\"\(Int((deg * 60000).rounded()))\" algn=\"tl\">"
                 + "<a:srgbClr val=\"\(hex(sh.color))\">\(alpha)</a:srgbClr></a:outerShdw></a:effectLst>"
         }
@@ -2102,7 +2102,7 @@ extension SlideXML {
     }
 
     private static func _glowXML(_ r: Double, _ c: Color) -> String {
-        let alpha = c.alpha < 255 ? "<a:alpha val=\"\(Int((Double(c.alpha) / 255 * 100000).rounded()))\"/>" : ""
+        let alpha = c.alpha < 255 ? "<a:alpha val=\"\(PptxText.alphaVal(c.alpha))\"/>" : ""
         return "<a:glow rad=\"\(Int((r * Pptx.emu).rounded()))\"><a:srgbClr val=\"\(_hex(c))\">\(alpha)</a:srgbClr></a:glow>"
     }
 
@@ -2213,5 +2213,16 @@ extension PptxWriter {
             if let d = b.parts[Pptx.relsPath(abs)] { files[Pptx.relsPath(abs)] = d }
         }
         return MasterPage(cSld: PptxXML.serialize(c), namespaces: ns, rels: rels, files: files)
+    }
+}
+
+extension PptxText {
+    /// The `a:alpha val` (thousandths of a percent) for an 8-bit alpha. A whole percent, which is all the panes'
+    /// Transparency boxes make, saves exactly (50% is 50000, as PowerPoint writes it, not 50196); any other alpha,
+    /// as read from a file, saves as before so it reads back the same.
+    static func alphaVal(_ alpha: Int) -> Int {
+        let percent = (Double(alpha) / 255 * 100).rounded()
+        if Int((percent / 100 * 255).rounded()) == alpha { return Int(percent) * 1000 }
+        return Int((Double(alpha) / 255 * 100000).rounded())
     }
 }
