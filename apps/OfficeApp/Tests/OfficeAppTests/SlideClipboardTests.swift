@@ -97,7 +97,10 @@ final class SlideClipboardTests: XCTestCase {
         let foreign = ClipboardData(text: "words", png: picture, custom: [DeckController.shapesMime: Data("slides:x:1".utf8)])
         XCTAssertEqual(deck.pasteChoice(for: foreign), .picture(picture))
         XCTAssertEqual(deck.pasteChoice(for: ClipboardData(text: nil, png: picture)), .picture(picture))
-        XCTAssertEqual(deck.pasteChoice(for: ClipboardData(text: "words", png: picture)), .text("words"))
+        // A caption beside a picture (a browser's alt text, shapes from a window whose clipboard kept no private
+        // type) leaves the picture; text an editor copied (with HTML or RTF beside it) stays text.
+        XCTAssertEqual(deck.pasteChoice(for: ClipboardData(text: "words", png: picture)), .picture(picture))
+        XCTAssertEqual(deck.pasteChoice(for: ClipboardData(text: "words", html: "<p>words</p>", png: picture)), .text("words"))
         Clipboard.setData(ClipboardData(text: nil, png: picture))
         ctrlV(ui); drain(ui)
         XCTAssertEqual(deck.currentSlide.shapes.count, n + 1)
@@ -105,5 +108,33 @@ final class SlideClipboardTests: XCTestCase {
         guard case .picture = pasted.kind else { return XCTFail("not a picture: \(pasted.kind)") }
         deck.undo()
         XCTAssertEqual(deck.currentSlide.shapes.count, n)
+    }
+
+    /// Shapes copied in one deck paste as shapes into another (another window, another process: only the
+    /// clipboard's bytes cross), at the same place, with their text, in one undo step.
+    func testShapesCrossToAnotherDeck() throws {
+        let source = DeckController()
+        let box = source.addTextBox(at: Rect.fromLTWH(100, 120, 200, 60))
+        box.text?.load(RichDocument(plainText: "Crossing over"))
+        source.selectShapes([box])
+        let data = source.shapesClipboardData(token: "slides:elsewhere:1")
+        let pptx = try XCTUnwrap(data.custom[DeckController.shapesPptxMime])
+        // As another process reads it: no in-memory copy, a token not its own.
+        let target = DeckController()
+        let n = target.currentSlide.shapes.count
+        XCTAssertEqual(target.pasteChoice(for: data), .deckShapes(pptx))
+        XCTAssertTrue(target.pasteOnSlide(data))
+        XCTAssertEqual(target.currentSlide.shapes.count, n + 1)
+        let pasted = try XCTUnwrap(target.selection.first)
+        XCTAssertEqual(pasted.text?.document.plainText(), "Crossing over")
+        XCTAssertEqual(pasted.frame.left, 100, accuracy: 0.01)
+        XCTAssertEqual(pasted.frame.top, 120, accuracy: 0.01)
+        target.undo()
+        XCTAssertEqual(target.currentSlide.shapes.count, n)
+        // Bytes that are not a deck fall back to the picture.
+        let broken = ClipboardData(text: "Crossing over", png: data.png,
+                                   custom: [DeckController.shapesPptxMime: Data("not a deck".utf8)])
+        XCTAssertTrue(target.pasteOnSlide(broken))
+        guard case .picture = try XCTUnwrap(target.selection.first).kind else { return XCTFail("not a picture") }
     }
 }

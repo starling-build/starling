@@ -5,13 +5,22 @@ import Foundation
 
 /// S-ED-1 step 2: shapes on the system clipboard.
 ///
-/// A copy of shapes puts three flavours there at once: their text (for any text field), a PNG of them (for any app
-/// that takes a picture, and for another deck), and `shapesMime` holding a token for this deck's copy. The shapes
-/// themselves stay in the deck (`shapeClipboard`): a picture names an image the deck holds, so the shapes paste back
-/// as shapes only into the deck they came from. A paste takes the best flavour it can: this deck's shapes, then the
-/// picture, then the text. A copy made anywhere since replaces the token, so a paste never brings back stale shapes.
+/// A copy of shapes puts four flavours there at once: their text (for any text field), a PNG of them (for any app
+/// that takes a picture), `shapesMime` holding a token for this deck's copy, and `shapesPptxMime` holding the shapes
+/// themselves as a one-slide deck, pictures and all, for another deck or another window of the app. A paste takes
+/// the best flavour it can: this deck's own copy (`shapeClipboard`, so a paste repeats exactly), then the shapes
+/// from the one-slide deck, then the picture, then the text. A copy made anywhere since replaces them all, so a
+/// paste never brings back stale shapes.
 extension DeckController {
     static let shapesMime = "application/x-starling-slides-shapes"
+    static let shapesPptxMime = "application/x-starling-slides-pptx"
+
+    /// Ask the clipboard to read Slides' private flavours along with the standard ones.
+    static func registerClipboardFormats() {
+        for mime in [shapesMime, shapesPptxMime] where !Clipboard.readFormats.contains(mime) {
+            Clipboard.readFormats.append(mime)
+        }
+    }
 
     private nonisolated(unsafe) static var _shapesSerial = 0
     private static let _processTag = String(UInt64.random(in: 1 ... UInt64.max), radix: 36)
@@ -24,7 +33,22 @@ extension DeckController {
     /// The selection as clipboard flavours: the text of its shapes, a picture of it, and `token`.
     func shapesClipboardData(token: String) -> ClipboardData {
         let text = selection.compactMap { $0.text?.document.plainText() }.filter { !$0.isEmpty }.joined(separator: "\n")
-        return ClipboardData(text: text, png: selectionPng(), custom: [DeckController.shapesMime: Data(token.utf8)])
+        var custom = [DeckController.shapesMime: Data(token.utf8)]
+        custom[DeckController.shapesPptxMime] = shapesPptx(copySelection())
+        return ClipboardData(text: text, png: selectionPng(), custom: custom)
+    }
+
+    /// `states` as a .pptx of one blank slide this deck's size, in this deck's theme.
+    func shapesPptx(_ states: [ShapeState]) -> Data? {
+        guard !states.isEmpty else { return nil }
+        let slide = SlideState(id: 1, layout: .blank, hidden: false, notes: RichDocument(), shapes: states)
+        return try? PptxWriter.write(DeckState(slides: [slide], current: 0, slideSize: slideSize), theme: theme, package: nil)
+    }
+
+    /// The shapes of `shapesPptx`'s first slide, or nil when `data` is not such a deck.
+    static func shapes(fromPptx data: Data) -> [ShapeState]? {
+        guard let (state, _, _) = try? Pptx.read(data), let shapes = state.slides.first?.shapes, !shapes.isEmpty else { return nil }
+        return shapes
     }
 
     /// A picture of the selected shapes, cropped to them, at two pixels a point. A lone picture is its own PNG.
@@ -49,17 +73,24 @@ extension DeckController {
         return try? image.toByteData(format: .png)
     }
 
-    enum ClipboardPaste: Equatable { case shapes, picture(Data), text(String), nothing }
+    enum ClipboardPaste: Equatable { case shapes, deckShapes(Data), picture(Data), text(String), nothing }
 
     /// What a paste onto the slide makes of `data`: this deck's shapes when the token is this deck's last copy;
-    /// otherwise a picture when there is one and either no text or shapes copied elsewhere (their text is only
-    /// a stand-in); otherwise the text.
+    /// shapes copied in another deck or window when their one-slide deck came along; otherwise a picture when
+    /// there is one and the text is not text in its own right; otherwise the text.
+    ///
+    /// Text beside a picture is only a stand-in when there is no text in a richer form: an editor that copies text
+    /// puts it as HTML or RTF too, while shapes, a screenshot or a picture from a browser bring a plain caption at
+    /// most. (A copy of shapes from another Starling window comes as text and picture alone where the system
+    /// clipboard keeps no private type, so it pastes as the picture, as PowerPoint pastes shapes from another app.)
     func pasteChoice(for data: ClipboardData?) -> ClipboardPaste {
         guard let data else { return .nothing }
         let token = data.custom[DeckController.shapesMime].map { String(decoding: $0, as: UTF8.self) }
         if let token, token == shapeClipboardToken, canPasteShapes { return .shapes }
+        if let pptx = data.custom[DeckController.shapesPptxMime], !pptx.isEmpty { return .deckShapes(pptx) }
         let text = data.text ?? ""
-        if let png = data.png, !png.isEmpty, text.isEmpty || token != nil { return .picture(png) }
+        let richText = data.html != nil || data.rtf != nil
+        if let png = data.png, !png.isEmpty, text.isEmpty || token != nil || !richText { return .picture(png) }
         return text.isEmpty ? .nothing : .text(text)
     }
 
@@ -69,15 +100,26 @@ extension DeckController {
         switch pasteChoice(for: data) {
         case .shapes:
             return pasteShapes()
+        case .deckShapes(let pptx):
+            if let states = DeckController.shapes(fromPptx: pptx) {
+                paste(states, offset: 0)
+                return true
+            }
+            guard let png = data?.png, !png.isEmpty else { return false }
+            return _pastePicture(png)
         case .picture(let png):
-            guard let size = ImageAttachment.pngPixelSize(png) else { return false }
-            // Pixels read as 96 per inch, the convention pictures use.
-            let w = Double(size.width) * 0.75, h = Double(size.height) * 0.75
-            let image = ImageAttachment(data: png, width: w, height: h, name: "Picture", naturalWidth: w, naturalHeight: h)
-            addPicture(image, naturalSize: Size(w, h))
-            return true
+            return _pastePicture(png)
         case .text, .nothing:
             return false
         }
+    }
+
+    private func _pastePicture(_ png: Data) -> Bool {
+        guard let size = ImageAttachment.pngPixelSize(png) else { return false }
+        // Pixels read as 96 per inch, the convention pictures use.
+        let w = Double(size.width) * 0.75, h = Double(size.height) * 0.75
+        let image = ImageAttachment(data: png, width: w, height: h, name: "Picture", naturalWidth: w, naturalHeight: h)
+        addPicture(image, naturalSize: Size(w, h))
+        return true
     }
 }

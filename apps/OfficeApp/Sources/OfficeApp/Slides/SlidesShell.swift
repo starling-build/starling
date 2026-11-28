@@ -1311,7 +1311,7 @@ final class SlidesShellState: State<StatefulWidget> {
 
     /// A paste with nothing being edited: this deck's shapes, a picture, or nothing (S-ED-1; see SlidesClipboard.swift).
     private func _pasteOnSlide() {
-        if !Clipboard.readFormats.contains(DeckController.shapesMime) { Clipboard.readFormats.append(DeckController.shapesMime) }
+        DeckController.registerClipboardFormats()
         Clipboard.getData(Clipboard.kAll) { [weak self] data in
             DispatchQueue.main.async { self?.deck.pasteOnSlide(data) }
         }
