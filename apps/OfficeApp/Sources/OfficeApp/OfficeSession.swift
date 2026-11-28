@@ -137,9 +137,17 @@ final class OfficeSession {
     func imageTab(at index: Int?, inline id: String? = nil) -> RibbonTab {
         guard let i = index, i < controller.document.paragraphs.count,
               let image = id.map({ controller.document.paragraphs[i].inlineImages[$0] }) ?? controller.document.paragraphs[i].image else { return .pictureFormat }
+        // W-TB-5: a table nested in a cell is a table, not a shape (its block has no size of its own to show).
+        if id == nil, isNestedTableBlock(i) { return .tableLayout }
         return image.outline != nil || image.textBox != nil ? .shapeFormat : .pictureFormat
     }
     var imageTab: RibbonTab { imageTab(at: summary.imageIndex, inline: summary.inlineImageID) }
+    /// Paragraph `i` is the block holding a table nested in a cell (editable or kept as read).
+    func isNestedTableBlock(_ i: Int) -> Bool {
+        guard i < controller.document.paragraphs.count else { return false }
+        let p = controller.document.paragraphs[i]
+        return p.cell != nil && p.keptTable != nil && p.image?.textBox != nil
+    }
     /// The chart the selection holds in a Word document, where it can be edited (Chart Design).
     var wordChart: (image: ImageAttachment, chart: Chart)? {
         guard kind == .document,

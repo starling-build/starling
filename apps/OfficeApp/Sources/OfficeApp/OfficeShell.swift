@@ -119,6 +119,8 @@ final class OfficeShellState: State<StatefulWidget> {
     /// while `session.controller` is the box's.
     var _boxEdit: (index: Int, inline: String?, rect: Rect, main: RichDocumentController, autoFit: Bool, child: Int?)?
     var _boxContentHeight: Double?
+    /// W-TB-5: where in the box editor the click that opened it landed (a table nested in a cell), for the caret.
+    var _boxCaretAt: Offset?
     private let _boxFocus = FocusNode(debugLabel: "Text box")
     /// Set while the picker is open for Change Picture: the picture (paragraph, inline id) the chosen file replaces.
     private var _replaceTarget: (index: Int, inline: String?)?
@@ -320,7 +322,7 @@ final class OfficeShellState: State<StatefulWidget> {
         // A picture or shape, whole-paragraph or inline in a line of text: its size, wrap, crop and aspect, and for a shape its colours.
         let hit = c.selectedInlineImage
         let pic: (index: Int, inline: String?)? = c.selectedImageIndex.map { ($0, nil) } ?? hit.map { ($0.paragraph, $0.id) }
-        if let (i, inline) = pic, i < c.document.paragraphs.count,
+        if let (i, inline) = pic, i < c.document.paragraphs.count, inline != nil || !session.isNestedTableBlock(i),
            let image = inline.map({ c.document.paragraphs[i].inlineImages[$0] }) ?? c.document.paragraphs[i].image {
             let isShape = session.imageTab(at: i, inline: inline) == .shapeFormat
             let wrap = c.pictureWrap(at: i, inline: inline)
@@ -2771,7 +2773,8 @@ final class OfficeShellState: State<StatefulWidget> {
             onBoxRect: _boxEdit == nil ? nil : { [weak self] r in
                 guard let self, let r, let b = self._boxEdit, b.rect != r else { return }
                 self.setState { self._boxEdit?.rect = r }
-            }
+            },
+            onNestedTableEnter: { [weak self] index, rect, at in self?._enterBox(index, nil, rect, at: at) }
         )
         guard let b = _boxEdit else {
             return WriterAccessibility.wrap(editable, controller: controller, focused: _editorFocus.hasFocus)
@@ -2780,19 +2783,23 @@ final class OfficeShellState: State<StatefulWidget> {
         // The shape's own frame (its line and fill) is drawn round the editor, so the frame grows with the words
         // instead of staying the size the page was laid out at.
         let frame = (b.child != nil ? nil : b.index < b.main.document.paragraphs.count ? b.main.document.paragraphs[b.index].image?.outline : nil).flatMap { $0.kind == .box ? $0 : nil }
+        // A table nested in a cell has no inset: its cells stay where the page draws them.
+        let nested = b.child == nil && b.inline == nil && b.main.isNestedTable(at: b.index)
+        let inset = nested ? 0 : 1.0
         let boxEditor = RichEditable(
             controller: controller, theme: theme,
-            padding: EdgeInsets(left: 7.2 * z, top: 3.6 * z, right: 7.2 * z, bottom: 3.6 * z),
+            padding: EdgeInsets(left: 7.2 * z * inset, top: 3.6 * z * inset, right: 7.2 * z * inset, bottom: 3.6 * z * inset),
             focusNode: _boxFocus, backgroundColor: frame?.fill ?? Color(0xFFFFFFFF), zoom: z,
             onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
             scrolls: false,
             onContentHeight: { [weak self] h in
                 guard let self, self._boxEdit != nil, self._boxContentHeight != h else { return }
                 self.setState { self._boxContentHeight = h }
-            })
+            },
+            caretAt: _boxCaretAt)
         // A box that fits its text grows as the words do.
         var boxHeight = b.rect.height
-        if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z }
+        if let h = _boxContentHeight, b.autoFit { boxHeight = h + 7.2 * z * inset }
         return Stack(children: [
             Positioned(left: 0, top: 0, right: 0, bottom: 0, child: editable),
             // A press anywhere outside the box ends the edit (and still reaches the page under it).
@@ -2813,7 +2820,8 @@ final class OfficeShellState: State<StatefulWidget> {
 
     /// Start typing in the text box at `index`: the ribbon and the keys act on a controller over the box's own paragraphs
     /// until `_leaveBox` puts them back, as one undo step.
-    func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect) {
+    /// `at`: the click that opened it (this view's coordinates), where the caret goes.
+    func _enterBox(_ index: Int, _ inline: String?, _ rect: Rect, at: Offset? = nil) {
         let child = inline == nil ? controller.groupChild : nil
         guard _boxEdit == nil, var inside = (child != nil ? controller.groupChildTextDocument() : controller.textBoxDocument(at: index, inline: inline)) else { return }
         let main = controller
@@ -2828,6 +2836,7 @@ final class OfficeShellState: State<StatefulWidget> {
         setState {
             _boxEdit = (index, inline, rect, main, child == nil && main.textBoxAutoHeight(at: index, inline: inline), child)
             _boxContentHeight = nil
+            _boxCaretAt = at.map { Offset($0.dx - rect.left, $0.dy - rect.top) }
             session.controller = box
             session.summary = session.summarize()
         }
@@ -2851,6 +2860,11 @@ final class OfficeShellState: State<StatefulWidget> {
             let fitted = b.autoFit ? _boxContentHeight.map { ($0 + 7.2 * session.zoom) / session.zoom } : nil
             b.main.setTextBoxContent(at: b.index, inline: b.inline, document: box.document, contentXML: xml, rels: rels, height: fitted)
             }
+        }
+        if b.child == nil, b.inline == nil, b.main.isNestedTable(at: b.index), b.index + 1 < b.main.document.paragraphs.count,
+           b.main.document.paragraphs[b.index + 1].cell != nil {
+            // W-TB-5: leaving a nested table puts the caret in the outer cell under it, not on the table as an object.
+            b.main.moveTo(RichPosition(paragraph: b.index + 1, offset: 0), extend: false)
         }
         setState { session.summary = session.summarize() }
         ScreenReader.announce("Text box saved")

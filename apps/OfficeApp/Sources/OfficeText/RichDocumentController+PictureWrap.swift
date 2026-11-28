@@ -721,6 +721,9 @@ extension RichDocumentController {
         return Self._textBoxDocument(of: image)
     }
 
+    /// W-TB-5: paragraph `index` is a table nested in a cell that the editor can open for typing (one click does, as in Word).
+    public func isNestedTable(at index: Int) -> Bool { _nestedTableDocument(at: index) != nil }
+
     /// W-TB-5: the table nested in a cell at `index` (a block the reader or `insertTable` made, its markup kept for the
     /// save) as a small document to edit, when the editor writes back all it holds: no picture, field box or
     /// content control, not floating, and no table in its own cells.
