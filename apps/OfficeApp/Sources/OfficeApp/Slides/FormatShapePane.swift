@@ -102,18 +102,21 @@ final class FormatShapePaneState: State<StatefulWidget> {
                                     max($0.right, s.frame.right), max($0.bottom, s.frame.bottom)) } ?? s.frame
         }
         func gap(_ h: Double) -> Widget { SizedBox(width: nil, height: h, child: nil) }
-        /// A numeric row: applies on Enter, and puts the shown value back when the text is not a number.
+        /// A numeric row: applies on Enter or on leaving the box (Tab, a click elsewhere), as PowerPoint's pane does, and
+        /// puts the shown value back when the text is not a number.
         func row(_ id: String, _ label: String, _ shown: String, min lo: Double, unit: String? = nil, _ apply: @escaping (Double) -> Void) -> Widget {
             let c = _field(id, shown)
+            let submit: (String) -> Void = { [weak self] text in
+                let t = FormatShapePaneState.digits(text)
+                if let v = Double(t), v >= lo, v < 100000 { apply(v) }
+                else { c.text = shown; self?._shown[id] = shown }
+            }
             return Row(children: [
                 SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
                 SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
-                    onSubmitted: { [weak self] text in
-                        let t = FormatShapePaneState.digits(text)
-                        if let v = Double(t), v >= lo, v < 100000 { apply(v) }
-                        else { c.text = shown; self?._shown[id] = shown }
-                    }, enabled: some)),
+                    onSubmitted: submit, enabled: some,
+                    onFocusChanged: { focused in if !focused, c.text != shown { submit(c.text) } })),
                 SizedBox(width: 6, height: nil, child: Text(unit ?? (id.hasSuffix("rotation") ? "°" : "pt"), style: caption)),
             ])
         }
@@ -121,14 +124,16 @@ final class FormatShapePaneState: State<StatefulWidget> {
         func hexRow(_ id: String, _ label: String, _ colour: Color?, enabled: Bool, _ apply: @escaping (Color) -> Void) -> Widget {
             let shown = colour.map { Self.hex($0) } ?? ""
             let c = _field(id, shown)
+            let submit: (String) -> Void = { [weak self] text in
+                if let v = Self.parseHex(text) { apply(Color((colour.map { Int64($0.value) & 0xFF00_0000 } ?? Int64(0xFF00_0000)) | Int64(v))) }
+                else { c.text = shown; self?._shown[id] = shown }
+            }
             return Row(children: [
                 SizedBox(width: 110, height: nil, child: Text(label, style: caption)),
                 SizedBox(key: ValueKey(id), width: 90, height: Chrome.fieldHeight, child: FluentTextBox(
                     controller: c,
-                    onSubmitted: { [weak self] text in
-                        if let v = Self.parseHex(text) { apply(Color((colour.map { Int64($0.value) & 0xFF00_0000 } ?? Int64(0xFF00_0000)) | Int64(v))) }
-                        else { c.text = shown; self?._shown[id] = shown }
-                    }, enabled: enabled)),
+                    onSubmitted: submit, enabled: enabled,
+                    onFocusChanged: { focused in if !focused, c.text != shown { submit(c.text) } })),
             ])
         }
         let drawn = deck.selection.filter { $0.preset?.isLine != true }
@@ -258,6 +263,20 @@ final class FormatShapePaneState: State<StatefulWidget> {
         }
         gr.append(gap(14))
         let gradient = Column(crossAxisAlignment: .start, children: gr)
+        // Picture: its transparency, by slider or typed percent (PowerPoint's Format Picture > Picture Transparency).
+        let pictureAlpha = deck.selection.first { $0.picture != nil }?.pictureAlpha
+        let picture: Widget = pictureAlpha.map { a in
+            let percent = ((1 - a) * 100).rounded()
+            return Column(crossAxisAlignment: .start, children: [
+                Text("Picture", style: fluent.typography.bodyStrong), gap(10),
+                Text("Picture Transparency", style: caption), gap(4),
+                SizedBox(key: ValueKey("fmt.pic.alpha.slider"), width: 240, height: nil, child: Slider(
+                    value: percent, onChanged: { deck.setPictureTransparencyLive($0.rounded()) },
+                    onChangeEnd: { _ in deck.endPictureTransparencyDrag() }, min: 0, max: 100)), gap(6),
+                row("fmt.pic.alpha", "Transparency", Self.text(percent), min: 0, unit: "%") { deck.setPictureTransparency(min(100, $0)) },
+                gap(14),
+            ])
+        } ?? SizedBox(width: nil, height: 0, child: nil)
         let body = Column(crossAxisAlignment: .start, children: [
             Text("Fill & Line", style: fluent.typography.bodyStrong), gap(10),
             Text("Fill", style: caption), gap(4),
@@ -297,7 +316,7 @@ final class FormatShapePaneState: State<StatefulWidget> {
                     deck.setLineEnd(start: false, kind: Self.arrowKinds[(at + 1) % Self.arrowKinds.count].0)
                 } : nil, child: Text(Self.arrowKinds.first { $0.0 == first?.tailEnd?.kind }?.1 ?? first?.tailEnd?.kind ?? "None"))),
             ]), gap(14),
-            Text("Size & Properties", style: fluent.typography.bodyStrong), gap(10),
+            picture, Text("Size & Properties", style: fluent.typography.bodyStrong), gap(10),
             Text("Size", style: caption), gap(4),
             row("fmt.height", "Height", _common { $0.frame.height }, min: 1) { deck.setSize(height: $0) }, gap(6),
             row("fmt.width", "Width", _common { $0.frame.width }, min: 1) { deck.setSize(width: $0) }, gap(6),
