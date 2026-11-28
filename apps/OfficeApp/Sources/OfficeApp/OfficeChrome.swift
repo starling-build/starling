@@ -382,6 +382,12 @@ enum Chrome {
 
     /// A labelled value with −/+ buttons: NumberBox without typing, which
     /// keeps keyboard focus in the document.
+    /// A number as a box shows it: at most two decimals, none when whole (10.5, 1.08, 12; never 1.0791666666666666).
+    static func shortNumber(_ d: Double) -> String {
+        let r = (d * 100).rounded() / 100
+        return r == r.rounded() ? String(Int(r)) : String(r)
+    }
+
     static func spinner(_ label: String, _ value: Double, _ fluent: FluentThemeData, step: Double,
                         unit: String = "pt", minimum: Double = 0, shown: String? = nil,
                         onChanged: @escaping (Double) -> Void) -> Widget {
@@ -390,7 +396,7 @@ enum Chrome {
             icon(FluentSystemIcons.chevronDown, "Decrease", fluent, keepsPopupOpen: true) { onChanged(max(minimum, value - step)) },
             // `shown` is the value as the caller writes it, where a whole
             // number of `unit` is not how it reads (0.75 s).
-            SizedBox(width: 48, height: nil, child: Text(shown ?? "\(Int(value.rounded())) \(unit)", style: fluent.typography.caption)),
+            SizedBox(width: 48, height: nil, child: Text(shown ?? "\(shortNumber(value)) \(unit)", style: fluent.typography.caption)),
             icon(FluentSystemIcons.chevronUp, "Increase", fluent, keepsPopupOpen: true) { onChanged(value + step) },
         ])
     }
