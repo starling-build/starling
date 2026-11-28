@@ -750,7 +750,7 @@ final class Ribbon: StatelessWidget {
         let inCell = c.isInCell
         var items: [MenuFlyoutItemBase] = []
         items.append(TableGridMenuItem(onChoose: { [session] rows, cols in
-            c.insertTable(rows: rows, columns: cols)
+            c.insertTable(rows: rows, columns: cols, textWidth: session.pageSetup.contentWidth)
             session.onStatus?("Inserted a \(cols) × \(rows) table")
         }))
         items.append(MenuFlyoutSeparator())

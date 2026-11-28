@@ -139,7 +139,9 @@ final class CellBordersTests: XCTestCase {
     func testTwoTablesNeverTouch() throws {
         let c = RichDocumentController(plainText: "")
         c.insertTable(rows: 2, columns: 2)
-        c.insertTable(rows: 2, columns: 3, fit: .window)   // caret is in the first table
+        // (With the caret in a cell, Insert Table nests the new one there, as Word does: NestedTableTests.)
+        c.moveTo(RichPosition(paragraph: c.document.paragraphs.count - 1, offset: 0), extend: false)
+        c.insertTable(rows: 2, columns: 3, fit: .window)   // on the empty paragraph after the first table
         c.moveTo(RichPosition(paragraph: c.document.paragraphs.count - 1, offset: 0), extend: false)
         c.insertTable(rows: 1, columns: 1)                 // on the empty paragraph after a table
         let ps = c.document.paragraphs
