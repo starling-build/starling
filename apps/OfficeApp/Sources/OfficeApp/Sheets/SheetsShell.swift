@@ -1745,6 +1745,8 @@ final class SheetsShellState: State<StatefulWidget> {
         case "\u{1B}":
             if _pageSetupOpen { setState { _pageSetupOpen = false }; return true }
             if _symbolOpen { setState { _symbolOpen = false }; _grid?.focus.requestFocus(); return true }
+            // Esc leaves the File page, as in Word and PowerPoint.
+            if _backstage != nil { setState { _backstage = nil }; return true }
             return false
         default: return false
         }

@@ -93,12 +93,13 @@ final class Backstage: StatelessWidget {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        return ColoredBox(color: OfficeAppearance.surface(fluent), child: Row(
+        // The page covers the ribbon and the document: a screen reader must not read or focus them through it.
+        return BlockSemantics(child: ColoredBox(color: OfficeAppearance.surface(fluent), child: Row(
             crossAxisAlignment: .stretch, children: [
                 _rail(fluent),
                 Expanded(child: Padding(padding: EdgeInsets(left: 40, top: 32, right: 40, bottom: 32),
                                         child: _content(fluent))),
-            ]))
+            ])))
     }
 
     // MARK: Rail

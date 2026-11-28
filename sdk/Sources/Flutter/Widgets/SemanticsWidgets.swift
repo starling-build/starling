@@ -64,6 +64,24 @@ public class ExcludeSemantics: SingleChildRenderObjectWidget {
     }
 }
 
+/// Drops the semantics of everything painted before it under the same parent (a page or a sheet that
+/// covers the window: assistive technology then reads only the cover).
+///
+/// **Dart Source:** `basic.dart` (BlockSemantics)
+public class BlockSemantics: SingleChildRenderObjectWidget {
+    public let blocking: Bool
+    public init(key: (any Key)? = nil, blocking: Bool = true, child: Widget? = nil) {
+        self.blocking = blocking
+        super.init(key: key, child: child)
+    }
+    public override func createRenderObject(_ context: any BuildContext) -> RenderObject {
+        RenderBlockSemantics(blocking: blocking)
+    }
+    public override func updateRenderObject(_ context: any BuildContext, renderObject: RenderObject) {
+        (renderObject as! RenderBlockSemantics).blocking = blocking
+    }
+}
+
 extension Semantics {
     public convenience init(
         key: (any Key)? = nil,

@@ -42,26 +42,43 @@ public enum SemanticsSnapshot {
         return (ro, cfg)
     }
 
-    private static func walk(_ e: Element, _ out: inout [SemanticsSnapshotNode]) {
+    /// Returns whether the subtree holds a blocking node (BlockSemantics) that has not yet met a node of its
+    /// own: the caller then drops what its earlier children emitted, as Flutter drops previously painted nodes.
+    @discardableResult
+    private static func walk(_ e: Element, _ out: inout [SemanticsSnapshotNode]) -> Bool {
+        var blocks = false
+        var emitted = false
         if let (ro, cfg) = config(of: e) {
-            if let x = ro as? RenderExcludeSemantics, x.excluding { return }
+            if let x = ro as? RenderExcludeSemantics, x.excluding { return false }
             if let a = ro as? RenderSemanticsAnnotations, a.excludeSemantics {
                 if cfg.hasBeenAnnotated { out.append(node(cfg, mergedLabel: nil, ro: ro)) }
-                return
+                return false
             }
+            if cfg.isBlockingSemanticsOfPreviouslyPaintedNodes { blocks = true }
             if cfg.isMergingSemanticsOfDescendants {
                 var parts: [String] = []
                 var tap: VoidCallback? = cfg.onTap
                 var merged = cfg
                 collect(e, &parts, &tap, &merged, isRoot: true)
                 out.append(node(merged, mergedLabel: parts.joined(separator: " "), tap: tap, ro: ro))
-                return
+                return blocks
             }
             if cfg.hasBeenAnnotated, !(cfg.label.isEmpty && cfg.onTap == nil && cfg.value.isEmpty && !cfg.isTextField && !cfg.isButton) {
                 out.append(node(cfg, mergedLabel: nil, ro: ro))
+                emitted = true
             }
         }
-        e.visitChildElements { walk($0, &out) }
+        let start = out.count
+        var childBlocks = false
+        e.visitChildElements { child in
+            let before = out.count
+            if walk(child, &out) {
+                out.removeSubrange(start..<before)
+                childBlocks = true
+            }
+        }
+        // A node of this element's own bounds the block, so it reaches no further up.
+        return blocks || (childBlocks && !emitted)
     }
 
     /// Gathers the labels and the first tap action below a merge point.
