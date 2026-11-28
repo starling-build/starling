@@ -1,0 +1,56 @@
+# Writer comments in the margin (W-RV-1): balloons beside the page, the card (edit, Reply, Resolve, Delete),
+# Show Comments, and Cmd+Option+A.
+# Run with OFFICE_FILE=lab/comments2/balloons-ui.docx (three comments: "first", "second", "third, ..."), window 1440x932.
+# Delete any balloons-ui.docx~ first.
+# Harness points at 1440x932 (mac-ipad runs with STARLING_WINDOW_H=932), from the Linux harness:
+# balloons x 1019-1237, "first" 342-385, "second" 391-434, "third" 439-483. A balloon's card opens over it,
+# 240 wide: its text box 1139,377, reply box 1139,410, Reply 1048,445, Resolve 1104,445, Delete 1163,445
+# (card points are for the first balloon; another balloon's card is the same, moved down by its top).
+# Review tab 363,81; Show Comments 368,130.
+# Every click is followed by a picture, so a miss shows at once.
+wait 1500
+shot ${OUT}/cb-00-balloons.png
+# Resolve the second comment from its card (its card stands 49 lower than the first's): it greys and says Resolved.
+click 1128 400
+wait 400
+shot ${OUT}/cb-01-card-second.png
+click 1104 494
+wait 400
+shot ${OUT}/cb-02-resolved.png
+# Open the first comment's card: its text box takes the keys at once. Edit it, then reply.
+click 1128 350
+wait 400
+shot ${OUT}/cb-03-card.png
+key end
+type  Really?
+click 1139 410
+type A reply.
+wait 200
+shot ${OUT}/cb-04-typed.png
+click 1048 445
+wait 400
+shot ${OUT}/cb-05-replied.png
+# Escape closes a card without changing anything.
+click 1128 350
+wait 300
+key escape
+wait 300
+shot ${OUT}/cb-06-escape.png
+# Cmd+Option+A comments on the word at the caret (the New Comment dialog opens with its box focused).
+click 400 300
+key right alt
+chord cmd,alt a
+wait 400
+type Shortcut comment.
+click 828 560
+wait 400
+shot ${OUT}/cb-07-shortcut.png
+# Review > Show Comments hides the balloons and the page moves back to the middle; again shows them.
+click 363 81
+wait 400
+click 368 130
+wait 400
+shot ${OUT}/cb-08-hidden.png
+click 368 130
+wait 400
+shot ${OUT}/cb-09-shown.png

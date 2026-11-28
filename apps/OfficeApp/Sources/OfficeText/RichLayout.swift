@@ -41,6 +41,8 @@ public final class RichTextTheme {
     /// before any change (Original). On screen only: a print keeps its own markup.
     public enum Markup: Sendable { case all, simple, none, original }
     public var markup: Markup = .all
+    /// Review > Show Comments: in All Markup, the comments in balloons in a strip right of the pages (`CommentMargin`).
+    public var showComments = true
     /// Maps a family name in the document to the family the engine draws
     /// with. The document keeps its own names — "Times New Roman" stays
     /// so, and is written back — while the app decides which shipped face

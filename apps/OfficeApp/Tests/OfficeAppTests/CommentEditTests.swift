@@ -43,7 +43,7 @@ final class CommentEditTests: XCTestCase {
         XCTAssertTrue(comments.containsSubstring("w:author=\"Ada Lovelace\""), comments)
         XCTAssertTrue(comments.containsSubstring("w:initials=\"AL\""), comments)
         XCTAssertEqual(again.comments(), [.init(id: "0", author: "Ada Lovelace", initials: "AL", date: "2026-11-28T10:00:00Z",
-                                                text: "Is this right?\nSecond line & more")])
+                                                text: "Is this right?\nSecond line & more", paraId: "3C000002")])
         XCTAssertEqual(again.commentRanges().map(\.start.offset), [6])
         XCTAssertEqual(again.commentRanges().map(\.end.offset), [15])
         // One undo step takes the comment and its text away together.

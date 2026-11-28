@@ -358,6 +358,7 @@ final class Ribbon: StatelessWidget {
                     if c.selectAdjacentComment(forward: true) { showComment() } else { session.onStatus?("The document has no comments") }
                 },
             ]),
+            Chrome.bigToggle(FluentSystemIcons.comment, "Show Comments", session.theme.showComments, fluent) { [session] in session.onShowComments?() },
         ])
         return [proofing, comments, tracking, changes]
     }

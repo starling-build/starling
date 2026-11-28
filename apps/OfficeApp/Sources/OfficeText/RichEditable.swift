@@ -57,6 +57,8 @@ public final class RichEditable: StatefulWidget {
     public let onLinkActivate: ((String) -> Void)?
     /// A click in a note on the page, or a double-click on a note's mark: the note and its box in window coordinates.
     public let onNoteActivate: ((NoteReference, Rect) -> Void)?
+    /// A click on a comment's balloon in the markup area: the comment's id and the balloon in window coordinates.
+    public let onCommentActivate: ((String, Rect) -> Void)?
     /// A pointer selection gesture ended (click, drag, double or triple click)
     /// — when Word's Format Painter applies (a bare click may leave no selection).
     public let onSelectionGestureEnd: (() -> Void)?
@@ -100,6 +102,7 @@ public final class RichEditable: StatefulWidget {
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
                 onNoteActivate: ((NoteReference, Rect) -> Void)? = nil,
+                onCommentActivate: ((String, Rect) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
                 onHeaderFooterEdit: ((KeptHeaderFooter.Kind) -> Void)? = nil,
                 onContextMenu: ((Offset) -> Void)? = nil,
@@ -132,6 +135,7 @@ public final class RichEditable: StatefulWidget {
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
         self.onNoteActivate = onNoteActivate
+        self.onCommentActivate = onCommentActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
         self.onHeaderFooterEdit = onHeaderFooterEdit
         self.onContextMenu = onContextMenu
@@ -169,6 +173,8 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _viewport = Size.zero
     /// Where the canvas's left edge sits in the widget (pages are centred).
     private var _originX = 0.0
+    /// The comment balloons as last painted (canvas coordinates), for the pointer.
+    private var _balloons: [CommentMargin.Balloon] = []
     private var _lastPageInfo = (0, 0)
     private var _stickyX: Double?
 
@@ -756,6 +762,17 @@ public final class RichEditableState: State<StatefulWidget> {
         open(box.localToGlobal(Offset(b.left + _originX, b.bottom + _w.padding.top - _scrollY)))
     }
 
+    private func _balloon(at local: Offset) -> CommentMargin.Balloon? {
+        let p = _canvasPoint(local)
+        return _balloons.first { $0.rect.contains(p) }
+    }
+
+    /// The comment balloons as last painted, in window coordinates (for tests).
+    public var commentBalloonsForTesting: [(id: String, rect: Rect)] {
+        let at = (context?.findRenderObject() as? RenderBox)?.localToGlobal(Offset.zero) ?? Offset.zero
+        return _balloons.map { ($0.id, $0.rect.shift(Offset(_originX + at.dx, _w.padding.top - _scrollY + at.dy))) }
+    }
+
     private func _canvasPoint(_ local: Offset) -> Offset {
         Offset(local.dx - _originX, local.dy + _scrollY - _w.padding.top)
     }
@@ -1133,6 +1150,14 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _pointerDown(_ event: PointerEvent) {
         if let b = _pasteButtonRect(), b.contains(_canvasPoint(event.localPosition)) {
             _openPasteOptions()
+            return
+        }
+        // A comment's card in the margin opens it for editing (left button or a finger).
+        if event.kind == .touch || event.buttons & 1 != 0, !_chords.shift,
+           let activate = _w.onCommentActivate, let b = _balloon(at: event.localPosition) {
+            activate(b.id, Rect.fromLTWH(b.rect.left + _originX + event.position.dx - event.localPosition.dx,
+                                         b.rect.top + _w.padding.top - _scrollY + event.position.dy - event.localPosition.dy,
+                                         b.rect.width, b.rect.height))
             return
         }
         _textDrag = nil
@@ -1830,7 +1855,11 @@ public final class RichEditableState: State<StatefulWidget> {
         _syncLayout()
         _clampScroll()
         let canvasW = _layout.canvasSize.width
-        _originX = _w.pageSetup == nil ? pad.left : max(pad.left, ((size.width - canvasW) / 2).rounded())
+        // (Word's markup area: with comments to show, the pages move left to leave their balloons a strip.)
+        let threads = _w.pageSetup != nil && _layout.theme.markup == .all && _layout.theme.showComments
+            && _shownDocument.keptParts[RichDocumentController.commentsPart] != nil ? _controller.commentThreads() : []
+        let marginW = threads.isEmpty ? 0 : CommentMargin.width(_layout)
+        _originX = _w.pageSetup == nil ? pad.left : max(pad.left, ((size.width - canvasW - marginW) / 2).rounded())
 
         if let bg = _w.backgroundColor {
             let paint = Paint()
@@ -1927,6 +1956,13 @@ public final class RichEditableState: State<StatefulWidget> {
                 canvas.drawLine(tip, Offset(tip.dx - dx * h - dy * h, tip.dy - dy * h - dx * h), ink)
                 canvas.drawLine(tip, Offset(tip.dx - dx * h + dy * h, tip.dy - dy * h + dx * h), ink)
             }
+        }
+        // Comments: the shaded text, and its balloon beside the page joined to it by a dashed line.
+        _balloons = threads.isEmpty ? [] : CommentMargin.layout(threads, layout: _layout, document: _shownDocument, left: canvasW)
+        if !_balloons.isEmpty {
+            CommentMargin.paint(_balloons, canvas: canvas, visible: visible, pageRight: canvasW,
+                                current: _controller.currentComment().map { c in _controller.commentRoot(c.id) },
+                                px: _layout.theme.pixelsPerPoint * _layout.scale)
         }
         // Tracked changes: a change bar beside each changed line, as Word draws it.
         let bars = _layout.canvasChangeBars(_shownDocument, visible: visible)
